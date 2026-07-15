@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
-const db = require('./db');
+const { ready } = require('./db');
 const { startScheduler } = require('./scheduler');
 
 const app = express();
@@ -15,7 +15,10 @@ app.use('/api/email-config', require('./routes/emailConfig'));
 app.use('/api/areas', require('./routes/areas'));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Painel de projetos rodando em http://localhost:${PORT}`);
-  startScheduler();
+
+ready.then(() => {
+  app.listen(PORT, () => {
+    console.log(`Painel de projetos rodando em http://localhost:${PORT}`);
+    startScheduler();
+  });
 });
