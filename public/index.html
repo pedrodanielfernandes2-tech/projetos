@@ -129,11 +129,14 @@
         </div>
         <div class="form-row">
           <select id="np-tipo">
+            <option>Projeto</option>
+            <option>Release</option>
             <option>Melhoria</option>
             <option>Implantação</option>
             <option>Correção</option>
           </select>
           <select id="np-fase">
+            <option>Planejamento</option>
             <option>Levantamento</option>
             <option>Desenvolvimento</option>
             <option>Homologação</option>
@@ -152,6 +155,60 @@
         <div class="form-actions">
           <button type="button" id="btn-cancel-new-project" class="btn">Cancelar</button>
           <button type="submit" class="btn btn-primary">Salvar projeto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-edit-project" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Editar projeto</h2>
+      <form id="form-edit-project">
+        <input type="hidden" id="edit-id" />
+        <div class="form-row">
+          <input type="text" id="edit-nome" placeholder="Nome do projeto" required />
+          <input type="text" id="edit-chamado" placeholder="Nº do chamado" />
+        </div>
+        <div class="form-row">
+          <select id="edit-cliente"></select>
+          <select id="edit-gp"></select>
+        </div>
+        <div class="form-row">
+          <select id="edit-tipo">
+            <option>Projeto</option>
+            <option>Release</option>
+            <option>Melhoria</option>
+            <option>Implantação</option>
+            <option>Correção</option>
+          </select>
+          <select id="edit-fase">
+            <option>Planejamento</option>
+            <option>Levantamento</option>
+            <option>Desenvolvimento</option>
+            <option>Homologação</option>
+            <option>Concluído</option>
+          </select>
+        </div>
+        <p class="field-label">Prazo geral do projeto</p>
+        <div class="form-row">
+          <input type="date" id="edit-inicio" required />
+          <input type="date" id="edit-fim" required />
+        </div>
+        <div class="form-row">
+          <select id="edit-status-prazo">
+            <option value="automatico">Status do prazo: automático (pelas datas)</option>
+            <option value="bloqueado">Marcar como: bloqueado</option>
+            <option value="concluído">Marcar como: concluído</option>
+          </select>
+          <div>
+            <label class="field-label" style="display:block;">Progresso (%)</label>
+            <input type="number" id="edit-progresso" min="0" max="100" />
+          </div>
+        </div>
+        <input type="text" id="edit-resumo" placeholder="Resumo curto" class="full-width" />
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-edit-project" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
         </div>
       </form>
     </div>
