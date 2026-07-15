@@ -35,6 +35,16 @@
       <div class="admin-grid">
 
         <div class="panel">
+          <h2>Áreas</h2>
+          <p class="muted">Cadastre as áreas da empresa. Elas alimentam os filtros, o cadastro de GP e o cadastro de projetos.</p>
+          <div id="area-list" class="stack tight"></div>
+          <form id="form-area" class="form-row" style="margin-top:10px;">
+            <input type="text" id="area-nome" placeholder="Nome da área (ex: Marketing)" required />
+            <button type="submit" class="btn">Adicionar área</button>
+          </form>
+        </div>
+
+        <div class="panel">
           <h2>Gerentes de projeto</h2>
           <p class="muted">Cadastre o GP, o e-mail e as áreas que ele acompanha.</p>
           <div id="gp-list" class="stack tight"></div>
