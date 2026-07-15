@@ -1,31 +1,30 @@
 const express = require('express');
-const db = require('../db');
+const { pool } = require('../db');
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const rows = db.prepare('SELECT * FROM areas ORDER BY nome').all();
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query('SELECT nome FROM areas ORDER BY nome');
   res.json(rows.map(r => r.nome));
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   const { nome } = req.body;
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome da area obrigatorio' });
   try {
-    const info = db.prepare('INSERT INTO areas (nome) VALUES (?)').run(nome.trim());
-    res.status(201).json({ id: info.lastInsertRowid, nome: nome.trim() });
+    const { rows } = await pool.query('INSERT INTO areas (nome) VALUES ($1) RETURNING id, nome', [nome.trim()]);
+    res.status(201).json(rows[0]);
   } catch (e) {
     res.status(400).json({ error: 'ja existe uma area com esse nome' });
   }
 });
 
-router.delete('/:nome', (req, res) => {
+router.delete('/:nome', async (req, res) => {
   const nome = decodeURIComponent(req.params.nome);
-  const emUso = db.prepare('SELECT COUNT(*) AS n FROM area_tasks WHERE area = ?').get(nome).n
-    + db.prepare(`SELECT COUNT(*) AS n FROM gps WHERE areas LIKE ?`).get('%"' + nome + '"%').n;
-  if (emUso > 0) {
-    return res.status(400).json({ error: 'essa area esta em uso por projetos ou GPs e nao pode ser removida' });
+  const { rows: taskRows } = await pool.query('SELECT COUNT(*)::int AS n FROM area_tasks WHERE area = $1', [nome]);
+  if (taskRows[0].n > 0) {
+    return res.status(400).json({ error: 'essa area esta em uso por projetos e nao pode ser removida' });
   }
-  db.prepare('DELETE FROM areas WHERE nome = ?').run(nome);
+  await pool.query('DELETE FROM areas WHERE nome = $1', [nome]);
   res.json({ ok: true });
 });
 
