@@ -1,0 +1,20 @@
+{
+  "name": "gp-projetos",
+  "version": "1.0.0",
+  "description": "Plataforma de visibilidade de projetos entre areas (Dev, PDV, Visual Store, Integracao, Inovacao, Tesouraria)",
+  "type": "commonjs",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "nodemailer": "^6.9.14",
+    "node-cron": "^3.0.3"
+  }
+}
