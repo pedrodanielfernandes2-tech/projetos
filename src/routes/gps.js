@@ -1,35 +1,36 @@
 const express = require('express');
-const db = require('../db');
+const { pool } = require('../db');
 const router = express.Router();
 
-router.get('/', (req, res) => {
-  const rows = db.prepare('SELECT * FROM gps ORDER BY nome').all();
-  res.json(rows.map(r => ({ ...r, areas: JSON.parse(r.areas) })));
+router.get('/', async (req, res) => {
+  const { rows } = await pool.query('SELECT * FROM gps ORDER BY nome');
+  res.json(rows);
 });
 
-router.post('/', (req, res) => {
-  const { nome, email, areas } = req.body;
-  if (!nome || !email || !Array.isArray(areas) || areas.length === 0) {
-    return res.status(400).json({ error: 'nome, email e ao menos uma area sao obrigatorios' });
+router.post('/', async (req, res) => {
+  const { nome, email } = req.body;
+  if (!nome || !email) {
+    return res.status(400).json({ error: 'nome e email sao obrigatorios' });
   }
   try {
-    const stmt = db.prepare('INSERT INTO gps (nome, email, areas) VALUES (?, ?, ?)');
-    const info = stmt.run(nome, email, JSON.stringify(areas));
-    res.status(201).json({ id: info.lastInsertRowid, nome, email, areas });
+    const { rows } = await pool.query(
+      'INSERT INTO gps (nome, email) VALUES ($1, $2) RETURNING *',
+      [nome, email]
+    );
+    res.status(201).json(rows[0]);
   } catch (e) {
     res.status(400).json({ error: 'ja existe um GP com esse e-mail' });
   }
 });
 
-router.put('/:id', (req, res) => {
-  const { nome, email, areas } = req.body;
-  db.prepare('UPDATE gps SET nome = ?, email = ?, areas = ? WHERE id = ?')
-    .run(nome, email, JSON.stringify(areas || []), req.params.id);
+router.put('/:id', async (req, res) => {
+  const { nome, email } = req.body;
+  await pool.query('UPDATE gps SET nome = $1, email = $2 WHERE id = $3', [nome, email, req.params.id]);
   res.json({ ok: true });
 });
 
-router.delete('/:id', (req, res) => {
-  db.prepare('DELETE FROM gps WHERE id = ?').run(req.params.id);
+router.delete('/:id', async (req, res) => {
+  await pool.query('DELETE FROM gps WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
