@@ -25,6 +25,12 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS clientes (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL UNIQUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS gps (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
@@ -40,6 +46,8 @@ async function init() {
     CREATE TABLE IF NOT EXISTS projects (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
+      chamado TEXT DEFAULT '',
+      cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
       gp_id INTEGER REFERENCES gps(id) ON DELETE SET NULL,
       tipo TEXT DEFAULT 'Melhoria',
       fase TEXT DEFAULT 'Levantamento',
@@ -86,6 +94,10 @@ async function init() {
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,
   // ja que o GP agora e vinculado diretamente ao projeto (gp_id), nao mais por area.
   await pool.query('ALTER TABLE gps DROP COLUMN IF EXISTS areas;');
+
+  // Migracao: adiciona colunas novas em bancos criados por uma versao anterior.
+  await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS chamado TEXT DEFAULT '';");
+  await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL;');
 
   const areasIniciais = ['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria'];
   for (const nome of areasIniciais) {
