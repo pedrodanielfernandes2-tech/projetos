@@ -170,7 +170,10 @@ function renderProjectList() {
           <p class="card-title">${p.nome}${p.chamado ? ' <span style="color:var(--text-muted);font-weight:400;">· Chamado ' + p.chamado + '</span>' : ''}</p>
           <p class="card-sub">GP: ${p.gerente_nome || '-'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''} · ${p.tipo} · fase: ${p.fase}</p>
         </div>
-        <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
+          <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
+        </div>
       </div>
       <p class="card-resumo">${p.resumo || ''}</p>
       <div class="chip-row" style="margin-bottom:8px;">${areaTagsHtml}</div>
@@ -224,6 +227,7 @@ function renderProjectList() {
         renderProjectList();
       };
     });
+    card.querySelector('[data-edit-project]').onclick = () => openEditModal(p);
     el.appendChild(card);
   });
 }
@@ -253,9 +257,11 @@ async function refreshClientes() {
   populateClienteSelect();
 }
 function populateClienteSelect() {
-  const sel = document.getElementById('np-cliente');
-  sel.innerHTML = '<option value="">Sem cliente definido</option>' +
+  const options = '<option value="">Sem cliente definido</option>' +
     state.clientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+  document.getElementById('np-cliente').innerHTML = options;
+  const editSel = document.getElementById('edit-cliente');
+  if (editSel) editSel.innerHTML = options;
 }
 document.getElementById('form-cliente').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -389,9 +395,11 @@ document.getElementById('btn-open-new-project').onclick = () => modal.classList.
 document.getElementById('btn-cancel-new-project').onclick = () => modal.classList.add('hidden');
 
 function populateGpSelect() {
-  const sel = document.getElementById('np-gp');
-  sel.innerHTML = '<option value="">Sem GP definido</option>' +
+  const options = '<option value="">Sem GP definido</option>' +
     state.gps.map(gp => `<option value="${gp.id}">${gp.nome}</option>`).join('');
+  document.getElementById('np-gp').innerHTML = options;
+  const editSel = document.getElementById('edit-gp');
+  if (editSel) editSel.innerHTML = options;
 }
 function renderNewProjectAreaChips() {
   const el = document.getElementById('np-areas');
@@ -464,6 +472,62 @@ document.getElementById('form-new-project').addEventListener('submit', async (e)
     modal.classList.add('hidden');
     e.target.reset();
     renderNewProjectAreaChips();
+    await loadProjectsFiltered();
+    renderStats();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ---------- Edit project modal ----------
+const editModal = document.getElementById('modal-edit-project');
+document.getElementById('btn-cancel-edit-project').onclick = () => editModal.classList.add('hidden');
+
+function openEditModal(p) {
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('edit-nome').value = p.nome;
+  document.getElementById('edit-chamado').value = p.chamado || '';
+  document.getElementById('edit-cliente').value = p.cliente_id || '';
+  document.getElementById('edit-gp').value = p.gp_id || '';
+  document.getElementById('edit-tipo').value = p.tipo;
+  document.getElementById('edit-fase').value = p.fase;
+  document.getElementById('edit-inicio').value = p.data_inicio;
+  document.getElementById('edit-fim').value = p.data_fim;
+  document.getElementById('edit-resumo').value = p.resumo || '';
+  document.getElementById('edit-progresso').value = p.progresso;
+  const statusSel = document.getElementById('edit-status-prazo');
+  const atual = (p.status_prazo || '').toLowerCase();
+  statusSel.value = (atual === 'bloqueado' || atual === 'concluído' || atual === 'concluido') ? atual : 'automatico';
+  editModal.classList.remove('hidden');
+}
+
+document.getElementById('form-edit-project').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('edit-id').value;
+  const nome = document.getElementById('edit-nome').value.trim();
+  const chamado = document.getElementById('edit-chamado').value.trim();
+  const cliente_id = document.getElementById('edit-cliente').value || null;
+  const gp_id = document.getElementById('edit-gp').value || null;
+  const tipo = document.getElementById('edit-tipo').value;
+  const fase = document.getElementById('edit-fase').value;
+  const data_inicio = document.getElementById('edit-inicio').value;
+  const data_fim = document.getElementById('edit-fim').value;
+  const resumo = document.getElementById('edit-resumo').value.trim();
+  const progresso = Number(document.getElementById('edit-progresso').value) || 0;
+  const statusSelValue = document.getElementById('edit-status-prazo').value;
+  const status_prazo = statusSelValue === 'automatico' ? 'em dia' : statusSelValue;
+
+  if (!nome || !data_inicio || !data_fim) {
+    alert('Preencha nome e prazo geral.');
+    return;
+  }
+
+  try {
+    await api(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso }),
+    });
+    editModal.classList.add('hidden');
     await loadProjectsFiltered();
     renderStats();
   } catch (err) {
