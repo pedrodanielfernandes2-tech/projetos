@@ -1,6 +1,18 @@
 const nodemailer = require('nodemailer');
 const { pool } = require('./db');
 
+const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
+
+function calcularStatusPrazo(project) {
+  if (STATUS_MANUAIS.includes((project.status_prazo || '').toLowerCase())) {
+    return project.status_prazo;
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
+  if (project.data_fim && hoje > project.data_fim) return 'atrasado';
+  return 'em dia';
+}
+
 function getTransporter() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -67,6 +79,7 @@ async function getAllProjectsFull() {
     const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
     project.tarefas = tarefas.rows;
     project.historico = historico.rows;
+    project.status_prazo = calcularStatusPrazo(project);
     projects.push(project);
   }
   return projects;
