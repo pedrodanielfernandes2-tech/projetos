@@ -12,10 +12,7 @@ app.use('/api/gps', require('./routes/gps'));
 app.use('/api/admin-emails', require('./routes/adminEmails'));
 app.use('/api/projects', require('./routes/projects'));
 app.use('/api/email-config', require('./routes/emailConfig'));
-
-app.get('/api/areas', (req, res) => {
-  res.json(['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria']);
-});
+app.use('/api/areas', require('./routes/areas'));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
