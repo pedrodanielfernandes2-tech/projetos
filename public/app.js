@@ -60,6 +60,7 @@ async function loadAll() {
   renderStats();
   renderAreaFilters();
   renderProjectList();
+  renderAreaList();
   renderGpAreaChips();
   renderGpList();
   renderAdminList();
@@ -67,6 +68,45 @@ async function loadAll() {
   populateGpSelect();
   renderNewProjectAreaChips();
 }
+
+// ---------- Areas admin ----------
+function renderAreaList() {
+  const el = document.getElementById('area-list');
+  el.innerHTML = '';
+  state.areas.forEach(nome => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span>${nome}</span><button class="icon-btn" aria-label="Remover área">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/areas/${encodeURIComponent(nome)}`, { method: 'DELETE' });
+        await refreshAreas();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
+  });
+}
+async function refreshAreas() {
+  state.areas = await api('/areas');
+  renderAreaList();
+  renderAreaFilters();
+  renderGpAreaChips();
+  renderNewProjectAreaChips();
+}
+document.getElementById('form-area').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('area-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/areas', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await refreshAreas();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 // ---------- stats ----------
 function renderStats() {
