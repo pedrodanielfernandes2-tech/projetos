@@ -30,10 +30,13 @@ function buildProjectBlock(project) {
     ? `<p style="margin:4px 0;color:#555;font-size:13px;"><strong>${project.historico[0].data}:</strong> ${project.historico[0].texto}</p>`
     : '';
 
+  const chamadoLine = project.chamado ? ` · Chamado: ${project.chamado}` : '';
+  const clienteLine = project.cliente_nome ? ` · Cliente: ${project.cliente_nome}` : '';
+
   return `
     <div style="margin-bottom:20px;border:1px solid #ddd;border-radius:8px;padding:14px 16px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;">${project.nome}</p>
-      <p style="margin:0 0 8px;color:#666;font-size:13px;">GP: ${project.gerente_nome || '-'} · Fase: ${project.fase} · Status do prazo: <strong>${statusLabel(project.status_prazo)}</strong></p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;">${project.nome}${chamadoLine}</p>
+      <p style="margin:0 0 8px;color:#666;font-size:13px;">GP: ${project.gerente_nome || '-'}${clienteLine} · Fase: ${project.fase} · Status do prazo: <strong>${statusLabel(project.status_prazo)}</strong></p>
       <p style="margin:0 0 8px;font-size:14px;">${project.resumo || ''}</p>
       <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px;">
         <thead><tr>
@@ -53,8 +56,11 @@ async function getAllProjectsFull() {
   const projects = [];
   for (const { id } of ids) {
     const { rows } = await pool.query(`
-      SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email
-      FROM projects p LEFT JOIN gps g ON g.id = p.gp_id WHERE p.id = $1
+      SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email, c.nome AS cliente_nome
+      FROM projects p
+      LEFT JOIN gps g ON g.id = p.gp_id
+      LEFT JOIN clientes c ON c.id = p.cliente_id
+      WHERE p.id = $1
     `, [id]);
     const project = rows[0];
     const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1', [id]);
