@@ -111,6 +111,7 @@ body {
 .badge-atrasado { background: var(--danger-soft); color: var(--danger); }
 .badge-bloqueado { background: var(--warning-soft); color: var(--warning); }
 .badge-em-andamento, .badge-planejamento { background: var(--accent-soft); color: var(--accent); }
+.badge-nao-iniciado { background: #eeeeea; color: var(--text-muted); }
 
 .area-tag {
   font-size: 12px; padding: 3px 9px; border-radius: 6px;
