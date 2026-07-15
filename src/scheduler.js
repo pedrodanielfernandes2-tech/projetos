@@ -1,16 +1,16 @@
 const cron = require('node-cron');
-const db = require('./db');
+const { pool } = require('./db');
 const { sendDigestNow } = require('./email');
 
-function diasDesde(dataStr) {
-  if (!dataStr) return Infinity;
-  const ms = Date.now() - new Date(dataStr.replace(' ', 'T') + 'Z').getTime();
+function diasDesde(data) {
+  if (!data) return Infinity;
+  const ms = Date.now() - new Date(data).getTime();
   return ms / (1000 * 60 * 60 * 24);
 }
 
 function deveEnviarHoje(config) {
   const hoje = new Date();
-  const diaSemanaHoje = hoje.getDay(); // 0=domingo ... 6=sabado
+  const diaSemanaHoje = hoje.getDay();
 
   switch (config.frequencia) {
     case 'diaria':
@@ -27,11 +27,12 @@ function deveEnviarHoje(config) {
 }
 
 function startScheduler() {
-  // roda todo dia as 07:00 (verifica se, segundo a config, deve disparar hoje)
-  cron.schedule('0 7 * * *', async () => {
-    const config = db.prepare('SELECT * FROM email_config WHERE id = 1').get();
-    if (!deveEnviarHoje(config)) return;
+  const cronLib = require('node-cron');
+  cronLib.schedule('0 7 * * *', async () => {
     try {
+      const { rows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
+      const config = rows[0];
+      if (!deveEnviarHoje(config)) return;
       const resultado = await sendDigestNow();
       console.log(`[scheduler] e-mails enviados: ${resultado.enviados.join(', ')}`);
     } catch (e) {
