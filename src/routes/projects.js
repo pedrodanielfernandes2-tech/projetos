@@ -2,6 +2,19 @@ const express = require('express');
 const { pool } = require('../db');
 const router = express.Router();
 
+const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
+
+function calcularStatusPrazo(project) {
+  // Respeita marcacoes manuais (bloqueado/concluido) - nao sao dedutiveis so pelas datas.
+  if (STATUS_MANUAIS.includes((project.status_prazo || '').toLowerCase())) {
+    return project.status_prazo;
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
+  if (project.data_fim && hoje > project.data_fim) return 'atrasado';
+  return 'em dia';
+}
+
 async function loadProject(id) {
   const { rows } = await pool.query(`
     SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email, c.nome AS cliente_nome
@@ -16,6 +29,7 @@ async function loadProject(id) {
   const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
   project.tarefas = tarefas.rows;
   project.historico = historico.rows;
+  project.status_prazo = calcularStatusPrazo(project);
   return project;
 }
 
