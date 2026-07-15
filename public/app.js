@@ -3,6 +3,7 @@ const state = {
   projects: [],
   gps: [],
   adminEmails: [],
+  clientes: [],
   activeFilter: null,
   expanded: {}, // projectId -> 'tarefas' | 'historico' | null
   newProjectAreas: {}, // area -> {inicio, fim}
@@ -45,18 +46,20 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 
 // ---------- load all data ----------
 async function loadAll() {
-  const [areas, projects, gps, adminEmails, emailConfig] = await Promise.all([
+  const [areas, projects, gps, adminEmails, emailConfig, clientes] = await Promise.all([
     api('/areas'),
     api('/projects'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
+    api('/clientes'),
   ]);
   state.areas = areas;
   state.projects = projects;
   state.gps = gps;
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
+  state.clientes = clientes;
   renderStats();
   renderAreaFilters();
   renderProjectList();
@@ -66,6 +69,8 @@ async function loadAll() {
   renderEmailConfig();
   populateGpSelect();
   renderNewProjectAreaChips();
+  renderClienteList();
+  populateClienteSelect();
 }
 
 // ---------- Areas admin ----------
@@ -162,8 +167,8 @@ function renderProjectList() {
     card.innerHTML = `
       <div class="card-head">
         <div>
-          <p class="card-title">${p.nome}</p>
-          <p class="card-sub">GP: ${p.gerente_nome || '-'} · ${p.tipo} · fase: ${p.fase}</p>
+          <p class="card-title">${p.nome}${p.chamado ? ' <span style="color:var(--text-muted);font-weight:400;">· Chamado ' + p.chamado + '</span>' : ''}</p>
+          <p class="card-sub">GP: ${p.gerente_nome || '-'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''} · ${p.tipo} · fase: ${p.fase}</p>
         </div>
         <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
       </div>
@@ -222,6 +227,48 @@ function renderProjectList() {
     el.appendChild(card);
   });
 }
+
+// ---------- Clientes admin ----------
+function renderClienteList() {
+  const el = document.getElementById('cliente-list');
+  el.innerHTML = '';
+  state.clientes.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span>${c.nome}</span><button class="icon-btn" aria-label="Remover cliente">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/clientes/${c.id}`, { method: 'DELETE' });
+        await refreshClientes();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
+  });
+}
+async function refreshClientes() {
+  state.clientes = await api('/clientes');
+  renderClienteList();
+  populateClienteSelect();
+}
+function populateClienteSelect() {
+  const sel = document.getElementById('np-cliente');
+  sel.innerHTML = '<option value="">Sem cliente definido</option>' +
+    state.clientes.map(c => `<option value="${c.id}">${c.nome}</option>`).join('');
+}
+document.getElementById('form-cliente').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('cliente-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/clientes', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await refreshClientes();
+  } catch (err) {
+    alert(err.message);
+  }
+});
 
 // ---------- GP admin ----------
 function renderGpList() {
@@ -388,6 +435,8 @@ function renderNewProjectAreaDates() {
 document.getElementById('form-new-project').addEventListener('submit', async (e) => {
   e.preventDefault();
   const nome = document.getElementById('np-nome').value.trim();
+  const chamado = document.getElementById('np-chamado').value.trim();
+  const cliente_id = document.getElementById('np-cliente').value || null;
   const gp_id = document.getElementById('np-gp').value || null;
   const tipo = document.getElementById('np-tipo').value;
   const fase = document.getElementById('np-fase').value;
@@ -410,7 +459,7 @@ document.getElementById('form-new-project').addEventListener('submit', async (e)
   try {
     await api('/projects', {
       method: 'POST',
-      body: JSON.stringify({ nome, gp_id, tipo, fase, status_prazo: 'em dia', resumo, data_inicio, data_fim, progresso: 0, tarefas }),
+      body: JSON.stringify({ nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo: 'em dia', resumo, data_inicio, data_fim, progresso: 0, tarefas }),
     });
     modal.classList.add('hidden');
     e.target.reset();
