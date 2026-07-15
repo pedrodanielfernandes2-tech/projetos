@@ -4,8 +4,10 @@ const router = express.Router();
 
 async function loadProject(id) {
   const { rows } = await pool.query(`
-    SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email
-    FROM projects p LEFT JOIN gps g ON g.id = p.gp_id
+    SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email, c.nome AS cliente_nome
+    FROM projects p
+    LEFT JOIN gps g ON g.id = p.gp_id
+    LEFT JOIN clientes c ON c.id = p.cliente_id
     WHERE p.id = $1
   `, [id]);
   const project = rows[0];
@@ -38,7 +40,7 @@ router.get('/:id', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { nome, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, tarefas, autor } = req.body;
+  const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, tarefas, autor } = req.body;
   if (!nome || !data_inicio || !data_fim || !Array.isArray(tarefas) || tarefas.length === 0) {
     return res.status(400).json({ error: 'nome, datas gerais e ao menos uma tarefa de area sao obrigatorios' });
   }
@@ -46,9 +48,9 @@ router.post('/', async (req, res) => {
   try {
     await client.query('BEGIN');
     const { rows } = await client.query(`
-      INSERT INTO projects (nome, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id
-    `, [nome, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', status_prazo || 'em dia', resumo || '', data_inicio, data_fim, progresso || 0]);
+      INSERT INTO projects (nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
+    `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', status_prazo || 'em dia', resumo || '', data_inicio, data_fim, progresso || 0]);
     const projectId = rows[0].id;
 
     for (const t of tarefas) {
@@ -72,11 +74,11 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { nome, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
+  const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
   await pool.query(`
-    UPDATE projects SET nome=$1, gp_id=$2, tipo=$3, fase=$4, status_prazo=$5, resumo=$6, data_inicio=$7, data_fim=$8, progresso=$9
-    WHERE id=$10
-  `, [nome, gp_id || null, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, req.params.id]);
+    UPDATE projects SET nome=$1, chamado=$2, cliente_id=$3, gp_id=$4, tipo=$5, fase=$6, status_prazo=$7, resumo=$8, data_inicio=$9, data_fim=$10, progresso=$11
+    WHERE id=$12
+  `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, req.params.id]);
   res.json(await loadProject(req.params.id));
 });
 
@@ -85,6 +87,7 @@ router.delete('/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Tarefas por area dentro de um projeto
 router.post('/:id/tarefas', async (req, res) => {
   const { area, inicio, fim, status } = req.body;
   if (!area || !inicio || !fim) return res.status(400).json({ error: 'area, inicio e fim sao obrigatorios' });
@@ -109,6 +112,7 @@ router.delete('/:id/tarefas/:taskId', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Historico
 router.post('/:id/historico', async (req, res) => {
   const { texto, autor, data } = req.body;
   if (!texto) return res.status(400).json({ error: 'texto obrigatorio' });
