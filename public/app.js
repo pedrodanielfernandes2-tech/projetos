@@ -61,7 +61,6 @@ async function loadAll() {
   renderAreaFilters();
   renderProjectList();
   renderAreaList();
-  renderGpAreaChips();
   renderGpList();
   renderAdminList();
   renderEmailConfig();
@@ -92,7 +91,6 @@ async function refreshAreas() {
   state.areas = await api('/areas');
   renderAreaList();
   renderAreaFilters();
-  renderGpAreaChips();
   renderNewProjectAreaChips();
 }
 document.getElementById('form-area').addEventListener('submit', async (e) => {
@@ -226,18 +224,6 @@ function renderProjectList() {
 }
 
 // ---------- GP admin ----------
-function renderGpAreaChips() {
-  const el = document.getElementById('gp-areas');
-  el.innerHTML = '';
-  state.areas.forEach(a => {
-    const chip = document.createElement('button');
-    chip.type = 'button';
-    chip.className = 'chip';
-    chip.textContent = a;
-    chip.onclick = () => chip.classList.toggle('selected');
-    el.appendChild(chip);
-  });
-}
 function renderGpList() {
   const el = document.getElementById('gp-list');
   el.innerHTML = '';
@@ -249,10 +235,7 @@ function renderGpList() {
         <p class="list-row-name">${gp.nome}</p>
         <p class="list-row-sub">${gp.email}</p>
       </div>
-      <div class="chip-row" style="align-items:center;">
-        ${gp.areas.map(a => `<span class="area-tag">${a}</span>`).join(' ')}
-        <button class="icon-btn" aria-label="Remover GP">✕</button>
-      </div>
+      <button class="icon-btn" aria-label="Remover GP">✕</button>
     `;
     row.querySelector('.icon-btn').onclick = async () => {
       await api(`/gps/${gp.id}`, { method: 'DELETE' });
@@ -265,16 +248,14 @@ document.getElementById('form-gp').addEventListener('submit', async (e) => {
   e.preventDefault();
   const nome = document.getElementById('gp-nome').value.trim();
   const email = document.getElementById('gp-email').value.trim();
-  const areas = Array.from(document.querySelectorAll('#gp-areas .chip.selected')).map(c => c.textContent);
-  if (!nome || !email || areas.length === 0) {
-    alert('Preencha nome, e-mail e ao menos uma área.');
+  if (!nome || !email) {
+    alert('Preencha nome e e-mail.');
     return;
   }
   try {
-    await api('/gps', { method: 'POST', body: JSON.stringify({ nome, email, areas }) });
+    await api('/gps', { method: 'POST', body: JSON.stringify({ nome, email }) });
     document.getElementById('gp-nome').value = '';
     document.getElementById('gp-email').value = '';
-    renderGpAreaChips();
     await refreshGpsAndProjects();
   } catch (err) {
     alert(err.message);
