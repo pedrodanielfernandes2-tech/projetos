@@ -1,5 +1,5 @@
 const nodemailer = require('nodemailer');
-const db = require('./db');
+const { pool } = require('./db');
 
 function getTransporter() {
   return nodemailer.createTransport({
@@ -48,40 +48,45 @@ function buildProjectBlock(project) {
   `;
 }
 
-function getAllProjectsFull() {
-  const ids = db.prepare('SELECT id FROM projects').all().map(r => r.id);
-  return ids.map(id => {
-    const project = db.prepare(`
+async function getAllProjectsFull() {
+  const { rows: ids } = await pool.query('SELECT id FROM projects');
+  const projects = [];
+  for (const { id } of ids) {
+    const { rows } = await pool.query(`
       SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email
-      FROM projects p LEFT JOIN gps g ON g.id = p.gp_id WHERE p.id = ?
-    `).get(id);
-    project.tarefas = db.prepare('SELECT * FROM area_tasks WHERE project_id = ?').all(id);
-    project.historico = db.prepare('SELECT * FROM historico WHERE project_id = ? ORDER BY data DESC, id DESC').all(id);
-    return project;
-  });
+      FROM projects p LEFT JOIN gps g ON g.id = p.gp_id WHERE p.id = $1
+    `, [id]);
+    const project = rows[0];
+    const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1', [id]);
+    const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
+    project.tarefas = tarefas.rows;
+    project.historico = historico.rows;
+    projects.push(project);
+  }
+  return projects;
 }
 
 async function sendDigestNow() {
-  const config = db.prepare('SELECT * FROM email_config WHERE id = 1').get();
-  const allProjects = getAllProjectsFull();
+  const { rows: configRows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
+  const config = configRows[0];
+  const allProjects = await getAllProjectsFull();
   const transporter = getTransporter();
   const enviados = [];
 
   if (config.enviar_gps) {
-    const gpsList = db.prepare('SELECT * FROM gps').all();
+    const { rows: gpsList } = await pool.query('SELECT * FROM gps');
     for (const gp of gpsList) {
-      const areas = JSON.parse(gp.areas);
-      const projetosDoGp = allProjects.filter(p => p.tarefas.some(t => areas.includes(t.area)));
+      const projetosDoGp = allProjects.filter(p => p.gp_id === gp.id);
       if (projetosDoGp.length === 0) continue;
       const html = `
         <h2 style="font-size:18px;">Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
-        <p style="color:#666;font-size:13px;">Projetos das areas: ${areas.join(', ')}</p>
+        <p style="color:#666;font-size:13px;">Projetos sob sua responsabilidade</p>
         ${projetosDoGp.map(buildProjectBlock).join('')}
       `;
       await transporter.sendMail({
         from: process.env.SMTP_FROM,
         to: gp.email,
-        subject: `Resumo de projetos (${areas.join(', ')}) - ${new Date().toLocaleDateString('pt-BR')}`,
+        subject: `Resumo dos seus projetos - ${new Date().toLocaleDateString('pt-BR')}`,
         html,
       });
       enviados.push(gp.email);
@@ -89,7 +94,7 @@ async function sendDigestNow() {
   }
 
   if (config.enviar_admins) {
-    const admins = db.prepare('SELECT * FROM admin_emails').all();
+    const { rows: admins } = await pool.query('SELECT * FROM admin_emails');
     if (admins.length > 0) {
       const html = `
         <h2 style="font-size:18px;">Resumo geral de todos os projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
@@ -107,7 +112,7 @@ async function sendDigestNow() {
     }
   }
 
-  db.prepare("UPDATE email_config SET ultimo_envio = datetime('now') WHERE id = 1").run();
+  await pool.query("UPDATE email_config SET ultimo_envio = NOW() WHERE id = 1");
   return { enviados };
 }
 
