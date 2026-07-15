@@ -45,6 +45,16 @@
         </div>
 
         <div class="panel">
+          <h2>Clientes</h2>
+          <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
+          <div id="cliente-list" class="stack tight"></div>
+          <form id="form-cliente" class="form-row" style="margin-top:10px;">
+            <input type="text" id="cliente-nome" placeholder="Nome do cliente" required />
+            <button type="submit" class="btn">Adicionar cliente</button>
+          </form>
+        </div>
+
+        <div class="panel">
           <h2>Gerentes de projeto</h2>
           <p class="muted">Cadastre o GP e o e-mail. Ele recebe o resumo dos projetos em que for o responsável.</p>
           <div id="gp-list" class="stack tight"></div>
@@ -110,7 +120,11 @@
       <h2>Novo projeto</h2>
       <form id="form-new-project">
         <div class="form-row">
-          <input type="text" id="np-nome" placeholder="Nome do projeto / chamado" required />
+          <input type="text" id="np-nome" placeholder="Nome do projeto" required />
+          <input type="text" id="np-chamado" placeholder="Nº do chamado" />
+        </div>
+        <div class="form-row">
+          <select id="np-cliente"></select>
           <select id="np-gp"></select>
         </div>
         <div class="form-row">
