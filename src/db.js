@@ -9,6 +9,12 @@ if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 const db = new DatabaseSync(DB_PATH);
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS areas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nome TEXT NOT NULL UNIQUE,
+    criado_em TEXT DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS gps (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nome TEXT NOT NULL,
@@ -69,5 +75,9 @@ db.exec(`
 
   INSERT OR IGNORE INTO email_config (id) VALUES (1);
 `);
+
+const areasIniciais = ['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria'];
+const insertArea = db.prepare('INSERT OR IGNORE INTO areas (nome) VALUES (?)');
+for (const nome of areasIniciais) insertArea.run(nome);
 
 module.exports = db;
