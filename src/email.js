@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const { pool } = require('./db');
 
 const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
+const TASK_STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido', 'atrasado'];
 
 function calcularStatusPrazo(project) {
   if (STATUS_MANUAIS.includes((project.status_prazo || '').toLowerCase())) {
@@ -11,6 +12,16 @@ function calcularStatusPrazo(project) {
   if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
   if (project.data_fim && hoje > project.data_fim) return 'atrasado';
   return 'em dia';
+}
+
+function calcularStatusTarefa(t) {
+  if (TASK_STATUS_MANUAIS.includes((t.status || '').toLowerCase())) {
+    return t.status;
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (t.inicio && hoje < t.inicio) return 'planejamento';
+  if (t.fim && hoje > t.fim) return 'atrasado';
+  return 'em andamento';
 }
 
 function getTransporter() {
@@ -77,7 +88,7 @@ async function getAllProjectsFull() {
     const project = rows[0];
     const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1', [id]);
     const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
-    project.tarefas = tarefas.rows;
+    project.tarefas = tarefas.rows.map(t => ({ ...t, status: calcularStatusTarefa(t) }));
     project.historico = historico.rows;
     project.status_prazo = calcularStatusPrazo(project);
     projects.push(project);
