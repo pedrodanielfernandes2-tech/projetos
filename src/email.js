@@ -1,39 +1,41 @@
-const nodemailer = require('nodemailer');
 const { pool } = require('./db');
+const { calcularStatusPrazo, calcularStatusTarefa } = require('./statusCalc');
+const { postToTeams } = require('./teams');
 
-const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
-const TASK_STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido', 'atrasado'];
-
-function calcularStatusPrazo(project) {
-  if (STATUS_MANUAIS.includes((project.status_prazo || '').toLowerCase())) {
-    return project.status_prazo;
-  }
-  const hoje = new Date().toISOString().slice(0, 10);
-  if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
-  if (project.data_fim && hoje > project.data_fim) return 'atrasado';
-  return 'em dia';
+function parseSender() {
+  const raw = process.env.SMTP_FROM || '';
+  const match = raw.match(/^"?([^"<]*)"?\s*<(.+)>$/);
+  if (match) return { name: match[1].trim() || 'Painel de Projetos', email: match[2].trim() };
+  return { name: 'Painel de Projetos', email: raw };
 }
 
-function calcularStatusTarefa(t) {
-  if (TASK_STATUS_MANUAIS.includes((t.status || '').toLowerCase())) {
-    return t.status;
+async function sendMail({ to, subject, html }) {
+  const apiKey = process.env.BREVO_API_KEY;
+  if (!apiKey) {
+    throw new Error('BREVO_API_KEY nao configurada (configure no Environment do Render)');
   }
-  const hoje = new Date().toISOString().slice(0, 10);
-  if (t.inicio && hoje < t.inicio) return 'planejamento';
-  if (t.fim && hoje > t.fim) return 'atrasado';
-  return 'em andamento';
-}
-
-function getTransporter() {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: Number(process.env.SMTP_PORT) === 465,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+  const sender = parseSender();
+  if (!sender.email) {
+    throw new Error('SMTP_FROM nao configurado (defina o remetente, ex: "Painel de Projetos <voce@empresa.com>")');
+  }
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': apiKey,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
     },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+    }),
   });
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => '');
+    throw new Error(`falha ao enviar via Brevo (status ${res.status}): ${corpo}`);
+  }
 }
 
 function statusLabel(s) {
@@ -100,50 +102,81 @@ async function sendDigestNow() {
   const { rows: configRows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
   const config = configRows[0];
   const allProjects = await getAllProjectsFull();
-  const transporter = getTransporter();
   const enviados = [];
+  let emailErro = null;
 
-  if (config.enviar_gps) {
-    const { rows: gpsList } = await pool.query('SELECT * FROM gps');
-    for (const gp of gpsList) {
-      const projetosDoGp = allProjects.filter(p => p.gp_id === gp.id);
-      if (projetosDoGp.length === 0) continue;
-      const html = `
-        <h2 style="font-size:18px;">Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
-        <p style="color:#666;font-size:13px;">Projetos sob sua responsabilidade</p>
-        ${projetosDoGp.map(buildProjectBlock).join('')}
-      `;
-      await transporter.sendMail({
-        from: process.env.SMTP_FROM,
-        to: gp.email,
-        subject: `Resumo dos seus projetos - ${new Date().toLocaleDateString('pt-BR')}`,
-        html,
-      });
-      enviados.push(gp.email);
-    }
-  }
-
-  if (config.enviar_admins) {
-    const { rows: admins } = await pool.query('SELECT * FROM admin_emails');
-    if (admins.length > 0) {
-      const html = `
-        <h2 style="font-size:18px;">Resumo geral de todos os projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
-        ${allProjects.map(buildProjectBlock).join('')}
-      `;
-      for (const admin of admins) {
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM,
-          to: admin.email,
-          subject: `Resumo geral de projetos - ${new Date().toLocaleDateString('pt-BR')}`,
+  try {
+    if (config.enviar_gps) {
+      const { rows: gpsList } = await pool.query('SELECT * FROM gps');
+      for (const gp of gpsList) {
+        const projetosDoGp = allProjects.filter(p => p.gp_id === gp.id);
+        if (projetosDoGp.length === 0) continue;
+        const html = `
+          <h2 style="font-size:18px;">Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
+          <p style="color:#666;font-size:13px;">Projetos sob sua responsabilidade</p>
+          ${projetosDoGp.map(buildProjectBlock).join('')}
+        `;
+        await sendMail({
+          to: gp.email,
+          subject: `Resumo dos seus projetos - ${new Date().toLocaleDateString('pt-BR')}`,
           html,
         });
-        enviados.push(admin.email);
+        enviados.push(gp.email);
       }
     }
+
+    if (config.enviar_admins) {
+      const { rows: admins } = await pool.query('SELECT * FROM admin_emails');
+      if (admins.length > 0) {
+        const html = `
+          <h2 style="font-size:18px;">Resumo geral de todos os projetos - ${new Date().toLocaleDateString('pt-BR')}</h2>
+          ${allProjects.map(buildProjectBlock).join('')}
+        `;
+        for (const admin of admins) {
+          await sendMail({
+            to: admin.email,
+            subject: `Resumo geral de projetos - ${new Date().toLocaleDateString('pt-BR')}`,
+            html,
+          });
+          enviados.push(admin.email);
+        }
+      }
+    }
+  } catch (e) {
+    // Uma falha no envio de e-mail nao deve impedir a tentativa de envio ao Teams (sao independentes).
+    emailErro = e.message;
   }
 
   await pool.query("UPDATE email_config SET ultimo_envio = NOW() WHERE id = 1");
-  return { enviados };
+
+  let teams = null;
+  if (config.enviar_teams) {
+    try {
+      const atrasados = allProjects.filter(p => p.status_prazo === 'atrasado');
+      const bloqueados = allProjects.filter(p => p.status_prazo === 'bloqueado');
+      const linhas = [];
+      if (atrasados.length > 0) {
+        linhas.push(`**Atrasados (${atrasados.length}):** ` + atrasados.map(p => p.nome).join(', '));
+      }
+      if (bloqueados.length > 0) {
+        linhas.push(`**Bloqueados (${bloqueados.length}):** ` + bloqueados.map(p => p.nome).join(', '));
+      }
+      if (linhas.length === 0) {
+        linhas.push('Nenhum projeto atrasado ou bloqueado hoje. ✅');
+      }
+      linhas.push(`\n_Total de projetos ativos: ${allProjects.length}_`);
+      await postToTeams({
+        title: `Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}`,
+        text: linhas.join('\n\n'),
+        color: atrasados.length > 0 ? 'C4211F' : (bloqueados.length > 0 ? 'B7791F' : '1F9D55'),
+      });
+      teams = 'enviado';
+    } catch (e) {
+      teams = 'erro: ' + e.message;
+    }
+  }
+
+  return { enviados, emailErro, teams };
 }
 
 module.exports = { sendDigestNow, getAllProjectsFull };

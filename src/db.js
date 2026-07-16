@@ -56,7 +56,8 @@ async function init() {
       data_inicio DATE,
       data_fim DATE,
       progresso INTEGER DEFAULT 0,
-      criado_em TIMESTAMP DEFAULT NOW()
+      criado_em TIMESTAMP DEFAULT NOW(),
+      ultimo_status_notificado TEXT
     );
 
     CREATE TABLE IF NOT EXISTS area_tasks (
@@ -77,6 +78,14 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS project_links (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      titulo TEXT NOT NULL,
+      url TEXT NOT NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS email_config (
       id INTEGER PRIMARY KEY DEFAULT 1,
       frequencia TEXT DEFAULT 'semanal',
@@ -84,6 +93,7 @@ async function init() {
       hora INTEGER DEFAULT 8,
       enviar_gps BOOLEAN DEFAULT TRUE,
       enviar_admins BOOLEAN DEFAULT TRUE,
+      enviar_teams BOOLEAN DEFAULT FALSE,
       ultimo_envio TIMESTAMP,
       CONSTRAINT email_config_singleton CHECK (id = 1)
     );
@@ -107,6 +117,8 @@ async function init() {
   // Migracao: adiciona colunas novas em bancos criados por uma versao anterior.
   await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS chamado TEXT DEFAULT '';");
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL;');
+  await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS ultimo_status_notificado TEXT;');
+  await pool.query('ALTER TABLE email_config ADD COLUMN IF NOT EXISTS enviar_teams BOOLEAN DEFAULT FALSE;');
 
   // Popula as areas padrao apenas na primeira vez (tabela vazia). Depois disso,
   // respeita qualquer area que o usuario tenha removido de proposito.
