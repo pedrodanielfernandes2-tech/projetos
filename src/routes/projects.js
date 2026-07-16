@@ -1,32 +1,8 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAdminIfSetting } = require('../adminAuth');
+const { calcularStatusPrazo, calcularStatusTarefa } = require('../statusCalc');
 const router = express.Router();
-
-const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
-const TASK_STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido', 'atrasado'];
-
-function calcularStatusPrazo(project) {
-  // Respeita marcacoes manuais (bloqueado/concluido) - nao sao dedutiveis so pelas datas.
-  if (STATUS_MANUAIS.includes((project.status_prazo || '').toLowerCase())) {
-    return project.status_prazo;
-  }
-  const hoje = new Date().toISOString().slice(0, 10);
-  if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
-  if (project.data_fim && hoje > project.data_fim) return 'atrasado';
-  return 'em dia';
-}
-
-function calcularStatusTarefa(t) {
-  // Respeita marcacoes manuais (atrasado/bloqueado/concluido escolhidas pelo GP).
-  if (TASK_STATUS_MANUAIS.includes((t.status || '').toLowerCase())) {
-    return t.status;
-  }
-  const hoje = new Date().toISOString().slice(0, 10);
-  if (t.inicio && hoje < t.inicio) return 'planejamento';
-  if (t.fim && hoje > t.fim) return 'atrasado';
-  return 'em andamento';
-}
 
 async function loadProject(id) {
   const { rows } = await pool.query(`
@@ -40,8 +16,10 @@ async function loadProject(id) {
   if (!project) return null;
   const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1 ORDER BY inicio', [id]);
   const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
+  const links = await pool.query('SELECT * FROM project_links WHERE project_id = $1 ORDER BY id DESC', [id]);
   project.tarefas = tarefas.rows.map(t => ({ ...t, status: calcularStatusTarefa(t) }));
   project.historico = historico.rows;
+  project.links = links.rows;
   project.status_prazo = calcularStatusPrazo(project);
   return project;
 }
@@ -68,8 +46,8 @@ router.get('/:id', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, tarefas, autor } = req.body;
-  if (!nome || !data_inicio || !data_fim || !Array.isArray(tarefas) || tarefas.length === 0) {
-    return res.status(400).json({ error: 'nome, datas gerais e ao menos uma tarefa de area sao obrigatorios' });
+  if (!nome || !Array.isArray(tarefas) || tarefas.length === 0) {
+    return res.status(400).json({ error: 'nome e ao menos uma area envolvida sao obrigatorios' });
   }
   const client = await pool.connect();
   try {
@@ -77,13 +55,13 @@ router.post('/', async (req, res) => {
     const { rows } = await client.query(`
       INSERT INTO projects (nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
-    `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', status_prazo || 'em dia', resumo || '', data_inicio, data_fim, progresso || 0]);
+    `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', status_prazo || 'em dia', resumo || '', data_inicio || null, data_fim || null, progresso || 0]);
     const projectId = rows[0].id;
 
     for (const t of tarefas) {
       await client.query(
         'INSERT INTO area_tasks (project_id, area, inicio, fim, status) VALUES ($1, $2, $3, $4, $5)',
-        [projectId, t.area, t.inicio, t.fim, t.status || 'planejamento']
+        [projectId, t.area, t.inicio || null, t.fim || null, t.status || 'planejamento']
       );
     }
     await client.query(
@@ -105,7 +83,7 @@ router.put('/:id', requireAdminIfSetting('restringir_edicao_prazos'), async (req
   await pool.query(`
     UPDATE projects SET nome=$1, chamado=$2, cliente_id=$3, gp_id=$4, tipo=$5, fase=$6, status_prazo=$7, resumo=$8, data_inicio=$9, data_fim=$10, progresso=$11
     WHERE id=$12
-  `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, req.params.id]);
+  `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo, fase, status_prazo, resumo, data_inicio || null, data_fim || null, progresso, req.params.id]);
   res.json(await loadProject(req.params.id));
 });
 
@@ -117,10 +95,10 @@ router.delete('/:id', requireAdminIfSetting('restringir_exclusao'), async (req, 
 // Tarefas por area dentro de um projeto
 router.post('/:id/tarefas', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { area, inicio, fim, status } = req.body;
-  if (!area || !inicio || !fim) return res.status(400).json({ error: 'area, inicio e fim sao obrigatorios' });
+  if (!area) return res.status(400).json({ error: 'area obrigatoria' });
   const { rows } = await pool.query(
     'INSERT INTO area_tasks (project_id, area, inicio, fim, status) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-    [req.params.id, area, inicio, fim, status || 'planejamento']
+    [req.params.id, area, inicio || null, fim || null, status || 'planejamento']
   );
   res.status(201).json(rows[0]);
 });
@@ -129,7 +107,7 @@ router.put('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_praz
   const { area, inicio, fim, status } = req.body;
   await pool.query(
     'UPDATE area_tasks SET area=$1, inicio=$2, fim=$3, status=$4 WHERE id=$5 AND project_id=$6',
-    [area, inicio, fim, status, req.params.taskId, req.params.id]
+    [area, inicio || null, fim || null, status, req.params.taskId, req.params.id]
   );
   res.json({ ok: true });
 });
@@ -148,6 +126,22 @@ router.post('/:id/historico', async (req, res) => {
     [req.params.id, data || new Date().toISOString().slice(0, 10), texto, autor || '']
   );
   res.status(201).json(rows[0]);
+});
+
+// Links do projeto
+router.post('/:id/links', async (req, res) => {
+  const { titulo, url } = req.body;
+  if (!url || !url.trim()) return res.status(400).json({ error: 'url obrigatoria' });
+  const { rows } = await pool.query(
+    'INSERT INTO project_links (project_id, titulo, url) VALUES ($1, $2, $3) RETURNING *',
+    [req.params.id, (titulo || '').trim() || url.trim(), url.trim()]
+  );
+  res.status(201).json(rows[0]);
+});
+
+router.delete('/:id/links/:linkId', async (req, res) => {
+  await pool.query('DELETE FROM project_links WHERE id = $1 AND project_id = $2', [req.params.linkId, req.params.id]);
+  res.json({ ok: true });
 });
 
 module.exports = router;

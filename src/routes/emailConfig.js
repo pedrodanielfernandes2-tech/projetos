@@ -10,10 +10,10 @@ router.get('/', async (req, res) => {
 });
 
 router.put('/', requireAdminAlways, async (req, res) => {
-  const { frequencia, dia_semana, hora, enviar_gps, enviar_admins } = req.body;
+  const { frequencia, dia_semana, hora, enviar_gps, enviar_admins, enviar_teams } = req.body;
   await pool.query(`
-    UPDATE email_config SET frequencia=$1, dia_semana=$2, hora=$3, enviar_gps=$4, enviar_admins=$5 WHERE id=1
-  `, [frequencia, dia_semana, hora, !!enviar_gps, !!enviar_admins]);
+    UPDATE email_config SET frequencia=$1, dia_semana=$2, hora=$3, enviar_gps=$4, enviar_admins=$5, enviar_teams=$6 WHERE id=1
+  `, [frequencia, dia_semana, hora, !!enviar_gps, !!enviar_admins, !!enviar_teams]);
   res.json({ ok: true });
 });
 
