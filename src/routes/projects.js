@@ -4,6 +4,7 @@ const { requireAdminIfSetting } = require('../adminAuth');
 const router = express.Router();
 
 const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
+const TASK_STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido', 'atrasado'];
 
 function calcularStatusPrazo(project) {
   // Respeita marcacoes manuais (bloqueado/concluido) - nao sao dedutiveis so pelas datas.
@@ -14,6 +15,17 @@ function calcularStatusPrazo(project) {
   if (project.data_inicio && hoje < project.data_inicio) return 'não iniciado';
   if (project.data_fim && hoje > project.data_fim) return 'atrasado';
   return 'em dia';
+}
+
+function calcularStatusTarefa(t) {
+  // Respeita marcacoes manuais (atrasado/bloqueado/concluido escolhidas pelo GP).
+  if (TASK_STATUS_MANUAIS.includes((t.status || '').toLowerCase())) {
+    return t.status;
+  }
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (t.inicio && hoje < t.inicio) return 'planejamento';
+  if (t.fim && hoje > t.fim) return 'atrasado';
+  return 'em andamento';
 }
 
 async function loadProject(id) {
@@ -28,7 +40,7 @@ async function loadProject(id) {
   if (!project) return null;
   const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1 ORDER BY inicio', [id]);
   const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
-  project.tarefas = tarefas.rows;
+  project.tarefas = tarefas.rows.map(t => ({ ...t, status: calcularStatusTarefa(t) }));
   project.historico = historico.rows;
   project.status_prazo = calcularStatusPrazo(project);
   return project;
