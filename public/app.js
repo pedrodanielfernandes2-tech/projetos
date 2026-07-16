@@ -45,6 +45,14 @@ function elapsedPercent(inicio, fim) {
   if (total <= 0) return 100;
   return Math.round(((hoje - start) / total) * 100);
 }
+function taskBarInfo(t) {
+  const s = (t.status || '').toLowerCase();
+  if (s === 'atrasado') return { percent: 100, color: 'var(--danger)' };
+  if (s === 'bloqueado') return { percent: 100, color: 'var(--warning)' };
+  if (s === 'concluído' || s === 'concluido') return { percent: 100, color: 'var(--success)' };
+  const elapsed = elapsedPercent(t.inicio, t.fim);
+  return { percent: elapsed, color: progressColor(elapsed) };
+}
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
@@ -296,10 +304,10 @@ function renderProjectList() {
         </div>
       `;
       tarefasHost.appendChild(row);
-      const elapsed = elapsedPercent(t.inicio, t.fim);
+      const barInfo = taskBarInfo(t);
       const bar = document.createElement('div');
       bar.style.cssText = 'height:4px;background:#ebeae4;border-radius:3px;overflow:hidden;margin:2px 0 4px;';
-      bar.innerHTML = `<div style="height:100%;width:${barWidth(elapsed)}%;background:${progressColor(elapsed)}"></div>`;
+      bar.innerHTML = `<div style="height:100%;width:${barWidth(barInfo.percent)}%;background:${barInfo.color}"></div>`;
       tarefasHost.appendChild(bar);
 
       row.querySelector('[data-edit-task]').onclick = () => {
@@ -308,7 +316,7 @@ function renderProjectList() {
             <input type="date" value="${t.inicio}" data-edit-inicio style="width:135px;" />
             <input type="date" value="${t.fim}" data-edit-fim style="width:135px;" />
             <select data-edit-status style="width:150px;">
-              ${['planejamento', 'em andamento', 'bloqueado', 'concluído'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}
+              ${['planejamento', 'em andamento', 'atrasado', 'bloqueado', 'concluído'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
             <div style="display:flex;gap:4px;">
               <button class="btn" data-save-task>Salvar</button>
