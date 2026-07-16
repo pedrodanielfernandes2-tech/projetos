@@ -973,39 +973,73 @@ document.getElementById('cal-hoje').addEventListener('click', () => {
 
 // ---------- velocimetro (tempo gasto na demanda) ----------
 function buildGaugeSvg(valorHoras, maxHoras) {
-  const size = 240, cx = size / 2, cy = size / 2 + 6, r = 92, stroke = 20;
-  function polarToCartesian(angleDeg, raio) {
+  const size = 280, cx = size / 2, cy = size / 2;
+  const rPanel = 124, rTicks = 104, rZone = 86, rNeedle = 92;
+  const max = maxHoras > 0 ? maxHoras : 1;
+  const percent = Math.min(Math.max((valorHoras / max) * 100, 0), 100);
+
+  // varredura de 270 graus (estilo velocimetro real), com folga de 90 graus na parte de baixo.
+  // convencao: 0=direita, 90=baixo, 180=esquerda, 270=topo (sentido horario)
+  const START = 135, END = 405;
+  function angleFor(pct) { return START + (pct / 100) * (END - START); }
+  function pt(angleDeg, raio) {
     const rad = angleDeg * Math.PI / 180;
     return { x: cx + raio * Math.cos(rad), y: cy + raio * Math.sin(rad) };
   }
-  function arcPath(startAngle, endAngle) {
-    const start = polarToCartesian(startAngle, r);
-    const end = polarToCartesian(endAngle, r);
-    const largeArc = Math.abs(endAngle - startAngle) <= 180 ? 0 : 1;
-    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  function arcPath(pctStart, pctEnd, raio) {
+    const a1 = angleFor(pctStart), a2 = angleFor(pctEnd);
+    const p1 = pt(a1, raio), p2 = pt(a2, raio);
+    const largeArc = (a2 - a1) > 180 ? 1 : 0;
+    return `M ${p1.x} ${p1.y} A ${raio} ${raio} 0 ${largeArc} 1 ${p2.x} ${p2.y}`;
   }
-  const max = maxHoras > 0 ? maxHoras : 1;
-  const percent = Math.min(Math.max((valorHoras / max) * 100, 0), 100);
-  // 180deg = extrema esquerda (0h), 0deg = extrema direita (maxHoras), passando pelo topo
-  const seg1 = arcPath(180, 126); // 0-30% vermelho
-  const seg2 = arcPath(126, 54); // 30-70% amarelo
-  const seg3 = arcPath(54, 0); // 70-100% verde
-  const needleAngle = 180 - (percent / 100) * 180;
-  const tip = polarToCartesian(needleAngle, r - 6);
-  const labelEsq = polarToCartesian(180, r + 22);
-  const labelDir = polarToCartesian(0, r + 22);
-  const labelTopo = polarToCartesian(90, r + 22);
+
+  // marcacoes ao redor (a cada 10%, maiores a cada 20% com numero)
+  let ticksHtml = '';
+  for (let i = 0; i <= 10; i++) {
+    const pct = i * 10;
+    const ang = angleFor(pct);
+    const isMajor = i % 2 === 0;
+    const p1 = pt(ang, isMajor ? rTicks - 12 : rTicks - 7);
+    const p2 = pt(ang, rTicks);
+    ticksHtml += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${isMajor ? 'var(--brand-blue-light)' : 'rgba(255,255,255,0.3)'}" stroke-width="${isMajor ? 2.5 : 1.5}" stroke-linecap="round" />`;
+    if (isMajor) {
+      const lp = pt(ang, rTicks + 15);
+      ticksHtml += `<text x="${lp.x}" y="${lp.y}" text-anchor="middle" dominant-baseline="middle" font-size="10.5" font-family="monospace" fill="rgba(255,255,255,0.6)">${Math.round(max * pct / 100)}</text>`;
+    }
+  }
+
+  const zoneRed = arcPath(0, 30, rZone);
+  const zoneYellow = arcPath(30, 70, rZone);
+  const zoneGreen = arcPath(70, 100, rZone);
+
+  const needleAngle = angleFor(percent);
+  const tip = pt(needleAngle, rNeedle);
+  const baseLeft = pt(needleAngle + 90, 6);
+  const baseRight = pt(needleAngle - 90, 6);
+
   return `
-    <svg width="${size}" height="${size / 2 + 50}" viewBox="0 0 ${size} ${size / 2 + 50}">
-      <path d="${seg1}" fill="none" stroke="var(--danger)" stroke-width="${stroke}" stroke-linecap="round" />
-      <path d="${seg2}" fill="none" stroke="var(--warning)" stroke-width="${stroke}" stroke-linecap="round" />
-      <path d="${seg3}" fill="none" stroke="var(--success)" stroke-width="${stroke}" stroke-linecap="round" />
-      <text x="${labelEsq.x}" y="${labelEsq.y}" text-anchor="middle" font-size="11" fill="var(--text-muted)">0h</text>
-      <text x="${labelTopo.x}" y="${labelTopo.y - 6}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${Math.round(max / 2)}h</text>
-      <text x="${labelDir.x}" y="${labelDir.y}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${Math.round(max)}h</text>
-      <line x1="${cx}" y1="${cy}" x2="${tip.x}" y2="${tip.y}" stroke="var(--text)" stroke-width="4" stroke-linecap="round" />
-      <circle cx="${cx}" cy="${cy}" r="8" fill="var(--text)" />
-      <text x="${cx}" y="${cy + 38}" text-anchor="middle" font-size="26" font-weight="700" fill="var(--text)">${Math.round(valorHoras)}h</text>
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <defs>
+        <radialGradient id="gaugeBg-${cx}" cx="50%" cy="42%" r="65%">
+          <stop offset="0%" stop-color="#16304f" />
+          <stop offset="100%" stop-color="#050b14" />
+        </radialGradient>
+        <filter id="glow-${cx}" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="3.2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" /><feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+      <circle cx="${cx}" cy="${cy}" r="${rPanel}" fill="url(#gaugeBg-${cx})" stroke="rgba(74,143,224,0.4)" stroke-width="1.5" />
+      ${ticksHtml}
+      <path d="${zoneRed}" fill="none" stroke="var(--danger)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
+      <path d="${zoneYellow}" fill="none" stroke="var(--warning)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
+      <path d="${zoneGreen}" fill="none" stroke="var(--success)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
+      <polygon points="${tip.x},${tip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}" fill="var(--brand-blue-light)" filter="url(#glow-${cx})" />
+      <circle cx="${cx}" cy="${cy}" r="10" fill="#0a1628" stroke="var(--brand-blue-light)" stroke-width="2" />
+      <rect x="${cx - 42}" y="${cy + 40}" width="84" height="30" rx="15" fill="#050b14" stroke="rgba(74,143,224,0.55)" stroke-width="1.2" />
+      <text x="${cx}" y="${cy + 60}" text-anchor="middle" font-size="17" font-weight="700" font-family="monospace" fill="var(--brand-blue-light)" filter="url(#glow-${cx})">${Math.round(valorHoras)}h</text>
     </svg>
   `;
 }
