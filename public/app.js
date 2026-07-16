@@ -974,11 +974,11 @@ document.getElementById('cal-hoje').addEventListener('click', () => {
 // ---------- velocimetro (tempo gasto na demanda) ----------
 function buildGaugeSvg(valorHoras, maxHoras) {
   const size = 280, cx = size / 2, cy = size / 2;
-  const rPanel = 124, rTicks = 104, rZone = 86, rNeedle = 92;
+  const rPanel = 122, rTicks = 102, rZone = 84, rNeedle = 90;
   const max = maxHoras > 0 ? maxHoras : 1;
   const percent = Math.min(Math.max((valorHoras / max) * 100, 0), 100);
 
-  // varredura de 270 graus (estilo velocimetro real), com folga de 90 graus na parte de baixo.
+  // varredura de 270 graus (estilo velocimetro), com folga de 90 graus na parte de baixo.
   // convencao: 0=direita, 90=baixo, 180=esquerda, 270=topo (sentido horario)
   const START = 135, END = 405;
   function angleFor(pct) { return START + (pct / 100) * (END - START); }
@@ -993,53 +993,51 @@ function buildGaugeSvg(valorHoras, maxHoras) {
     return `M ${p1.x} ${p1.y} A ${raio} ${raio} 0 ${largeArc} 1 ${p2.x} ${p2.y}`;
   }
 
-  // marcacoes ao redor (a cada 10%, maiores a cada 20% com numero)
+  // marcacoes ao redor (a cada 10%, maiores a cada 20% com numero em horas)
   let ticksHtml = '';
   for (let i = 0; i <= 10; i++) {
     const pct = i * 10;
     const ang = angleFor(pct);
     const isMajor = i % 2 === 0;
-    const p1 = pt(ang, isMajor ? rTicks - 12 : rTicks - 7);
+    const p1 = pt(ang, isMajor ? rTicks - 11 : rTicks - 6);
     const p2 = pt(ang, rTicks);
-    ticksHtml += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${isMajor ? 'var(--brand-blue-light)' : 'rgba(255,255,255,0.3)'}" stroke-width="${isMajor ? 2.5 : 1.5}" stroke-linecap="round" />`;
+    ticksHtml += `<line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" stroke="${isMajor ? 'var(--brand-blue)' : 'var(--border)'}" stroke-width="${isMajor ? 2.5 : 1.5}" stroke-linecap="round" />`;
     if (isMajor) {
-      const lp = pt(ang, rTicks + 15);
-      ticksHtml += `<text x="${lp.x}" y="${lp.y}" text-anchor="middle" dominant-baseline="middle" font-size="10.5" font-family="monospace" fill="rgba(255,255,255,0.6)">${Math.round(max * pct / 100)}</text>`;
+      const lp = pt(ang, rTicks + 16);
+      ticksHtml += `<text x="${lp.x}" y="${lp.y}" text-anchor="middle" dominant-baseline="middle" font-size="10.5" fill="var(--text-muted)">${Math.round(max * pct / 100)}</text>`;
     }
   }
 
-  const zoneRed = arcPath(0, 30, rZone);
+  // ordem invertida: verde (uso baixo/tranquilo) -> amarelo -> vermelho (uso alto/proximo do limite)
+  const zoneGreen = arcPath(0, 30, rZone);
   const zoneYellow = arcPath(30, 70, rZone);
-  const zoneGreen = arcPath(70, 100, rZone);
+  const zoneRed = arcPath(70, 100, rZone);
 
   const needleAngle = angleFor(percent);
   const tip = pt(needleAngle, rNeedle);
-  const baseLeft = pt(needleAngle + 90, 6);
-  const baseRight = pt(needleAngle - 90, 6);
+  const baseLeft = pt(needleAngle + 90, 5.5);
+  const baseRight = pt(needleAngle - 90, 5.5);
 
   return `
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
       <defs>
-        <radialGradient id="gaugeBg-${cx}" cx="50%" cy="42%" r="65%">
-          <stop offset="0%" stop-color="#16304f" />
-          <stop offset="100%" stop-color="#050b14" />
+        <radialGradient id="gaugeBg-${cx}" cx="50%" cy="40%" r="70%">
+          <stop offset="0%" stop-color="#ffffff" />
+          <stop offset="100%" stop-color="#eef2f7" />
         </radialGradient>
-        <filter id="glow-${cx}" x="-60%" y="-60%" width="220%" height="220%">
-          <feGaussianBlur stdDeviation="3.2" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" /><feMergeNode in="SourceGraphic" />
-          </feMerge>
+        <filter id="shadow-${cx}" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="2" stdDeviation="2.5" flood-color="#123f73" flood-opacity="0.35" />
         </filter>
       </defs>
-      <circle cx="${cx}" cy="${cy}" r="${rPanel}" fill="url(#gaugeBg-${cx})" stroke="rgba(74,143,224,0.4)" stroke-width="1.5" />
+      <circle cx="${cx}" cy="${cy}" r="${rPanel}" fill="url(#gaugeBg-${cx})" stroke="var(--border)" stroke-width="1.5" />
       ${ticksHtml}
-      <path d="${zoneRed}" fill="none" stroke="var(--danger)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
-      <path d="${zoneYellow}" fill="none" stroke="var(--warning)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
-      <path d="${zoneGreen}" fill="none" stroke="var(--success)" stroke-width="7" stroke-linecap="round" opacity="0.9" />
-      <polygon points="${tip.x},${tip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}" fill="var(--brand-blue-light)" filter="url(#glow-${cx})" />
-      <circle cx="${cx}" cy="${cy}" r="10" fill="#0a1628" stroke="var(--brand-blue-light)" stroke-width="2" />
-      <rect x="${cx - 42}" y="${cy + 40}" width="84" height="30" rx="15" fill="#050b14" stroke="rgba(74,143,224,0.55)" stroke-width="1.2" />
-      <text x="${cx}" y="${cy + 60}" text-anchor="middle" font-size="17" font-weight="700" font-family="monospace" fill="var(--brand-blue-light)" filter="url(#glow-${cx})">${Math.round(valorHoras)}h</text>
+      <path d="${zoneGreen}" fill="none" stroke="var(--success)" stroke-width="8" stroke-linecap="round" />
+      <path d="${zoneYellow}" fill="none" stroke="var(--warning)" stroke-width="8" stroke-linecap="round" />
+      <path d="${zoneRed}" fill="none" stroke="var(--danger)" stroke-width="8" stroke-linecap="round" />
+      <polygon points="${tip.x},${tip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}" fill="var(--brand-blue)" filter="url(#shadow-${cx})" />
+      <circle cx="${cx}" cy="${cy}" r="9" fill="var(--surface)" stroke="var(--brand-blue)" stroke-width="2.5" />
+      <rect x="${cx - 44}" y="${cy + 38}" width="88" height="32" rx="16" fill="var(--accent-soft)" />
+      <text x="${cx}" y="${cy + 59}" text-anchor="middle" font-size="18" font-weight="700" fill="var(--brand-blue)">${Math.round(valorHoras)}h</text>
     </svg>
   `;
 }
@@ -1125,9 +1123,10 @@ function renderVelocimetro() {
     horasPrevistas += h.horasPrevistas;
   });
 
+  const ESCALA_MAXIMA_HORAS = 10000;
   host.innerHTML = `
-    ${buildGaugeSvg(horasInvestidas, horasPrevistas)}
-    <p class="gauge-info">${Math.round(horasInvestidas)}h investidas de ${Math.round(horasPrevistas)}h previstas (dias úteis, 8h/dia)${tarefas.length > 1 ? ' · ' + tarefas.length + ' tarefas somadas' : ''}</p>
+    ${buildGaugeSvg(horasInvestidas, ESCALA_MAXIMA_HORAS)}
+    <p class="gauge-info">${Math.round(horasInvestidas)}h investidas (previsto para essa demanda: ${Math.round(horasPrevistas)}h)${tarefas.length > 1 ? ' · ' + tarefas.length + ' tarefas somadas' : ''}</p>
   `;
 }
 
