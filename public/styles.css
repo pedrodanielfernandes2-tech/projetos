@@ -316,6 +316,8 @@ input:focus, select:focus, textarea:focus {
   padding: 6px; background: var(--surface); display: flex; flex-direction: column; gap: 3px;
 }
 .calendar-day.outside { background: var(--surface-alt); opacity: 0.5; }
+.calendar-day.has-items { cursor: pointer; }
+.calendar-day.has-items:hover { border-color: var(--brand-blue); box-shadow: var(--shadow-sm); }
 .calendar-day.today { border-color: var(--brand-blue); box-shadow: 0 0 0 1px var(--brand-blue); }
 .calendar-day-num { font-size: 12px; font-weight: 600; color: var(--text-muted); }
 .calendar-day.today .calendar-day-num { color: var(--brand-blue); }

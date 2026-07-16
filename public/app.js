@@ -300,12 +300,13 @@ function renderStats() {
   const total = state.projects.length;
   const atrasados = state.projects.filter(p => p.status_prazo === 'atrasado').length;
   const bloqueados = state.projects.filter(p => p.status_prazo === 'bloqueado').length;
+  const pendentes = state.projects.filter(p => p.status_prazo === 'pendente').length;
   const el = document.getElementById('stats-grid');
   el.innerHTML = `
     <div class="stat-card"><p class="stat-label">Projetos ativos</p><p class="stat-value">${total}</p></div>
     <div class="stat-card"><p class="stat-label">Prazo atrasado</p><p class="stat-value" style="color:var(--danger)">${atrasados}</p></div>
     <div class="stat-card"><p class="stat-label">Bloqueados</p><p class="stat-value" style="color:var(--warning)">${bloqueados}</p></div>
-    <div class="stat-card"><p class="stat-label">GPs cadastrados</p><p class="stat-value">${state.gps.length}</p></div>
+    <div class="stat-card"><p class="stat-label">Sem datas definidas</p><p class="stat-value" style="color:var(--pending)">${pendentes}</p></div>
   `;
 }
 
@@ -896,7 +897,7 @@ function renderCalendar() {
       if (d.getMonth() === state.calendarMonth && d.getFullYear() === state.calendarYear) {
         const dia = d.getDate();
         if (!diasMap[dia]) diasMap[dia] = [];
-        diasMap[dia].push({ area: t.area, nome: p.nome, status: t.status });
+        diasMap[dia].push({ area: t.area, nome: p.nome, chamado: p.chamado, status: t.status, cliente_nome: p.cliente_nome, gerente_nome: p.gerente_nome });
       }
     });
   });
@@ -917,15 +918,41 @@ function renderCalendar() {
     const visiveis = itens.slice(0, 3);
     const extra = itens.length - visiveis.length;
     html += `
-      <div class="calendar-day${isHoje ? ' today' : ''}">
+      <div class="calendar-day${isHoje ? ' today' : ''}${itens.length > 0 ? ' has-items' : ''}" data-dia="${dia}">
         <span class="calendar-day-num">${dia}</span>
-        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}" title="${it.area} — ${it.nome} (${it.status})">${it.area}</span>`).join('')}
+        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}" title="${it.area} — ${it.nome} (${it.status})">${it.area}${it.chamado ? ' · ' + it.chamado : ''}</span>`).join('')}
         ${extra > 0 ? `<span class="calendar-more">+${extra} mais</span>` : ''}
       </div>
     `;
   }
   document.getElementById('cal-grid').innerHTML = html;
+
+  document.querySelectorAll('.calendar-day[data-dia]').forEach(cell => {
+    const dia = Number(cell.dataset.dia);
+    const itens = diasMap[dia] || [];
+    if (itens.length === 0) return;
+    cell.onclick = () => openDayModal(dia, itens);
+  });
 }
+
+function openDayModal(dia, itens) {
+  const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  document.getElementById('day-modal-title').textContent = `Entregas em ${dia} de ${monthNames[state.calendarMonth]} (${itens.length})`;
+  const list = document.getElementById('day-modal-list');
+  list.innerHTML = itens.map(it => `
+    <div class="deadline-row">
+      <div>
+        <p class="deadline-name">${it.nome}${it.chamado ? ' · Chamado ' + it.chamado : ''}</p>
+        <p class="deadline-meta">${it.area}${it.cliente_nome ? ' · Cliente: ' + it.cliente_nome : ''}${it.gerente_nome ? ' · GP: ' + it.gerente_nome : ''}</p>
+      </div>
+      <span class="badge ${statusClass(it.status)}">${it.status}</span>
+    </div>
+  `).join('');
+  document.getElementById('modal-day-details').classList.remove('hidden');
+}
+document.getElementById('btn-close-day-modal').addEventListener('click', () => {
+  document.getElementById('modal-day-details').classList.add('hidden');
+});
 
 document.getElementById('cal-prev').addEventListener('click', () => {
   state.calendarMonth--;
@@ -945,34 +972,64 @@ document.getElementById('cal-hoje').addEventListener('click', () => {
 });
 
 // ---------- velocimetro (tempo gasto na demanda) ----------
-function buildGaugeSvg(percent) {
-  const size = 220, cx = size / 2, cy = size / 2 + 6, r = 88, stroke = 20;
-  function polarToCartesian(angleDeg) {
+function buildGaugeSvg(valorHoras, maxHoras) {
+  const size = 240, cx = size / 2, cy = size / 2 + 6, r = 92, stroke = 20;
+  function polarToCartesian(angleDeg, raio) {
     const rad = angleDeg * Math.PI / 180;
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+    return { x: cx + raio * Math.cos(rad), y: cy + raio * Math.sin(rad) };
   }
   function arcPath(startAngle, endAngle) {
-    const start = polarToCartesian(startAngle);
-    const end = polarToCartesian(endAngle);
+    const start = polarToCartesian(startAngle, r);
+    const end = polarToCartesian(endAngle, r);
     const largeArc = Math.abs(endAngle - startAngle) <= 180 ? 0 : 1;
     return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
   }
-  // 180deg = extrema esquerda (0%), 0deg = extrema direita (100%), passando pelo topo (90deg)
+  const max = maxHoras > 0 ? maxHoras : 1;
+  const percent = Math.min(Math.max((valorHoras / max) * 100, 0), 100);
+  // 180deg = extrema esquerda (0h), 0deg = extrema direita (maxHoras), passando pelo topo
   const seg1 = arcPath(180, 126); // 0-30% vermelho
   const seg2 = arcPath(126, 54); // 30-70% amarelo
   const seg3 = arcPath(54, 0); // 70-100% verde
-  const needleAngle = 180 - (Math.min(Math.max(percent, 0), 100) / 100) * 180;
-  const tip = polarToCartesian(needleAngle);
+  const needleAngle = 180 - (percent / 100) * 180;
+  const tip = polarToCartesian(needleAngle, r - 6);
+  const labelEsq = polarToCartesian(180, r + 22);
+  const labelDir = polarToCartesian(0, r + 22);
+  const labelTopo = polarToCartesian(90, r + 22);
   return `
-    <svg width="${size}" height="${size / 2 + 46}" viewBox="0 0 ${size} ${size / 2 + 46}">
+    <svg width="${size}" height="${size / 2 + 50}" viewBox="0 0 ${size} ${size / 2 + 50}">
       <path d="${seg1}" fill="none" stroke="var(--danger)" stroke-width="${stroke}" stroke-linecap="round" />
       <path d="${seg2}" fill="none" stroke="var(--warning)" stroke-width="${stroke}" stroke-linecap="round" />
       <path d="${seg3}" fill="none" stroke="var(--success)" stroke-width="${stroke}" stroke-linecap="round" />
+      <text x="${labelEsq.x}" y="${labelEsq.y}" text-anchor="middle" font-size="11" fill="var(--text-muted)">0h</text>
+      <text x="${labelTopo.x}" y="${labelTopo.y - 6}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${Math.round(max / 2)}h</text>
+      <text x="${labelDir.x}" y="${labelDir.y}" text-anchor="middle" font-size="11" fill="var(--text-muted)">${Math.round(max)}h</text>
       <line x1="${cx}" y1="${cy}" x2="${tip.x}" y2="${tip.y}" stroke="var(--text)" stroke-width="4" stroke-linecap="round" />
-      <circle cx="${cx}" cy="${cy}" r="7" fill="var(--text)" />
-      <text x="${cx}" y="${cy + 36}" text-anchor="middle" font-size="28" font-weight="700" fill="var(--text)">${percent}%</text>
+      <circle cx="${cx}" cy="${cy}" r="8" fill="var(--text)" />
+      <text x="${cx}" y="${cy + 38}" text-anchor="middle" font-size="26" font-weight="700" fill="var(--text)">${Math.round(valorHoras)}h</text>
     </svg>
   `;
+}
+
+function diasUteisEntre(inicioStr, fimStr) {
+  const start = new Date(inicioStr + 'T00:00:00');
+  const end = new Date(fimStr + 'T00:00:00');
+  if (end < start) return 0;
+  let count = 0;
+  const d = new Date(start);
+  while (d <= end) {
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+function horasTarefa(t) {
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const horasPrevistas = diasUteisEntre(t.inicio, t.fim) * 8;
+  if (hojeStr < t.inicio) return { horasInvestidas: 0, horasPrevistas };
+  const fimEfetivo = hojeStr > t.fim ? t.fim : hojeStr;
+  const horasInvestidas = diasUteisEntre(t.inicio, fimEfetivo) * 8;
+  return { horasInvestidas, horasPrevistas };
 }
 
 function renderVelocimetroFilters() {
@@ -1027,11 +1084,16 @@ function renderVelocimetro() {
     return;
   }
 
-  const soma = tarefas.reduce((acc, t) => acc + elapsedPercent(t.inicio, t.fim), 0);
-  const media = Math.round(soma / tarefas.length);
+  let horasInvestidas = 0, horasPrevistas = 0;
+  tarefas.forEach(t => {
+    const h = horasTarefa(t);
+    horasInvestidas += h.horasInvestidas;
+    horasPrevistas += h.horasPrevistas;
+  });
+
   host.innerHTML = `
-    ${buildGaugeSvg(media)}
-    <p class="gauge-info">${tarefas.length === 1 ? '1 tarefa considerada' : tarefas.length + ' tarefas consideradas (média)'}</p>
+    ${buildGaugeSvg(horasInvestidas, horasPrevistas)}
+    <p class="gauge-info">${Math.round(horasInvestidas)}h investidas de ${Math.round(horasPrevistas)}h previstas (dias úteis, 8h/dia)${tarefas.length > 1 ? ' · ' + tarefas.length + ' tarefas somadas' : ''}</p>
   `;
 }
 

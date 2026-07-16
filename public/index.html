@@ -99,7 +99,7 @@
 
       <div class="chart-panel">
         <h2 class="panel-title">Velocímetro — tempo gasto na demanda</h2>
-        <p class="muted">Mostra o quanto do prazo já foi consumido. Escolha uma área e, se quiser, um chamado específico — sem chamado, calcula a média de todas as tarefas da área dentro do período.</p>
+        <p class="muted">Mostra quantas horas já foram investidas naquela demanda, considerando dias úteis e jornada de 8h/dia. Escolha uma área e, se quiser, um chamado específico — sem chamado, soma todas as tarefas da área dentro do período.</p>
         <div class="gauge-filters">
           <select id="vel-area"></select>
           <select id="vel-chamado"><option value="">Todos os chamados (média do período)</option></select>
@@ -328,6 +328,16 @@
           <button type="submit" class="btn btn-primary">Salvar alterações</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="modal-day-details" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="day-modal-title">Entregas do dia</h2>
+      <div id="day-modal-list" class="stack tight"></div>
+      <div class="form-actions">
+        <button type="button" id="btn-close-day-modal" class="btn">Fechar</button>
+      </div>
     </div>
   </div>
 
