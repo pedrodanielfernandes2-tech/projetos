@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { requireAdminIfSetting } = require('../adminAuth');
 const router = express.Router();
 
 const STATUS_MANUAIS = ['bloqueado', 'concluído', 'concluido'];
@@ -87,7 +88,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
   await pool.query(`
     UPDATE projects SET nome=$1, chamado=$2, cliente_id=$3, gp_id=$4, tipo=$5, fase=$6, status_prazo=$7, resumo=$8, data_inicio=$9, data_fim=$10, progresso=$11
@@ -96,13 +97,13 @@ router.put('/:id', async (req, res) => {
   res.json(await loadProject(req.params.id));
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdminIfSetting('restringir_exclusao'), async (req, res) => {
   await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });
 
 // Tarefas por area dentro de um projeto
-router.post('/:id/tarefas', async (req, res) => {
+router.post('/:id/tarefas', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { area, inicio, fim, status } = req.body;
   if (!area || !inicio || !fim) return res.status(400).json({ error: 'area, inicio e fim sao obrigatorios' });
   const { rows } = await pool.query(
@@ -112,7 +113,7 @@ router.post('/:id/tarefas', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
-router.put('/:id/tarefas/:taskId', async (req, res) => {
+router.put('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { area, inicio, fim, status } = req.body;
   await pool.query(
     'UPDATE area_tasks SET area=$1, inicio=$2, fim=$3, status=$4 WHERE id=$5 AND project_id=$6',
@@ -121,7 +122,7 @@ router.put('/:id/tarefas/:taskId', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/:id/tarefas/:taskId', async (req, res) => {
+router.delete('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   await pool.query('DELETE FROM area_tasks WHERE id=$1 AND project_id=$2', [req.params.taskId, req.params.id]);
   res.json({ ok: true });
 });

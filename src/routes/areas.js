@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { requireAdminAlways } = require('../adminAuth');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   res.json(rows.map(r => r.nome));
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdminAlways, async (req, res) => {
   const { nome } = req.body;
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome da area obrigatorio' });
   try {
@@ -18,7 +19,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.delete('/:nome', async (req, res) => {
+router.delete('/:nome', requireAdminAlways, async (req, res) => {
   const nome = decodeURIComponent(req.params.nome);
   const { rows: taskRows } = await pool.query('SELECT COUNT(*)::int AS n FROM area_tasks WHERE area = $1', [nome]);
   if (taskRows[0].n > 0) {

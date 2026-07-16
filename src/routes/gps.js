@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { requireAdminAlways } = require('../adminAuth');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   res.json(rows);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdminAlways, async (req, res) => {
   const { nome, email } = req.body;
   if (!nome || !email) {
     return res.status(400).json({ error: 'nome e email sao obrigatorios' });
@@ -23,13 +24,13 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireAdminAlways, async (req, res) => {
   const { nome, email } = req.body;
   await pool.query('UPDATE gps SET nome = $1, email = $2 WHERE id = $3', [nome, email, req.params.id]);
   res.json({ ok: true });
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdminAlways, async (req, res) => {
   await pool.query('DELETE FROM gps WHERE id = $1', [req.params.id]);
   res.json({ ok: true });
 });

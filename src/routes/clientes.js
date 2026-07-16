@@ -1,5 +1,6 @@
 const express = require('express');
 const { pool } = require('../db');
+const { requireAdminAlways } = require('../adminAuth');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -7,7 +8,7 @@ router.get('/', async (req, res) => {
   res.json(rows);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireAdminAlways, async (req, res) => {
   const { nome } = req.body;
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome do cliente obrigatorio' });
   try {
@@ -18,7 +19,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireAdminAlways, async (req, res) => {
   const { rows } = await pool.query('SELECT COUNT(*)::int AS n FROM projects WHERE cliente_id = $1', [req.params.id]);
   if (rows[0].n > 0) {
     return res.status(400).json({ error: 'esse cliente esta vinculado a projetos e nao pode ser removido' });
