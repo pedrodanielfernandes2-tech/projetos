@@ -7,18 +7,21 @@
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="brand">
-      <span class="brand-mark">PP</span>
-      <span class="brand-name">Painel de Projetos</span>
-    </div>
-    <nav class="tabs">
-      <button class="tab-btn active" data-tab="projetos">Projetos</button>
-      <button class="tab-btn" data-tab="admin">Admin</button>
-    </nav>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand-wrap">
+        <img src="assets/logo.png" alt="Visual Mix" class="sidebar-logo" />
+        <p class="sidebar-subtitle">Painel de Projetos</p>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="sidebar-nav-btn active" data-tab="projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos</button>
+        <button class="sidebar-nav-btn" data-tab="dashboard"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
+        <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
+      </nav>
+      <p class="sidebar-footer">Visual Mix · Tecnologia para o varejo</p>
+    </aside>
 
-  <main class="container">
+    <main class="content-area">
 
     <section id="view-projetos" class="view">
       <div class="stats-grid" id="stats-grid"></div>
@@ -40,6 +43,26 @@
       </div>
 
       <div id="project-list" class="stack"></div>
+    </section>
+
+    <section id="view-dashboard" class="view hidden">
+      <div class="stats-grid" id="dash-stats"></div>
+
+      <div class="dashboard-grid">
+        <div class="chart-panel">
+          <h2 class="panel-title">Status dos projetos</h2>
+          <div class="donut-wrap" id="dash-donut"></div>
+        </div>
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos por área</h2>
+          <div id="dash-area-bars" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div class="chart-panel">
+        <h2 class="panel-title">Prazos mais próximos</h2>
+        <div id="dash-deadlines" class="deadline-list"></div>
+      </div>
     </section>
 
     <section id="view-admin" class="view hidden">
@@ -139,7 +162,8 @@
       </div>
     </section>
 
-  </main>
+    </main>
+  </div>
 
   <div id="modal-new-project" class="modal-overlay hidden">
     <div class="modal">
