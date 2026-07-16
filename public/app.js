@@ -262,7 +262,7 @@ function renderProjectList() {
       : statusAtencao === 'bloqueado' ? ' card-bloqueado'
       : '';
     card.className = 'card' + cardAttentionClass;
-    const areaTagsHtml = p.tarefas.map(t => `<span class="area-tag">${t.area}</span>`).join(' ');
+    const areaTagsHtml = p.tarefas.map(t => `<span class="badge ${statusClass(t.status)}" title="${t.area}: ${t.status}">${t.area}</span>`).join(' ');
     const open = state.expanded[p.id];
     card.innerHTML = `
       <div class="card-head">
