@@ -89,6 +89,15 @@ async function init() {
     );
 
     INSERT INTO email_config (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS app_settings (
+      id INTEGER PRIMARY KEY DEFAULT 1,
+      restringir_exclusao BOOLEAN DEFAULT FALSE,
+      restringir_edicao_prazos BOOLEAN DEFAULT FALSE,
+      CONSTRAINT app_settings_singleton CHECK (id = 1)
+    );
+
+    INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,

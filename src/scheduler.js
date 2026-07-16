@@ -10,7 +10,7 @@ function diasDesde(data) {
 
 function deveEnviarHoje(config) {
   const hoje = new Date();
-  const diaSemanaHoje = hoje.getDay();
+  const diaSemanaHoje = hoje.getDay(); // 0=domingo ... 6=sabado
 
   switch (config.frequencia) {
     case 'diaria':
@@ -27,8 +27,8 @@ function deveEnviarHoje(config) {
 }
 
 function startScheduler() {
-  const cronLib = require('node-cron');
-  cronLib.schedule('0 7 * * *', async () => {
+  // roda todo dia as 07:00 (verifica se, segundo a config, deve disparar hoje)
+  cron.schedule('0 7 * * *', async () => {
     try {
       const { rows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
       const config = rows[0];
