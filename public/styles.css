@@ -51,7 +51,7 @@ body {
   box-shadow: var(--shadow-lg);
 }
 .sidebar-brand-wrap { padding: 0 22px; margin-bottom: 30px; }
-.sidebar-logo { width: 100%; max-width: 152px; height: auto; display: block; }
+.sidebar-logo { width: 100%; max-width: 140px; height: auto; display: block; }
 .sidebar-subtitle {
   font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
   color: rgba(255, 255, 255, 0.55); margin: 8px 0 0;
@@ -79,6 +79,14 @@ body {
   flex: 1; min-width: 0; max-width: 1440px; margin: 0 auto;
   padding: 32px 40px 60px; width: 100%;
 }
+
+/* ---------- page header ---------- */
+.page-header { margin-bottom: 24px; }
+.page-header h1 {
+  font-size: 28px; font-weight: 800; margin: 0 0 4px;
+  letter-spacing: -0.02em; color: var(--text);
+}
+.page-subtitle { color: var(--text-muted); font-size: 14px; margin: 0; }
 
 /* ---------- stats ---------- */
 .stats-grid {
