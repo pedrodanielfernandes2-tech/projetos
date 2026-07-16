@@ -4,7 +4,11 @@ const state = {
   gps: [],
   adminEmails: [],
   clientes: [],
+  settings: { restringir_exclusao: false, restringir_edicao_prazos: false },
   activeFilter: null,
+  gpFilter: null,
+  isAdmin: false,
+  adminPassword: null,
   expanded: {}, // projectId -> 'tarefas' | 'historico' | null
   newProjectAreas: {}, // area -> {inicio, fim}
 };
@@ -27,37 +31,89 @@ function progressColor(progresso) {
   if (progresso < 70) return 'var(--warning)';
   return 'var(--success)';
 }
+function barWidth(progresso) {
+  // largura minima visivel, para a cor sempre aparecer mesmo em 0%
+  return Math.max(progresso, 4);
+}
+function elapsedPercent(inicio, fim) {
+  const hoje = new Date();
+  const start = new Date(inicio + 'T00:00:00');
+  const end = new Date(fim + 'T00:00:00');
+  if (hoje <= start) return 0;
+  if (hoje >= end) return 100;
+  const total = end - start;
+  if (total <= 0) return 100;
+  return Math.round(((hoje - start) / total) * 100);
+}
 async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
   const res = await fetch('/api' + path, {
-    headers: { 'Content-Type': 'application/json' },
     ...opts,
+    headers: { ...headers, ...(opts.headers || {}) },
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'erro desconhecido' }));
+    if (res.status === 401) {
+      state.isAdmin = false;
+      state.adminPassword = null;
+      sessionStorage.removeItem('adminPassword');
+    }
     throw new Error(err.error || 'falha na requisicao');
   }
   return res.status === 204 ? null : res.json();
 }
 
+// ---------- admin login ----------
+function loadAdminSession() {
+  const stored = sessionStorage.getItem('adminPassword');
+  if (stored) {
+    state.adminPassword = stored;
+    state.isAdmin = true;
+  }
+}
+async function requestAdminLogin(onSuccess) {
+  const senha = prompt('Digite a senha de administrador:');
+  if (senha === null || senha === '') return;
+  state.adminPassword = senha;
+  try {
+    await api('/admin/login', { method: 'POST', body: JSON.stringify({ senha }) });
+    state.isAdmin = true;
+    sessionStorage.setItem('adminPassword', senha);
+    if (onSuccess) onSuccess();
+  } catch (err) {
+    alert('Senha incorreta.');
+  }
+}
+
 // ---------- tabs ----------
+function activateTab(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-projetos').classList.toggle('hidden', btn.dataset.tab !== 'projetos');
+  document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
+}
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('view-projetos').classList.toggle('hidden', btn.dataset.tab !== 'projetos');
-    document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
+    if (btn.dataset.tab === 'admin' && !state.isAdmin) {
+      requestAdminLogin(() => activateTab(btn));
+      return;
+    }
+    activateTab(btn);
   });
 });
 
 // ---------- load all data ----------
 async function loadAll() {
-  const [areas, projects, gps, adminEmails, emailConfig, clientes] = await Promise.all([
+  loadAdminSession();
+  const [areas, projects, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/projects'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
     api('/clientes'),
+    api('/settings'),
   ]);
   state.areas = areas;
   state.projects = projects;
@@ -65,13 +121,16 @@ async function loadAll() {
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
   state.clientes = clientes;
+  state.settings = settings;
   renderStats();
   renderAreaFilters();
+  renderGpFilters();
   renderProjectList();
   renderAreaList();
   renderGpList();
   renderAdminList();
   renderEmailConfig();
+  renderPermissoes();
   populateGpSelect();
   renderNewProjectAreaChips();
   renderClienteList();
@@ -148,9 +207,33 @@ function renderAreaFilters() {
   });
 }
 async function loadProjectsFiltered() {
-  state.projects = await api('/projects' + (state.activeFilter ? '?area=' + encodeURIComponent(state.activeFilter) : ''));
+  let projects = await api('/projects' + (state.activeFilter ? '?area=' + encodeURIComponent(state.activeFilter) : ''));
+  if (state.gpFilter) projects = projects.filter(p => String(p.gp_id) === String(state.gpFilter));
+  state.projects = projects;
   renderProjectList();
   renderStats();
+}
+
+// ---------- gp filters ----------
+function renderGpFilters() {
+  const el = document.getElementById('gp-filters');
+  el.innerHTML = '';
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:12px;color:var(--text-muted);align-self:center;margin-right:2px;';
+  label.textContent = 'GP:';
+  el.appendChild(label);
+  const allChip = document.createElement('button');
+  allChip.className = 'chip' + (state.gpFilter ? '' : ' selected');
+  allChip.textContent = 'Todos';
+  allChip.onclick = () => { state.gpFilter = null; renderGpFilters(); loadProjectsFiltered(); };
+  el.appendChild(allChip);
+  state.gps.forEach(gp => {
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (String(state.gpFilter) === String(gp.id) ? ' selected' : '');
+    chip.textContent = gp.nome;
+    chip.onclick = () => { state.gpFilter = String(state.gpFilter) === String(gp.id) ? null : gp.id; renderGpFilters(); loadProjectsFiltered(); };
+    el.appendChild(chip);
+  });
 }
 
 // ---------- project list ----------
@@ -166,7 +249,11 @@ function renderProjectList() {
   }
   state.projects.forEach(p => {
     const card = document.createElement('div');
-    card.className = 'card';
+    const statusAtencao = (p.status_prazo || '').toLowerCase();
+    const cardAttentionClass = statusAtencao === 'atrasado' ? ' card-atrasado'
+      : statusAtencao === 'bloqueado' ? ' card-bloqueado'
+      : '';
+    card.className = 'card' + cardAttentionClass;
     const areaTagsHtml = p.tarefas.map(t => `<span class="area-tag">${t.area}</span>`).join(' ');
     const open = state.expanded[p.id];
     card.innerHTML = `
@@ -178,15 +265,16 @@ function renderProjectList() {
         <div style="display:flex;align-items:center;gap:6px;">
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
+          <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
         </div>
       </div>
       <p class="card-resumo">${p.resumo || ''}</p>
       <div class="chip-row" style="margin-bottom:8px;">${areaTagsHtml}</div>
       <div class="card-sub" style="display:flex;justify-content:space-between;">
         <span>Prazo geral: ${fmtDate(p.data_inicio)} → ${fmtDate(p.data_fim)}</span>
-        <span>${p.progresso}%</span>
+        <span>${elapsedPercent(p.data_inicio, p.data_fim)}%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:${p.progresso}%;background:${progressColor(p.progresso)}"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${barWidth(elapsedPercent(p.data_inicio, p.data_fim))}%;background:${progressColor(elapsedPercent(p.data_inicio, p.data_fim))}"></div></div>
       <div class="toggle-row">
         <button class="toggle-btn" data-toggle="tarefas">${open === 'tarefas' ? 'Ocultar prazos por área' : 'Prazos por área'}</button>
         <button class="toggle-btn" data-toggle="historico">${open === 'historico' ? 'Ocultar histórico' : 'Histórico (' + p.historico.length + ')'}</button>
@@ -200,11 +288,94 @@ function renderProjectList() {
       row.className = 'detail-row';
       row.innerHTML = `
         <span class="area-tag">${t.area}</span>
-        <span>${fmtDate(t.inicio)} → ${fmtDate(t.fim)}</span>
+        <span data-view-dates>${fmtDate(t.inicio)} → ${fmtDate(t.fim)}</span>
         <span class="badge ${statusClass(t.status)}">${t.status}</span>
+        <div style="display:flex;gap:4px;">
+          <button class="icon-btn" data-edit-task aria-label="Editar tarefa">✎</button>
+          <button class="icon-btn" data-delete-task aria-label="Remover tarefa">✕</button>
+        </div>
       `;
       tarefasHost.appendChild(row);
+      const elapsed = elapsedPercent(t.inicio, t.fim);
+      const bar = document.createElement('div');
+      bar.style.cssText = 'height:4px;background:#ebeae4;border-radius:3px;overflow:hidden;margin:2px 0 4px;';
+      bar.innerHTML = `<div style="height:100%;width:${barWidth(elapsed)}%;background:${progressColor(elapsed)}"></div>`;
+      tarefasHost.appendChild(bar);
+
+      row.querySelector('[data-edit-task]').onclick = () => {
+        const doEdit = () => {
+          row.innerHTML = `
+            <input type="date" value="${t.inicio}" data-edit-inicio style="width:135px;" />
+            <input type="date" value="${t.fim}" data-edit-fim style="width:135px;" />
+            <select data-edit-status style="width:150px;">
+              ${['planejamento', 'em andamento', 'bloqueado', 'concluído'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+            <div style="display:flex;gap:4px;">
+              <button class="btn" data-save-task>Salvar</button>
+              <button class="btn" data-cancel-task>Cancelar</button>
+            </div>
+          `;
+          row.querySelector('[data-save-task]').onclick = async () => {
+            const inicio = row.querySelector('[data-edit-inicio]').value;
+            const fim = row.querySelector('[data-edit-fim]').value;
+            const status = row.querySelector('[data-edit-status]').value;
+            try {
+              await api(`/projects/${p.id}/tarefas/${t.id}`, { method: 'PUT', body: JSON.stringify({ area: t.area, inicio, fim, status }) });
+              state.expanded[p.id] = 'tarefas';
+              await loadProjectsFiltered();
+            } catch (err) {
+              alert(err.message);
+            }
+          };
+          row.querySelector('[data-cancel-task]').onclick = () => renderProjectList();
+        };
+        if (state.settings.restringir_edicao_prazos && !state.isAdmin) return requestAdminLogin(doEdit);
+        doEdit();
+      };
+
+      row.querySelector('[data-delete-task]').onclick = () => {
+        const doDelete = async () => {
+          if (!confirm(`Remover a tarefa da área "${t.area}" deste projeto?`)) return;
+          try {
+            await api(`/projects/${p.id}/tarefas/${t.id}`, { method: 'DELETE' });
+            state.expanded[p.id] = 'tarefas';
+            await loadProjectsFiltered();
+          } catch (err) {
+            alert(err.message);
+          }
+        };
+        if (state.settings.restringir_edicao_prazos && !state.isAdmin) return requestAdminLogin(doDelete);
+        doDelete();
+      };
     });
+
+    const addTaskRow = document.createElement('div');
+    addTaskRow.style.cssText = 'display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:8px;';
+    addTaskRow.innerHTML = `
+      <select data-new-task-area style="min-width:140px;">${state.areas.map(a => `<option value="${a}">${a}</option>`).join('')}</select>
+      <input type="date" data-new-task-inicio style="width:135px;" />
+      <input type="date" data-new-task-fim style="width:135px;" />
+      <button class="btn" data-add-task>+ Área ao projeto</button>
+    `;
+    tarefasHost.appendChild(addTaskRow);
+    addTaskRow.querySelector('[data-add-task]').onclick = () => {
+      const doAdd = async () => {
+        const area = addTaskRow.querySelector('[data-new-task-area]').value;
+        const inicio = addTaskRow.querySelector('[data-new-task-inicio]').value;
+        const fim = addTaskRow.querySelector('[data-new-task-fim]').value;
+        if (!inicio || !fim) { alert('Defina início e fim da nova área.'); return; }
+        try {
+          await api(`/projects/${p.id}/tarefas`, { method: 'POST', body: JSON.stringify({ area, inicio, fim, status: 'planejamento' }) });
+          state.expanded[p.id] = 'tarefas';
+          await loadProjectsFiltered();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      if (state.settings.restringir_edicao_prazos && !state.isAdmin) return requestAdminLogin(doAdd);
+      doAdd();
+    };
+
     const histHost = card.querySelector('[data-detail="historico"]');
     p.historico.forEach(h => {
       const row = document.createElement('div');
@@ -232,7 +403,27 @@ function renderProjectList() {
         renderProjectList();
       };
     });
-    card.querySelector('[data-edit-project]').onclick = () => openEditModal(p);
+    card.querySelector('[data-edit-project]').onclick = () => {
+      if (state.settings.restringir_edicao_prazos && !state.isAdmin) {
+        return requestAdminLogin(() => openEditModal(p));
+      }
+      openEditModal(p);
+    };
+    card.querySelector('[data-delete-project]').onclick = () => {
+      const doDelete = async () => {
+        if (!confirm(`Excluir o projeto "${p.nome}"? Essa ação não pode ser desfeita.`)) return;
+        try {
+          await api(`/projects/${p.id}`, { method: 'DELETE' });
+          await loadProjectsFiltered();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      if (state.settings.restringir_exclusao && !state.isAdmin) {
+        return requestAdminLogin(doDelete);
+      }
+      doDelete();
+    };
     el.appendChild(card);
   });
 }
@@ -323,6 +514,7 @@ async function refreshGpsAndProjects() {
   state.gps = await api('/gps');
   await loadProjectsFiltered();
   renderGpList();
+  renderGpFilters();
   populateGpSelect();
 }
 
@@ -391,6 +583,29 @@ document.getElementById('btn-send-now').addEventListener('click', async () => {
   } catch (err) {
     status.textContent = 'Erro ao enviar: ' + err.message + ' (confira as credenciais SMTP no .env)';
     status.style.color = 'var(--danger)';
+  }
+});
+
+// ---------- Permissoes ----------
+function renderPermissoes() {
+  document.getElementById('perm-exclusao').checked = !!state.settings.restringir_exclusao;
+  document.getElementById('perm-prazos').checked = !!state.settings.restringir_edicao_prazos;
+}
+document.getElementById('form-permissoes').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const body = {
+    restringir_exclusao: document.getElementById('perm-exclusao').checked,
+    restringir_edicao_prazos: document.getElementById('perm-prazos').checked,
+  };
+  try {
+    await api('/settings', { method: 'PUT', body: JSON.stringify(body) });
+    state.settings = body;
+    const status = document.getElementById('perm-status');
+    status.textContent = 'Permissões salvas.';
+    status.classList.remove('hidden');
+    setTimeout(() => status.classList.add('hidden'), 3000);
+  } catch (err) {
+    alert(err.message);
   }
 });
 
@@ -499,7 +714,6 @@ function openEditModal(p) {
   document.getElementById('edit-inicio').value = p.data_inicio;
   document.getElementById('edit-fim').value = p.data_fim;
   document.getElementById('edit-resumo').value = p.resumo || '';
-  document.getElementById('edit-progresso').value = p.progresso;
   const statusSel = document.getElementById('edit-status-prazo');
   const atual = (p.status_prazo || '').toLowerCase();
   statusSel.value = (atual === 'bloqueado' || atual === 'concluído' || atual === 'concluido') ? atual : 'automatico';
@@ -518,7 +732,6 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
   const data_inicio = document.getElementById('edit-inicio').value;
   const data_fim = document.getElementById('edit-fim').value;
   const resumo = document.getElementById('edit-resumo').value.trim();
-  const progresso = Number(document.getElementById('edit-progresso').value) || 0;
   const statusSelValue = document.getElementById('edit-status-prazo').value;
   const status_prazo = statusSelValue === 'automatico' ? 'em dia' : statusSelValue;
 
@@ -530,7 +743,7 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
   try {
     await api(`/projects/${id}`, {
       method: 'PUT',
-      body: JSON.stringify({ nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso }),
+      body: JSON.stringify({ nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim }),
     });
     editModal.classList.add('hidden');
     await loadProjectsFiltered();

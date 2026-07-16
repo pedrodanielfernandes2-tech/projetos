@@ -102,7 +102,10 @@ body {
 .card {
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius); padding: 16px 18px;
+  border-left: 4px solid var(--border);
 }
+.card-atrasado { border-left-color: var(--danger); background: #fdf7f6; }
+.card-bloqueado { border-left-color: var(--warning); background: #fdfaf5; }
 .card-head {
   display: flex; justify-content: space-between; align-items: flex-start;
   gap: 10px; flex-wrap: wrap; margin-bottom: 6px;

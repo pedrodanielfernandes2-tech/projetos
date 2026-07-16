@@ -28,10 +28,15 @@
         <button id="btn-open-new-project" class="btn btn-primary">+ Novo projeto</button>
       </div>
 
+      <div class="toolbar" style="margin-top:-6px;">
+        <div id="gp-filters" class="chip-row"></div>
+      </div>
+
       <div class="legend-row">
-        <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>Progresso abaixo de 30%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>Abaixo de 30%</span>
         <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>Entre 30% e 70%</span>
         <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>Acima de 70%</span>
+        <span class="legend-item" style="color:var(--text-muted);">· Borda vermelha = prazo esgotado · Borda amarela = bloqueado</span>
       </div>
 
       <div id="project-list" class="stack"></div>
@@ -113,6 +118,21 @@
               <button type="button" id="btn-send-now" class="btn">Enviar agora (teste)</button>
             </div>
             <p id="email-status" class="status-msg hidden"></p>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Permissões</h2>
+          <p class="muted">Define se ações sensíveis exigem a senha de admin. O acesso a esta aba (Admin) sempre exige senha.</p>
+          <form id="form-permissoes">
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="perm-exclusao" /> Somente admin pode excluir projetos</label>
+              <label><input type="checkbox" id="perm-prazos" /> Somente admin pode editar projetos e prazos por área</label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Salvar permissões</button>
+            </div>
+            <p id="perm-status" class="status-msg hidden"></p>
           </form>
         </div>
 
@@ -206,11 +226,8 @@
             <option value="bloqueado">Marcar como: bloqueado</option>
             <option value="concluído">Marcar como: concluído</option>
           </select>
-          <div>
-            <label class="field-label" style="display:block;">Progresso (%)</label>
-            <input type="number" id="edit-progresso" min="0" max="100" />
-          </div>
         </div>
+        <p class="field-label" style="margin-top:-4px;">O progresso exibido é calculado automaticamente pelo tempo decorrido entre início e fim.</p>
         <input type="text" id="edit-resumo" placeholder="Resumo curto" class="full-width" />
         <div class="form-actions">
           <button type="button" id="btn-cancel-edit-project" class="btn">Cancelar</button>
