@@ -17,7 +17,7 @@
         <p class="sidebar-subtitle">Painel de Projetos</p>
       </div>
       <nav class="sidebar-nav">
-        <button class="sidebar-nav-btn active" data-tab="projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos</button>
+        <button class="sidebar-nav-btn active" data-tab="projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
         <button class="sidebar-nav-btn" data-tab="dashboard"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
         <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
       </nav>
@@ -43,11 +43,22 @@
         <div id="gp-filters" class="chip-row"></div>
       </div>
 
+      <div class="toolbar" style="margin-top:-6px;">
+        <input type="text" id="search-projetos" placeholder="Buscar por nome, chamado ou cliente..." style="max-width:320px;" />
+        <select id="sort-projetos" style="max-width:220px;">
+          <option value="prazo">Ordenar por: prazo mais próximo</option>
+          <option value="nome">Ordenar por: nome (A-Z)</option>
+          <option value="status">Ordenar por: status</option>
+        </select>
+      </div>
+
+      <div id="alerta-dependencias" class="stack tight" style="margin-bottom:14px;"></div>
+
       <div class="legend-row">
         <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>Abaixo de 30%</span>
         <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>Entre 30% e 70%</span>
         <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>Acima de 70%</span>
-        <span class="legend-item" style="color:var(--text-muted);">· Borda vermelha = prazo esgotado · Borda amarela = bloqueado</span>
+        <span class="legend-item" style="color:var(--text-muted);">· Borda vermelha = prazo esgotado · Borda amarela = bloqueado · Borda roxa = datas pendentes</span>
       </div>
 
       <div id="project-list" class="stack"></div>
@@ -70,6 +81,39 @@
           <h2 class="panel-title">Projetos por área</h2>
           <div id="dash-area-bars" class="stack tight"></div>
         </div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="calendar-header">
+          <h2 class="panel-title" style="margin:0;">Calendário de entregas</h2>
+          <div class="calendar-nav">
+            <button class="btn" id="cal-prev" aria-label="Mês anterior">‹</button>
+            <span id="cal-label" class="calendar-label"></span>
+            <button class="btn" id="cal-next" aria-label="Próximo mês">›</button>
+            <button class="btn" id="cal-hoje">Hoje</button>
+          </div>
+        </div>
+        <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
+        <div id="cal-grid" class="calendar-grid"></div>
+      </div>
+
+      <div class="chart-panel">
+        <h2 class="panel-title">Velocímetro — tempo gasto na demanda</h2>
+        <p class="muted">Mostra o quanto do prazo já foi consumido. Escolha uma área e, se quiser, um chamado específico — sem chamado, calcula a média de todas as tarefas da área dentro do período.</p>
+        <div class="gauge-filters">
+          <select id="vel-area"></select>
+          <select id="vel-chamado"><option value="">Todos os chamados (média do período)</option></select>
+          <div class="gauge-periodo">
+            <label>De <input type="date" id="vel-periodo-inicio" /></label>
+            <label>Até <input type="date" id="vel-periodo-fim" /></label>
+          </div>
+        </div>
+        <div id="vel-gauge-wrap" class="gauge-wrap"></div>
+      </div>
+
+      <div class="chart-panel">
+        <h2 class="panel-title">Linha do tempo dos projetos</h2>
+        <div id="dash-gantt" class="stack tight"></div>
       </div>
 
       <div class="chart-panel">
@@ -132,8 +176,8 @@
         </div>
 
         <div class="panel">
-          <h2>Envio automático de e-mail</h2>
-          <p class="muted">Define a periodicidade do resumo enviado a GPs e admins.</p>
+          <h2>Envio automático de resumo</h2>
+          <p class="muted">Define a periodicidade do resumo enviado a GPs, admins e/ou Microsoft Teams.</p>
           <form id="form-email-config">
             <div class="form-row">
               <select id="cfg-frequencia">
@@ -153,7 +197,9 @@
             <div class="checkbox-row">
               <label><input type="checkbox" id="cfg-enviar-gps" checked /> Enviar para todos os GPs (filtrado por área)</label>
               <label><input type="checkbox" id="cfg-enviar-admins" checked /> Enviar para admins (resumo geral)</label>
+              <label><input type="checkbox" id="cfg-enviar-teams" /> Enviar também para o Microsoft Teams (requer <code>TEAMS_WEBHOOK_URL</code> configurada)</label>
             </div>
+            <p class="muted" style="margin-top:-4px;">Além do resumo periódico, o sistema avisa automaticamente no Teams (dentro de até 15 minutos) sempre que um projeto virar atrasado ou bloqueado — não depende deste agendamento.</p>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Salvar configuração</button>
               <button type="button" id="btn-send-now" class="btn">Enviar agora (teste)</button>
@@ -213,11 +259,14 @@
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
-          <input type="date" id="np-inicio" required />
-          <input type="date" id="np-fim" required />
+          <input type="date" id="np-inicio" />
+          <input type="date" id="np-fim" />
         </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
+          <input type="checkbox" id="np-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
+        </label>
         <input type="text" id="np-resumo" placeholder="Resumo curto" class="full-width" />
-        <p class="field-label">Áreas envolvidas — selecione e defina o prazo da tarefa de cada uma</p>
+        <p class="field-label">Áreas envolvidas — selecione e defina o prazo da tarefa de cada uma (opcional se pendente)</p>
         <div id="np-areas" class="chip-row"></div>
         <div id="np-area-dates" class="stack tight"></div>
         <div class="form-actions">
@@ -259,9 +308,12 @@
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
-          <input type="date" id="edit-inicio" required />
-          <input type="date" id="edit-fim" required />
+          <input type="date" id="edit-inicio" />
+          <input type="date" id="edit-fim" />
         </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
+          <input type="checkbox" id="edit-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
+        </label>
         <div class="form-row">
           <select id="edit-status-prazo">
             <option value="automatico">Status do prazo: automático (pelas datas)</option>

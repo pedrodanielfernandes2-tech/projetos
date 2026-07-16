@@ -1,16 +1,23 @@
 const state = {
   areas: [],
-  projects: [],
+  allProjects: [], // lista completa, sem filtro (fonte da verdade)
+  projects: [], // lista apos filtro/busca/ordenacao (o que e renderizado)
   gps: [],
   adminEmails: [],
   clientes: [],
   settings: { restringir_exclusao: false, restringir_edicao_prazos: false },
   activeFilter: null,
   gpFilter: null,
+  searchText: '',
+  sortBy: 'prazo',
   isAdmin: false,
   adminPassword: null,
-  expanded: {}, // projectId -> 'tarefas' | 'historico' | null
+  expanded: {}, // projectId -> 'tarefas' | 'historico' | 'links' | null
   newProjectAreas: {}, // area -> {inicio, fim}
+  calendarMonth: new Date().getMonth(),
+  calendarYear: new Date().getFullYear(),
+  calendarAreaFilter: null,
+  calendarProjects: [],
 };
 
 // ---------- helpers ----------
@@ -36,6 +43,7 @@ function barWidth(progresso) {
   return Math.max(progresso, 4);
 }
 function elapsedPercent(inicio, fim) {
+  if (!inicio || !fim) return null;
   const hoje = new Date();
   const start = new Date(inicio + 'T00:00:00');
   const end = new Date(fim + 'T00:00:00');
@@ -52,6 +60,9 @@ function taskBarInfo(t) {
   if (s === 'concluído' || s === 'concluido') return { percent: 100, color: 'var(--success)' };
   const elapsed = elapsedPercent(t.inicio, t.fim);
   return { percent: elapsed, color: progressColor(elapsed) };
+}
+function statusClass(s) {
+  return 'badge-' + slug(s || 'planejamento');
 }
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
@@ -116,9 +127,8 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  const [areas, projects, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
+  const [areas, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
-    api('/projects'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
@@ -126,16 +136,16 @@ async function loadAll() {
     api('/settings'),
   ]);
   state.areas = areas;
-  state.projects = projects;
   state.gps = gps;
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
   state.clientes = clientes;
   state.settings = settings;
-  renderStats();
+
+  await refreshProjects();
+
   renderAreaFilters();
   renderGpFilters();
-  renderProjectList();
   renderAreaList();
   renderGpList();
   renderAdminList();
@@ -145,6 +155,106 @@ async function loadAll() {
   renderNewProjectAreaChips();
   renderClienteList();
   populateClienteSelect();
+}
+
+// ---------- projetos: busca central + filtros + ordenacao ----------
+async function refreshProjects() {
+  state.allProjects = await api('/projects');
+  applyProjectFilters();
+}
+function sortProjects(list, sortBy) {
+  const copy = [...list];
+  if (sortBy === 'nome') {
+    copy.sort((a, b) => a.nome.localeCompare(b.nome));
+  } else if (sortBy === 'status') {
+    const ordem = { atrasado: 0, bloqueado: 1, 'não iniciado': 2, 'em dia': 3, concluído: 4, concluido: 4 };
+    copy.sort((a, b) => (ordem[(a.status_prazo || '').toLowerCase()] ?? 9) - (ordem[(b.status_prazo || '').toLowerCase()] ?? 9));
+  } else {
+    copy.sort((a, b) => (a.data_fim || '').localeCompare(b.data_fim || ''));
+  }
+  return copy;
+}
+function applyProjectFilters() {
+  let list = state.allProjects;
+  if (state.activeFilter) list = list.filter(p => p.tarefas.some(t => t.area === state.activeFilter));
+  if (state.gpFilter) list = list.filter(p => String(p.gp_id) === String(state.gpFilter));
+  if (state.searchText) {
+    const q = state.searchText.toLowerCase();
+    list = list.filter(p =>
+      (p.nome || '').toLowerCase().includes(q) ||
+      (p.chamado || '').toLowerCase().includes(q) ||
+      (p.cliente_nome || '').toLowerCase().includes(q)
+    );
+  }
+  state.projects = sortProjects(list, state.sortBy);
+  renderProjectList();
+  renderStats();
+  renderDependencyAlerts();
+  updateNavBadge();
+}
+document.getElementById('search-projetos').addEventListener('input', (e) => {
+  state.searchText = e.target.value.trim();
+  applyProjectFilters();
+});
+document.getElementById('sort-projetos').addEventListener('change', (e) => {
+  state.sortBy = e.target.value;
+  applyProjectFilters();
+});
+
+// ---------- notificacao (badge na sidebar) ----------
+function updateNavBadge() {
+  const urgentes = state.allProjects.filter(p => {
+    const s = (p.status_prazo || '').toLowerCase();
+    return s === 'atrasado' || s === 'bloqueado';
+  }).length;
+  const badge = document.getElementById('nav-badge-projetos');
+  if (urgentes > 0) {
+    badge.textContent = urgentes;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+// ---------- alerta de dependencia entre areas (propaga em cadeia) ----------
+function calcularAlertasDependencia(project) {
+  const tarefas = project.tarefas
+    .filter(t => t.inicio && t.fim)
+    .sort((a, b) => a.inicio.localeCompare(b.inicio));
+  const alerts = [];
+  let bloqueioFim = null; // ate quando a cadeia de atraso empurra o inicio das proximas areas
+  let origem = null; // area que originou o atraso da cadeia atual
+  for (let i = 0; i < tarefas.length - 1; i++) {
+    const atual = tarefas[i], proxima = tarefas[i + 1];
+    if ((atual.status || '').toLowerCase() === 'atrasado') {
+      bloqueioFim = atual.fim;
+      origem = atual.area;
+    }
+    if (atual.area === proxima.area) continue;
+    if (bloqueioFim && proxima.inicio < bloqueioFim) {
+      alerts.push(`Atraso em ${origem} pode empurrar o início de ${proxima.area} (previsto para ${fmtDate(proxima.inicio)})`);
+      // propaga a cadeia: a proxima area tambem passa a ser considerada atrasada
+      bloqueioFim = proxima.fim > bloqueioFim ? proxima.fim : bloqueioFim;
+    } else {
+      bloqueioFim = null;
+      origem = null;
+    }
+  }
+  return alerts;
+}
+function renderDependencyAlerts() {
+  const el = document.getElementById('alerta-dependencias');
+  const comAlerta = state.allProjects.filter(p => calcularAlertasDependencia(p).length > 0);
+  if (comAlerta.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <div class="dependency-alert">
+      <span class="dependency-alert-icon">⚠️</span>
+      <span>${comAlerta.length} projeto(s) com risco de atraso em cadeia entre áreas — veja o aviso dentro do card de cada um.</span>
+    </div>
+  `;
 }
 
 // ---------- Areas admin ----------
@@ -206,22 +316,15 @@ function renderAreaFilters() {
   const allChip = document.createElement('button');
   allChip.className = 'chip' + (state.activeFilter ? '' : ' selected');
   allChip.textContent = 'Todas';
-  allChip.onclick = () => { state.activeFilter = null; renderAreaFilters(); loadProjectsFiltered(); };
+  allChip.onclick = () => { state.activeFilter = null; renderAreaFilters(); applyProjectFilters(); };
   el.appendChild(allChip);
   state.areas.forEach(a => {
     const chip = document.createElement('button');
     chip.className = 'chip' + (state.activeFilter === a ? ' selected' : '');
     chip.textContent = a;
-    chip.onclick = () => { state.activeFilter = state.activeFilter === a ? null : a; renderAreaFilters(); loadProjectsFiltered(); };
+    chip.onclick = () => { state.activeFilter = state.activeFilter === a ? null : a; renderAreaFilters(); applyProjectFilters(); };
     el.appendChild(chip);
   });
-}
-async function loadProjectsFiltered() {
-  let projects = await api('/projects' + (state.activeFilter ? '?area=' + encodeURIComponent(state.activeFilter) : ''));
-  if (state.gpFilter) projects = projects.filter(p => String(p.gp_id) === String(state.gpFilter));
-  state.projects = projects;
-  renderProjectList();
-  renderStats();
 }
 
 // ---------- gp filters ----------
@@ -235,26 +338,23 @@ function renderGpFilters() {
   const allChip = document.createElement('button');
   allChip.className = 'chip' + (state.gpFilter ? '' : ' selected');
   allChip.textContent = 'Todos';
-  allChip.onclick = () => { state.gpFilter = null; renderGpFilters(); loadProjectsFiltered(); };
+  allChip.onclick = () => { state.gpFilter = null; renderGpFilters(); applyProjectFilters(); };
   el.appendChild(allChip);
   state.gps.forEach(gp => {
     const chip = document.createElement('button');
     chip.className = 'chip' + (String(state.gpFilter) === String(gp.id) ? ' selected' : '');
     chip.textContent = gp.nome;
-    chip.onclick = () => { state.gpFilter = String(state.gpFilter) === String(gp.id) ? null : gp.id; renderGpFilters(); loadProjectsFiltered(); };
+    chip.onclick = () => { state.gpFilter = String(state.gpFilter) === String(gp.id) ? null : gp.id; renderGpFilters(); applyProjectFilters(); };
     el.appendChild(chip);
   });
 }
 
 // ---------- project list ----------
-function statusClass(s) {
-  return 'badge-' + slug(s || 'planejamento');
-}
 function renderProjectList() {
   const el = document.getElementById('project-list');
   el.innerHTML = '';
   if (state.projects.length === 0) {
-    el.innerHTML = '<p class="muted">Nenhum projeto cadastrado ainda.</p>';
+    el.innerHTML = '<p class="muted">Nenhum projeto encontrado.</p>';
     return;
   }
   state.projects.forEach(p => {
@@ -262,10 +362,25 @@ function renderProjectList() {
     const statusAtencao = (p.status_prazo || '').toLowerCase();
     const cardAttentionClass = statusAtencao === 'atrasado' ? ' card-atrasado'
       : statusAtencao === 'bloqueado' ? ' card-bloqueado'
+      : statusAtencao === 'pendente' ? ' card-pendente'
       : '';
     card.className = 'card' + cardAttentionClass;
     const areaTagsHtml = p.tarefas.map(t => `<span class="badge ${statusClass(t.status)}" title="${t.area}: ${t.status}">${t.area}</span>`).join(' ');
     const open = state.expanded[p.id];
+    const alertasDep = calcularAlertasDependencia(p);
+    const alertaHtml = alertasDep.length > 0
+      ? `<div class="dependency-alert" style="margin-bottom:10px;"><span class="dependency-alert-icon">⚠️</span><span>${alertasDep.join('<br>')}</span></div>`
+      : '';
+    const elapsed = elapsedPercent(p.data_inicio, p.data_fim);
+    const prazoGeralHtml = elapsed === null
+      ? `<p class="card-sub" style="color:var(--pending);font-weight:600;">📌 Datas do projeto ainda não definidas</p>`
+      : `
+        <div class="card-sub" style="display:flex;justify-content:space-between;">
+          <span>Prazo geral: ${fmtDate(p.data_inicio)} → ${fmtDate(p.data_fim)}</span>
+          <span>${elapsed}%</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" style="width:${barWidth(elapsed)}%;background:${progressColor(elapsed)}"></div></div>
+      `;
     card.innerHTML = `
       <div class="card-head">
         <div>
@@ -278,27 +393,29 @@ function renderProjectList() {
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
         </div>
       </div>
+      ${alertaHtml}
       <p class="card-resumo">${p.resumo || ''}</p>
       <div class="chip-row" style="margin-bottom:8px;">${areaTagsHtml}</div>
-      <div class="card-sub" style="display:flex;justify-content:space-between;">
-        <span>Prazo geral: ${fmtDate(p.data_inicio)} → ${fmtDate(p.data_fim)}</span>
-        <span>${elapsedPercent(p.data_inicio, p.data_fim)}%</span>
-      </div>
-      <div class="progress-track"><div class="progress-fill" style="width:${barWidth(elapsedPercent(p.data_inicio, p.data_fim))}%;background:${progressColor(elapsedPercent(p.data_inicio, p.data_fim))}"></div></div>
+      ${prazoGeralHtml}
       <div class="toggle-row">
         <button class="toggle-btn" data-toggle="tarefas">${open === 'tarefas' ? 'Ocultar prazos por área' : 'Prazos por área'}</button>
         <button class="toggle-btn" data-toggle="historico">${open === 'historico' ? 'Ocultar histórico' : 'Histórico (' + p.historico.length + ')'}</button>
+        <button class="toggle-btn" data-toggle="links">${open === 'links' ? 'Ocultar links' : 'Links (' + (p.links ? p.links.length : 0) + ')'}</button>
       </div>
       <div class="detail-block" data-detail="tarefas" style="display:${open === 'tarefas' ? 'flex' : 'none'}"></div>
       <div class="detail-block" data-detail="historico" style="display:${open === 'historico' ? 'flex' : 'none'}"></div>
+      <div class="detail-block" data-detail="links" style="display:${open === 'links' ? 'flex' : 'none'}"></div>
     `;
+
+    // ----- tarefas por area -----
     const tarefasHost = card.querySelector('[data-detail="tarefas"]');
     p.tarefas.forEach(t => {
       const row = document.createElement('div');
       row.className = 'detail-row';
+      const temDatas = t.inicio && t.fim;
       row.innerHTML = `
         <span class="area-tag">${t.area}</span>
-        <span data-view-dates>${fmtDate(t.inicio)} → ${fmtDate(t.fim)}</span>
+        <span data-view-dates>${temDatas ? fmtDate(t.inicio) + ' → ' + fmtDate(t.fim) : '📌 Datas pendentes'}</span>
         <span class="badge ${statusClass(t.status)}">${t.status}</span>
         <div style="display:flex;gap:4px;">
           <button class="icon-btn" data-edit-task aria-label="Editar tarefa">✎</button>
@@ -306,17 +423,19 @@ function renderProjectList() {
         </div>
       `;
       tarefasHost.appendChild(row);
-      const barInfo = taskBarInfo(t);
-      const bar = document.createElement('div');
-      bar.style.cssText = 'height:4px;background:#ebeae4;border-radius:3px;overflow:hidden;margin:2px 0 4px;';
-      bar.innerHTML = `<div style="height:100%;width:${barWidth(barInfo.percent)}%;background:${barInfo.color}"></div>`;
-      tarefasHost.appendChild(bar);
+      if (temDatas) {
+        const barInfo = taskBarInfo(t);
+        const bar = document.createElement('div');
+        bar.style.cssText = 'height:4px;background:#ebeae4;border-radius:3px;overflow:hidden;margin:2px 0 4px;';
+        bar.innerHTML = `<div style="height:100%;width:${barWidth(barInfo.percent)}%;background:${barInfo.color}"></div>`;
+        tarefasHost.appendChild(bar);
+      }
 
       row.querySelector('[data-edit-task]').onclick = () => {
         const doEdit = () => {
           row.innerHTML = `
-            <input type="date" value="${t.inicio}" data-edit-inicio style="width:135px;" />
-            <input type="date" value="${t.fim}" data-edit-fim style="width:135px;" />
+            <input type="date" value="${t.inicio || ''}" data-edit-inicio style="width:135px;" />
+            <input type="date" value="${t.fim || ''}" data-edit-fim style="width:135px;" />
             <select data-edit-status style="width:150px;">
               ${['planejamento', 'em andamento', 'atrasado', 'bloqueado', 'concluído'].map(s => `<option value="${s}" ${s === t.status ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
@@ -332,7 +451,7 @@ function renderProjectList() {
             try {
               await api(`/projects/${p.id}/tarefas/${t.id}`, { method: 'PUT', body: JSON.stringify({ area: t.area, inicio, fim, status }) });
               state.expanded[p.id] = 'tarefas';
-              await loadProjectsFiltered();
+              await refreshProjects();
             } catch (err) {
               alert(err.message);
             }
@@ -349,7 +468,7 @@ function renderProjectList() {
           try {
             await api(`/projects/${p.id}/tarefas/${t.id}`, { method: 'DELETE' });
             state.expanded[p.id] = 'tarefas';
-            await loadProjectsFiltered();
+            await refreshProjects();
           } catch (err) {
             alert(err.message);
           }
@@ -371,13 +490,12 @@ function renderProjectList() {
     addTaskRow.querySelector('[data-add-task]').onclick = () => {
       const doAdd = async () => {
         const area = addTaskRow.querySelector('[data-new-task-area]').value;
-        const inicio = addTaskRow.querySelector('[data-new-task-inicio]').value;
-        const fim = addTaskRow.querySelector('[data-new-task-fim]').value;
-        if (!inicio || !fim) { alert('Defina início e fim da nova área.'); return; }
+        const inicio = addTaskRow.querySelector('[data-new-task-inicio]').value || null;
+        const fim = addTaskRow.querySelector('[data-new-task-fim]').value || null;
         try {
           await api(`/projects/${p.id}/tarefas`, { method: 'POST', body: JSON.stringify({ area, inicio, fim, status: 'planejamento' }) });
           state.expanded[p.id] = 'tarefas';
-          await loadProjectsFiltered();
+          await refreshProjects();
         } catch (err) {
           alert(err.message);
         }
@@ -386,6 +504,7 @@ function renderProjectList() {
       doAdd();
     };
 
+    // ----- historico -----
     const histHost = card.querySelector('[data-detail="historico"]');
     p.historico.forEach(h => {
       const row = document.createElement('div');
@@ -400,12 +519,57 @@ function renderProjectList() {
     addRow.querySelector('button').onclick = async () => {
       if (!input.value.trim()) return;
       await api(`/projects/${p.id}/historico`, { method: 'POST', body: JSON.stringify({ texto: input.value.trim() }) });
-      await loadProjectsFiltered();
       state.expanded[p.id] = 'historico';
-      renderProjectList();
+      await refreshProjects();
     };
     histHost.appendChild(addRow);
 
+    // ----- links -----
+    const linksHost = card.querySelector('[data-detail="links"]');
+    (p.links || []).forEach(link => {
+      const row = document.createElement('div');
+      row.className = 'hist-row';
+      row.style.display = 'flex';
+      row.style.justifyContent = 'space-between';
+      row.style.alignItems = 'center';
+      row.innerHTML = `
+        <a href="${link.url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);font-weight:600;text-decoration:none;">🔗 ${link.titulo}</a>
+        <button class="icon-btn" aria-label="Remover link">✕</button>
+      `;
+      row.querySelector('button').onclick = async () => {
+        if (!confirm(`Remover o link "${link.titulo}"?`)) return;
+        try {
+          await api(`/projects/${p.id}/links/${link.id}`, { method: 'DELETE' });
+          state.expanded[p.id] = 'links';
+          await refreshProjects();
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+      linksHost.appendChild(row);
+    });
+    const addLinkRow = document.createElement('div');
+    addLinkRow.className = 'hist-add';
+    addLinkRow.innerHTML = `
+      <input type="text" placeholder="Título (ex: Especificação)" style="max-width:180px;" data-link-titulo />
+      <input type="text" placeholder="https://..." data-link-url />
+      <button class="btn">Adicionar</button>
+    `;
+    addLinkRow.querySelector('button').onclick = async () => {
+      const titulo = addLinkRow.querySelector('[data-link-titulo]').value.trim();
+      const url = addLinkRow.querySelector('[data-link-url]').value.trim();
+      if (!url) { alert('Informe a URL do link.'); return; }
+      try {
+        await api(`/projects/${p.id}/links`, { method: 'POST', body: JSON.stringify({ titulo, url }) });
+        state.expanded[p.id] = 'links';
+        await refreshProjects();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    linksHost.appendChild(addLinkRow);
+
+    // ----- toggles -----
     card.querySelectorAll('[data-toggle]').forEach(btn => {
       btn.onclick = () => {
         const which = btn.dataset.toggle;
@@ -424,7 +588,7 @@ function renderProjectList() {
         if (!confirm(`Excluir o projeto "${p.nome}"? Essa ação não pode ser desfeita.`)) return;
         try {
           await api(`/projects/${p.id}`, { method: 'DELETE' });
-          await loadProjectsFiltered();
+          await refreshProjects();
         } catch (err) {
           alert(err.message);
         }
@@ -522,7 +686,7 @@ document.getElementById('form-gp').addEventListener('submit', async (e) => {
 });
 async function refreshGpsAndProjects() {
   state.gps = await api('/gps');
-  await loadProjectsFiltered();
+  await refreshProjects();
   renderGpList();
   renderGpFilters();
   populateGpSelect();
@@ -565,6 +729,7 @@ function renderEmailConfig() {
   document.getElementById('cfg-dia-semana').value = c.dia_semana;
   document.getElementById('cfg-enviar-gps').checked = !!c.enviar_gps;
   document.getElementById('cfg-enviar-admins').checked = !!c.enviar_admins;
+  document.getElementById('cfg-enviar-teams').checked = !!c.enviar_teams;
 }
 document.getElementById('form-email-config').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -574,6 +739,7 @@ document.getElementById('form-email-config').addEventListener('submit', async (e
     hora: 8,
     enviar_gps: document.getElementById('cfg-enviar-gps').checked,
     enviar_admins: document.getElementById('cfg-enviar-admins').checked,
+    enviar_teams: document.getElementById('cfg-enviar-teams').checked,
   };
   await api('/email-config', { method: 'PUT', body: JSON.stringify(body) });
   const status = document.getElementById('email-status');
@@ -583,18 +749,28 @@ document.getElementById('form-email-config').addEventListener('submit', async (e
 });
 document.getElementById('btn-send-now').addEventListener('click', async () => {
   const status = document.getElementById('email-status');
+  status.style.color = '';
   status.textContent = 'Enviando...';
   status.classList.remove('hidden');
   try {
     const result = await api('/email-config/enviar-agora', { method: 'POST' });
-    status.textContent = result.enviados.length
-      ? `E-mails enviados para: ${result.enviados.join(', ')}`
-      : 'Nenhum destinatário com projetos para enviar.';
+    const partes = [];
+    if (result.emailErro) {
+      partes.push('Erro no e-mail: ' + result.emailErro);
+    } else {
+      partes.push(result.enviados.length
+        ? `E-mails enviados para: ${result.enviados.join(', ')}`
+        : 'Nenhum e-mail enviado (nenhum destinatário com projetos).');
+    }
+    if (result.teams) partes.push(`Teams: ${result.teams}`);
+    status.textContent = partes.join(' · ');
+    if (result.emailErro) status.style.color = 'var(--danger)';
   } catch (err) {
-    status.textContent = 'Erro ao enviar: ' + err.message + ' (confira as credenciais SMTP no .env)';
+    status.textContent = 'Erro ao enviar: ' + err.message;
     status.style.color = 'var(--danger)';
   }
 });
+
 
 // ---------- Permissoes ----------
 function renderPermissoes() {
@@ -641,6 +817,231 @@ function buildDonutSvg(segments) {
     </svg>
   `;
 }
+
+function statusColorHex(status) {
+  const s = (status || '').toLowerCase();
+  if (s === 'atrasado') return 'var(--danger)';
+  if (s === 'bloqueado') return 'var(--warning)';
+  if (s === 'não iniciado') return '#9AA6B8';
+  if (s === 'concluído' || s === 'concluido') return 'var(--success)';
+  return 'var(--brand-blue)';
+}
+
+function renderGanttChart(projects) {
+  const host = document.getElementById('dash-gantt');
+  const comDatas = projects.filter(p => p.data_inicio && p.data_fim);
+  if (comDatas.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum projeto com datas cadastradas.</p>';
+    return;
+  }
+  const limitados = [...comDatas].sort((a, b) => (a.data_fim || '').localeCompare(b.data_fim || '')).slice(0, 15);
+  const inicios = limitados.map(p => new Date(p.data_inicio + 'T00:00:00').getTime());
+  const fins = limitados.map(p => new Date(p.data_fim + 'T00:00:00').getTime());
+  const minDate = Math.min(...inicios);
+  const maxDate = Math.max(...fins);
+  const span = Math.max(maxDate - minDate, 1);
+  const hoje = Date.now();
+  const hojePercent = Math.min(100, Math.max(0, ((hoje - minDate) / span) * 100));
+
+  const rows = limitados.map(p => {
+    const start = new Date(p.data_inicio + 'T00:00:00').getTime();
+    const end = new Date(p.data_fim + 'T00:00:00').getTime();
+    const left = ((start - minDate) / span) * 100;
+    const width = Math.max(((end - start) / span) * 100, 1.5);
+    return `
+      <div class="gantt-row">
+        <span class="gantt-label" title="${p.nome}">${p.nome}</span>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:${left}%;width:${width}%;background:${statusColorHex(p.status_prazo)}"></div>
+          ${hojePercent >= 0 && hojePercent <= 100 ? `<div class="gantt-today-line" style="left:${hojePercent}%"></div>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  host.innerHTML = `
+    ${rows}
+    <div class="gantt-axis"><span>${fmtDate(new Date(minDate).toISOString().slice(0, 10))}</span><span>hoje</span><span>${fmtDate(new Date(maxDate).toISOString().slice(0, 10))}</span></div>
+  `;
+}
+
+// ---------- calendario de entregas ----------
+function renderCalendarAreaFilters() {
+  const el = document.getElementById('cal-area-filters');
+  el.innerHTML = '';
+  const allChip = document.createElement('button');
+  allChip.className = 'chip' + (state.calendarAreaFilter ? '' : ' selected');
+  allChip.textContent = 'Todas as áreas';
+  allChip.onclick = () => { state.calendarAreaFilter = null; renderCalendarAreaFilters(); renderCalendar(); };
+  el.appendChild(allChip);
+  state.areas.forEach(a => {
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (state.calendarAreaFilter === a ? ' selected' : '');
+    chip.textContent = a;
+    chip.onclick = () => { state.calendarAreaFilter = state.calendarAreaFilter === a ? null : a; renderCalendarAreaFilters(); renderCalendar(); };
+    el.appendChild(chip);
+  });
+}
+
+function renderCalendar() {
+  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  document.getElementById('cal-label').textContent = `${monthNames[state.calendarMonth]} ${state.calendarYear}`;
+
+  const diasMap = {};
+  state.calendarProjects.forEach(p => {
+    p.tarefas.forEach(t => {
+      if (!t.fim) return;
+      if (state.calendarAreaFilter && t.area !== state.calendarAreaFilter) return;
+      const d = new Date(t.fim + 'T00:00:00');
+      if (d.getMonth() === state.calendarMonth && d.getFullYear() === state.calendarYear) {
+        const dia = d.getDate();
+        if (!diasMap[dia]) diasMap[dia] = [];
+        diasMap[dia].push({ area: t.area, nome: p.nome, status: t.status });
+      }
+    });
+  });
+
+  const primeiroDiaSemana = new Date(state.calendarYear, state.calendarMonth, 1).getDay();
+  const diasNoMes = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
+  const hoje = new Date();
+  const ehMesAtual = hoje.getMonth() === state.calendarMonth && hoje.getFullYear() === state.calendarYear;
+  const dows = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+  let html = dows.map(d => `<div class="calendar-dow">${d}</div>`).join('');
+  for (let i = 0; i < primeiroDiaSemana; i++) {
+    html += `<div class="calendar-day outside"></div>`;
+  }
+  for (let dia = 1; dia <= diasNoMes; dia++) {
+    const itens = diasMap[dia] || [];
+    const isHoje = ehMesAtual && hoje.getDate() === dia;
+    const visiveis = itens.slice(0, 3);
+    const extra = itens.length - visiveis.length;
+    html += `
+      <div class="calendar-day${isHoje ? ' today' : ''}">
+        <span class="calendar-day-num">${dia}</span>
+        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}" title="${it.area} — ${it.nome} (${it.status})">${it.area}</span>`).join('')}
+        ${extra > 0 ? `<span class="calendar-more">+${extra} mais</span>` : ''}
+      </div>
+    `;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+document.getElementById('cal-prev').addEventListener('click', () => {
+  state.calendarMonth--;
+  if (state.calendarMonth < 0) { state.calendarMonth = 11; state.calendarYear--; }
+  renderCalendar();
+});
+document.getElementById('cal-next').addEventListener('click', () => {
+  state.calendarMonth++;
+  if (state.calendarMonth > 11) { state.calendarMonth = 0; state.calendarYear++; }
+  renderCalendar();
+});
+document.getElementById('cal-hoje').addEventListener('click', () => {
+  const hoje = new Date();
+  state.calendarMonth = hoje.getMonth();
+  state.calendarYear = hoje.getFullYear();
+  renderCalendar();
+});
+
+// ---------- velocimetro (tempo gasto na demanda) ----------
+function buildGaugeSvg(percent) {
+  const size = 220, cx = size / 2, cy = size / 2 + 6, r = 88, stroke = 20;
+  function polarToCartesian(angleDeg) {
+    const rad = angleDeg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+  function arcPath(startAngle, endAngle) {
+    const start = polarToCartesian(startAngle);
+    const end = polarToCartesian(endAngle);
+    const largeArc = Math.abs(endAngle - startAngle) <= 180 ? 0 : 1;
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  }
+  // 180deg = extrema esquerda (0%), 0deg = extrema direita (100%), passando pelo topo (90deg)
+  const seg1 = arcPath(180, 126); // 0-30% vermelho
+  const seg2 = arcPath(126, 54); // 30-70% amarelo
+  const seg3 = arcPath(54, 0); // 70-100% verde
+  const needleAngle = 180 - (Math.min(Math.max(percent, 0), 100) / 100) * 180;
+  const tip = polarToCartesian(needleAngle);
+  return `
+    <svg width="${size}" height="${size / 2 + 46}" viewBox="0 0 ${size} ${size / 2 + 46}">
+      <path d="${seg1}" fill="none" stroke="var(--danger)" stroke-width="${stroke}" stroke-linecap="round" />
+      <path d="${seg2}" fill="none" stroke="var(--warning)" stroke-width="${stroke}" stroke-linecap="round" />
+      <path d="${seg3}" fill="none" stroke="var(--success)" stroke-width="${stroke}" stroke-linecap="round" />
+      <line x1="${cx}" y1="${cy}" x2="${tip.x}" y2="${tip.y}" stroke="var(--text)" stroke-width="4" stroke-linecap="round" />
+      <circle cx="${cx}" cy="${cy}" r="7" fill="var(--text)" />
+      <text x="${cx}" y="${cy + 36}" text-anchor="middle" font-size="28" font-weight="700" fill="var(--text)">${percent}%</text>
+    </svg>
+  `;
+}
+
+function renderVelocimetroFilters() {
+  const areaSel = document.getElementById('vel-area');
+  areaSel.innerHTML = state.areas.map(a => `<option value="${a}">${a}</option>`).join('');
+
+  const hoje = new Date();
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
+  const inicioInput = document.getElementById('vel-periodo-inicio');
+  const fimInput = document.getElementById('vel-periodo-fim');
+  if (!inicioInput.value) inicioInput.value = inicioMes;
+  if (!fimInput.value) fimInput.value = fimMes;
+
+  renderVelocimetroChamados();
+}
+
+function renderVelocimetroChamados() {
+  const area = document.getElementById('vel-area').value;
+  const chamadoSel = document.getElementById('vel-chamado');
+  const valorAtual = chamadoSel.value;
+  const projetosDaArea = state.calendarProjects.filter(p => p.tarefas.some(t => t.area === area));
+  chamadoSel.innerHTML = '<option value="">Todos os chamados (média do período)</option>' +
+    projetosDaArea.map(p => `<option value="${p.id}">${p.chamado ? p.chamado + ' — ' : ''}${p.nome}</option>`).join('');
+  if ([...chamadoSel.options].some(o => o.value === valorAtual)) chamadoSel.value = valorAtual;
+}
+
+function renderVelocimetro() {
+  const area = document.getElementById('vel-area').value;
+  const projetoId = document.getElementById('vel-chamado').value;
+  const periodoInicio = document.getElementById('vel-periodo-inicio').value;
+  const periodoFim = document.getElementById('vel-periodo-fim').value;
+  const host = document.getElementById('vel-gauge-wrap');
+
+  let tarefas = [];
+  if (projetoId) {
+    const projeto = state.calendarProjects.find(p => String(p.id) === String(projetoId));
+    if (projeto) tarefas = projeto.tarefas.filter(t => t.area === area && t.inicio && t.fim);
+  } else {
+    state.calendarProjects.forEach(p => {
+      p.tarefas.forEach(t => {
+        if (t.area !== area || !t.inicio || !t.fim) return;
+        if (periodoInicio && t.fim < periodoInicio) return;
+        if (periodoFim && t.inicio > periodoFim) return;
+        tarefas.push(t);
+      });
+    });
+  }
+
+  if (tarefas.length === 0) {
+    host.innerHTML = '<p class="gauge-empty">Nenhuma tarefa com datas definidas para essa combinação de filtros.</p>';
+    return;
+  }
+
+  const soma = tarefas.reduce((acc, t) => acc + elapsedPercent(t.inicio, t.fim), 0);
+  const media = Math.round(soma / tarefas.length);
+  host.innerHTML = `
+    ${buildGaugeSvg(media)}
+    <p class="gauge-info">${tarefas.length === 1 ? '1 tarefa considerada' : tarefas.length + ' tarefas consideradas (média)'}</p>
+  `;
+}
+
+document.getElementById('vel-area').addEventListener('change', () => {
+  renderVelocimetroChamados();
+  renderVelocimetro();
+});
+document.getElementById('vel-chamado').addEventListener('change', renderVelocimetro);
+document.getElementById('vel-periodo-inicio').addEventListener('change', renderVelocimetro);
+document.getElementById('vel-periodo-fim').addEventListener('change', renderVelocimetro);
 
 async function renderDashboard() {
   const projects = await api('/projects');
@@ -691,6 +1092,18 @@ async function renderDashboard() {
       <span class="bar-chart-value">${c.count}</span>
     </div>
   `).join('') || '<p class="muted">Nenhuma área cadastrada ainda.</p>';
+
+  // linha do tempo (gantt simplificado)
+  renderGanttChart(projects);
+
+  // calendario de entregas
+  state.calendarProjects = projects;
+  renderCalendarAreaFilters();
+  renderCalendar();
+
+  // velocimetro (tempo gasto na demanda)
+  renderVelocimetroFilters();
+  renderVelocimetro();
 
   // prazos mais proximos
   const naoConcluidos = projects.filter(p => {
@@ -772,21 +1185,42 @@ document.getElementById('form-new-project').addEventListener('submit', async (e)
   const gp_id = document.getElementById('np-gp').value || null;
   const tipo = document.getElementById('np-tipo').value;
   const fase = document.getElementById('np-fase').value;
-  const data_inicio = document.getElementById('np-inicio').value;
-  const data_fim = document.getElementById('np-fim').value;
+  const semDatas = document.getElementById('np-sem-datas').checked;
+  const data_inicio = semDatas ? null : document.getElementById('np-inicio').value;
+  const data_fim = semDatas ? null : document.getElementById('np-fim').value;
   const resumo = document.getElementById('np-resumo').value.trim();
   const areasSel = Object.keys(state.newProjectAreas);
 
-  if (!nome || !data_inicio || !data_fim || areasSel.length === 0) {
-    alert('Preencha nome, prazo geral e ao menos uma área.');
+  if (!nome || areasSel.length === 0) {
+    alert('Preencha nome e ao menos uma área.');
     return;
   }
-  const incompletas = areasSel.filter(a => !state.newProjectAreas[a].inicio || !state.newProjectAreas[a].fim);
-  if (incompletas.length > 0) {
-    alert('Defina início e fim da tarefa para: ' + incompletas.join(', '));
+  if (!semDatas && (!data_inicio || !data_fim)) {
+    alert('Preencha o prazo geral, ou marque "Ainda não tenho as datas" para deixar pendente.');
     return;
   }
-  const tarefas = areasSel.map(a => ({ area: a, inicio: state.newProjectAreas[a].inicio, fim: state.newProjectAreas[a].fim, status: 'planejamento' }));
+  if (!semDatas) {
+    const incompletas = areasSel.filter(a => !state.newProjectAreas[a].inicio || !state.newProjectAreas[a].fim);
+    if (incompletas.length > 0) {
+      alert('Defina início e fim da tarefa para: ' + incompletas.join(', ') + ' (ou marque "Ainda não tenho as datas").');
+      return;
+    }
+  }
+
+  if (chamado) {
+    const duplicado = state.allProjects.find(p => (p.chamado || '').trim().toLowerCase() === chamado.toLowerCase());
+    if (duplicado) {
+      const prosseguir = confirm(`Já existe um projeto com o chamado "${chamado}": "${duplicado.nome}". Deseja continuar mesmo assim?`);
+      if (!prosseguir) return;
+    }
+  }
+
+  const tarefas = areasSel.map(a => ({
+    area: a,
+    inicio: state.newProjectAreas[a].inicio || null,
+    fim: state.newProjectAreas[a].fim || null,
+    status: 'planejamento',
+  }));
 
   try {
     await api('/projects', {
@@ -796,8 +1230,7 @@ document.getElementById('form-new-project').addEventListener('submit', async (e)
     modal.classList.add('hidden');
     e.target.reset();
     renderNewProjectAreaChips();
-    await loadProjectsFiltered();
-    renderStats();
+    await refreshProjects();
   } catch (err) {
     alert(err.message);
   }
@@ -815,8 +1248,9 @@ function openEditModal(p) {
   document.getElementById('edit-gp').value = p.gp_id || '';
   document.getElementById('edit-tipo').value = p.tipo;
   document.getElementById('edit-fase').value = p.fase;
-  document.getElementById('edit-inicio').value = p.data_inicio;
-  document.getElementById('edit-fim').value = p.data_fim;
+  document.getElementById('edit-inicio').value = p.data_inicio || '';
+  document.getElementById('edit-fim').value = p.data_fim || '';
+  document.getElementById('edit-sem-datas').checked = !p.data_inicio || !p.data_fim;
   document.getElementById('edit-resumo').value = p.resumo || '';
   const statusSel = document.getElementById('edit-status-prazo');
   const atual = (p.status_prazo || '').toLowerCase();
@@ -833,15 +1267,28 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
   const gp_id = document.getElementById('edit-gp').value || null;
   const tipo = document.getElementById('edit-tipo').value;
   const fase = document.getElementById('edit-fase').value;
-  const data_inicio = document.getElementById('edit-inicio').value;
-  const data_fim = document.getElementById('edit-fim').value;
+  const semDatas = document.getElementById('edit-sem-datas').checked;
+  const data_inicio = semDatas ? null : document.getElementById('edit-inicio').value;
+  const data_fim = semDatas ? null : document.getElementById('edit-fim').value;
   const resumo = document.getElementById('edit-resumo').value.trim();
   const statusSelValue = document.getElementById('edit-status-prazo').value;
   const status_prazo = statusSelValue === 'automatico' ? 'em dia' : statusSelValue;
 
-  if (!nome || !data_inicio || !data_fim) {
-    alert('Preencha nome e prazo geral.');
+  if (!nome) {
+    alert('Preencha o nome do projeto.');
     return;
+  }
+  if (!semDatas && (!data_inicio || !data_fim)) {
+    alert('Preencha o prazo geral, ou marque "Ainda não tenho as datas" para deixar pendente.');
+    return;
+  }
+
+  if (chamado) {
+    const duplicado = state.allProjects.find(p => p.id !== Number(id) && (p.chamado || '').trim().toLowerCase() === chamado.toLowerCase());
+    if (duplicado) {
+      const prosseguir = confirm(`Já existe outro projeto com o chamado "${chamado}": "${duplicado.nome}". Deseja continuar mesmo assim?`);
+      if (!prosseguir) return;
+    }
   }
 
   try {
@@ -850,8 +1297,7 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
       body: JSON.stringify({ nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim }),
     });
     editModal.classList.add('hidden');
-    await loadProjectsFiltered();
-    renderStats();
+    await refreshProjects();
   } catch (err) {
     alert(err.message);
   }
