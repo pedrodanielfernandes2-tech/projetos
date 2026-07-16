@@ -22,6 +22,11 @@ function fmtDateFull(d) {
   const dt = new Date(d + 'T00:00:00');
   return dt.toLocaleDateString('pt-BR');
 }
+function progressColor(progresso) {
+  if (progresso < 30) return 'var(--danger)';
+  if (progresso < 70) return 'var(--warning)';
+  return 'var(--success)';
+}
 async function api(path, opts = {}) {
   const res = await fetch('/api' + path, {
     headers: { 'Content-Type': 'application/json' },
@@ -181,7 +186,7 @@ function renderProjectList() {
         <span>Prazo geral: ${fmtDate(p.data_inicio)} → ${fmtDate(p.data_fim)}</span>
         <span>${p.progresso}%</span>
       </div>
-      <div class="progress-track"><div class="progress-fill" style="width:${p.progresso}%"></div></div>
+      <div class="progress-track"><div class="progress-fill" style="width:${p.progresso}%;background:${progressColor(p.progresso)}"></div></div>
       <div class="toggle-row">
         <button class="toggle-btn" data-toggle="tarefas">${open === 'tarefas' ? 'Ocultar prazos por área' : 'Prazos por área'}</button>
         <button class="toggle-btn" data-toggle="historico">${open === 'historico' ? 'Ocultar histórico' : 'Histórico (' + p.historico.length + ')'}</button>
