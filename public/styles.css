@@ -73,6 +73,13 @@ body {
 }
 
 .chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.legend-row {
+  display: flex; gap: 16px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px; font-size: 12px; color: var(--text-muted);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .chip {
   border: 1px solid var(--border); background: var(--surface);
   padding: 5px 12px; border-radius: 999px; font-size: 13px;
