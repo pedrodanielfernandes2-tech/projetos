@@ -108,9 +108,14 @@ async function init() {
   await pool.query("ALTER TABLE projects ADD COLUMN IF NOT EXISTS chamado TEXT DEFAULT '';");
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL;');
 
-  const areasIniciais = ['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria'];
-  for (const nome of areasIniciais) {
-    await pool.query('INSERT INTO areas (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+  // Popula as areas padrao apenas na primeira vez (tabela vazia). Depois disso,
+  // respeita qualquer area que o usuario tenha removido de proposito.
+  const { rows: areaCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM areas');
+  if (areaCountRows[0].n === 0) {
+    const areasIniciais = ['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria'];
+    for (const nome of areasIniciais) {
+      await pool.query('INSERT INTO areas (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+    }
   }
 }
 
