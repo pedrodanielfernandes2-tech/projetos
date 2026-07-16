@@ -96,12 +96,14 @@ async function requestAdminLogin(onSuccess) {
 
 // ---------- tabs ----------
 function activateTab(btn) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('view-projetos').classList.toggle('hidden', btn.dataset.tab !== 'projetos');
+  document.getElementById('view-dashboard').classList.toggle('hidden', btn.dataset.tab !== 'dashboard');
   document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
+  if (btn.dataset.tab === 'dashboard') renderDashboard();
 }
-document.querySelectorAll('.tab-btn').forEach(btn => {
+document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.tab === 'admin' && !state.isAdmin) {
       requestAdminLogin(() => activateTab(btn));
@@ -616,6 +618,100 @@ document.getElementById('form-permissoes').addEventListener('submit', async (e) 
     alert(err.message);
   }
 });
+
+// ---------- dashboard ----------
+function buildDonutSvg(segments) {
+  const total = segments.reduce((s, x) => s + x.value, 0) || 1;
+  const size = 148, stroke = 20, radius = (size / 2) - stroke / 2;
+  const circumference = 2 * Math.PI * radius;
+  let offsetAccum = 0;
+  const circles = segments.filter(s => s.value > 0).map(seg => {
+    const fraction = seg.value / total;
+    const dash = fraction * circumference;
+    const gap = circumference - dash;
+    const circle = `<circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="none" stroke="${seg.color}" stroke-width="${stroke}" stroke-dasharray="${dash} ${gap}" stroke-dashoffset="${-offsetAccum}" transform="rotate(-90 ${size / 2} ${size / 2})" />`;
+    offsetAccum += dash;
+    return circle;
+  }).join('');
+  return `
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size / 2}" cy="${size / 2}" r="${radius}" fill="none" stroke="var(--surface-alt)" stroke-width="${stroke}" />
+      ${circles}
+      <text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" font-size="24" font-weight="700" fill="var(--text)">${total}</text>
+    </svg>
+  `;
+}
+
+async function renderDashboard() {
+  const projects = await api('/projects');
+
+  // stats
+  const total = projects.length;
+  const atrasados = projects.filter(p => p.status_prazo === 'atrasado').length;
+  const bloqueados = projects.filter(p => p.status_prazo === 'bloqueado').length;
+  const naoIniciados = projects.filter(p => p.status_prazo === 'não iniciado').length;
+  document.getElementById('dash-stats').innerHTML = `
+    <div class="stat-card"><p class="stat-label">Total de projetos</p><p class="stat-value">${total}</p></div>
+    <div class="stat-card"><p class="stat-label">Atrasados</p><p class="stat-value" style="color:var(--danger)">${atrasados}</p></div>
+    <div class="stat-card"><p class="stat-label">Bloqueados</p><p class="stat-value" style="color:var(--warning)">${bloqueados}</p></div>
+    <div class="stat-card"><p class="stat-label">Não iniciados</p><p class="stat-value" style="color:var(--text-muted)">${naoIniciados}</p></div>
+  `;
+
+  // donut: distribuicao por status
+  const statusGroups = [
+    { label: 'Em dia', value: projects.filter(p => p.status_prazo === 'em dia').length, color: 'var(--success)' },
+    { label: 'Atrasado', value: atrasados, color: 'var(--danger)' },
+    { label: 'Bloqueado', value: bloqueados, color: 'var(--warning)' },
+    { label: 'Não iniciado', value: naoIniciados, color: '#9AA6B8' },
+  ];
+  const donutHost = document.getElementById('dash-donut');
+  donutHost.innerHTML = `
+    ${buildDonutSvg(statusGroups)}
+    <div class="donut-legend">
+      ${statusGroups.map(g => `
+        <div class="donut-legend-item">
+          <div class="donut-legend-left"><span class="donut-legend-dot" style="background:${g.color}"></span>${g.label}</div>
+          <span class="donut-legend-value">${g.value}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  // barras por area
+  const counts = state.areas.map(area => ({
+    area,
+    count: projects.filter(p => p.tarefas.some(t => t.area === area)).length,
+  })).sort((a, b) => b.count - a.count);
+  const maxCount = Math.max(...counts.map(c => c.count), 1);
+  const areaHost = document.getElementById('dash-area-bars');
+  areaHost.innerHTML = counts.map(c => `
+    <div class="bar-chart-row">
+      <span class="bar-chart-label">${c.area}</span>
+      <div class="bar-chart-track"><div class="bar-chart-fill" style="width:${(c.count / maxCount) * 100}%"></div></div>
+      <span class="bar-chart-value">${c.count}</span>
+    </div>
+  `).join('') || '<p class="muted">Nenhuma área cadastrada ainda.</p>';
+
+  // prazos mais proximos
+  const naoConcluidos = projects.filter(p => {
+    const s = (p.status_prazo || '').toLowerCase();
+    return s !== 'concluído' && s !== 'concluido';
+  });
+  const proximos = [...naoConcluidos].sort((a, b) => (a.data_fim || '').localeCompare(b.data_fim || '')).slice(0, 6);
+  const deadlineHost = document.getElementById('dash-deadlines');
+  deadlineHost.innerHTML = proximos.map(p => `
+    <div class="deadline-row">
+      <div>
+        <p class="deadline-name">${p.nome}</p>
+        <p class="deadline-meta">${p.cliente_nome ? 'Cliente: ' + p.cliente_nome + ' · ' : ''}GP: ${p.gerente_nome || '-'}</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="margin:0;font-size:13px;">${fmtDate(p.data_fim)}</p>
+        <span class="badge ${statusClass(p.status_prazo)}">${p.status_prazo}</span>
+      </div>
+    </div>
+  `).join('') || '<p class="muted">Nenhum projeto em aberto.</p>';
+}
 
 // ---------- New project modal ----------
 const modal = document.getElementById('modal-new-project');
