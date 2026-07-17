@@ -396,6 +396,7 @@ function renderProjectList() {
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
+          <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>
         </div>
       </div>
       ${alertaHtml}
@@ -602,6 +603,21 @@ function renderProjectList() {
         return requestAdminLogin(doDelete);
       }
       doDelete();
+    };
+    card.querySelector('[data-notify-teams]').onclick = async (e) => {
+      const btn = e.currentTarget;
+      const textoOriginal = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        await api(`/projects/${p.id}/notificar-teams`, { method: 'POST' });
+        alert(`Notificação de "${p.nome}" enviada para o Teams.`);
+      } catch (err) {
+        alert('Erro ao notificar no Teams: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+      }
     };
     el.appendChild(card);
   });
