@@ -108,6 +108,19 @@ async function init() {
     );
 
     INSERT INTO app_settings (id) VALUES (1) ON CONFLICT (id) DO NOTHING;
+
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id SERIAL PRIMARY KEY,
+      entidade TEXT NOT NULL,
+      entidade_id INTEGER,
+      projeto_id INTEGER,
+      projeto_nome TEXT DEFAULT '',
+      acao TEXT NOT NULL,
+      autor TEXT DEFAULT '',
+      detalhes TEXT DEFAULT '',
+      envolve_data BOOLEAN DEFAULT FALSE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,

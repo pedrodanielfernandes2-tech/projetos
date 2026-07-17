@@ -16,6 +16,7 @@ app.use('/api/areas', require('./routes/areas'));
 app.use('/api/clientes', require('./routes/clientes'));
 app.use('/api/admin', require('./routes/adminAuth'));
 app.use('/api/settings', require('./routes/settings'));
+app.use('/api/audit-log', require('./routes/auditLog'));
 
 const PORT = process.env.PORT || 3000;
 
