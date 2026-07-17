@@ -1,6 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAdminAlways } = require('../adminAuth');
+const { registrarAuditoria } = require('../audit');
 const router = express.Router();
 
 router.get('/', async (req, res) => {
@@ -13,6 +14,10 @@ router.post('/', requireAdminAlways, async (req, res) => {
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome da area obrigatorio' });
   try {
     const { rows } = await pool.query('INSERT INTO areas (nome) VALUES ($1) RETURNING id, nome', [nome.trim()]);
+    await registrarAuditoria({
+      entidade: 'area', entidade_id: rows[0].id, acao: 'criado',
+      autor: req.header('x-autor') || 'anônimo', detalhes: `Área "${nome.trim()}" cadastrada`,
+    });
     res.status(201).json(rows[0]);
   } catch (e) {
     res.status(400).json({ error: 'ja existe uma area com esse nome' });
@@ -26,6 +31,10 @@ router.delete('/:nome', requireAdminAlways, async (req, res) => {
     return res.status(400).json({ error: 'essa area esta em uso por projetos e nao pode ser removida' });
   }
   await pool.query('DELETE FROM areas WHERE nome = $1', [nome]);
+  await registrarAuditoria({
+    entidade: 'area', acao: 'excluido',
+    autor: req.header('x-autor') || 'anônimo', detalhes: `Área "${nome}" removida`,
+  });
   res.json({ ok: true });
 });
 
