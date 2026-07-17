@@ -80,6 +80,17 @@ body {
   margin-top: auto; font-size: 11px; color: rgba(255, 255, 255, 0.38);
   padding: 0 22px;
 }
+.sidebar-autor { padding: 10px 22px 0; }
+.sidebar-autor label {
+  display: block; font-size: 10.5px; color: rgba(255, 255, 255, 0.45);
+  margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.03em;
+}
+.sidebar-autor input {
+  width: 100%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff; font-size: 13px; padding: 7px 10px;
+}
+.sidebar-autor input::placeholder { color: rgba(255, 255, 255, 0.35); }
+.sidebar-autor input:focus { border-color: var(--brand-red); box-shadow: none; }
 
 .content-area {
   flex: 1; min-width: 0; max-width: 1440px; margin: 0 auto;
@@ -93,6 +104,24 @@ body {
   letter-spacing: -0.02em; color: var(--text);
 }
 .page-subtitle { color: var(--text-muted); font-size: 14px; margin: 0; }
+
+/* ---------- submenu do dashboard ---------- */
+.dash-subnav {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 22px; padding-bottom: 14px; border-bottom: 1px solid var(--border);
+}
+.dash-subnav-btn {
+  background: none; border: 1px solid transparent; padding: 8px 16px;
+  border-radius: 999px; font-size: 13px; color: var(--text-muted); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.dash-subnav-btn:hover { background: var(--surface-alt); color: var(--text); }
+.dash-subnav-btn.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.dash-page.hidden { display: none; }
+
+.workload-row { display: flex; align-items: center; gap: 12px; }
+.workload-label { width: 150px; flex-shrink: 0; font-size: 13px; font-weight: 600; }
+.workload-counts { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
 
 /* ---------- stats ---------- */
 .stats-grid {
@@ -200,7 +229,9 @@ body {
   font-size: 13px;
 }
 .hist-row { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; }
+.hist-row.envolve-data { border-left: 3px solid var(--pending); padding-left: 10px; background: var(--pending-soft); border-radius: 0 6px 6px 0; }
 .hist-date { font-weight: 600; }
+.audit-detalhes { color: var(--text-muted); font-size: 12px; margin: 2px 0 0; }
 
 .hist-add { display: flex; gap: 6px; margin-top: 8px; }
 

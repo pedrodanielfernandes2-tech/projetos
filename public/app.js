@@ -12,6 +12,7 @@ const state = {
   sortBy: 'prazo',
   isAdmin: false,
   adminPassword: null,
+  autorNome: '',
   expanded: {}, // projectId -> 'tarefas' | 'historico' | 'links' | null
   newProjectAreas: {}, // area -> {inicio, fim}
   calendarMonth: new Date().getMonth(),
@@ -67,6 +68,7 @@ function statusClass(s) {
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
+  if (state.autorNome) headers['x-autor'] = state.autorNome;
   const res = await fetch('/api' + path, {
     ...opts,
     headers: { ...headers, ...(opts.headers || {}) },
@@ -91,6 +93,18 @@ function loadAdminSession() {
     state.isAdmin = true;
   }
 }
+
+// ---------- autor (identificacao simples, sem senha) ----------
+function loadAutorSession() {
+  const stored = sessionStorage.getItem('autorNome');
+  if (stored) state.autorNome = stored;
+  document.getElementById('input-autor-nome').value = state.autorNome;
+}
+document.getElementById('input-autor-nome').addEventListener('change', (e) => {
+  state.autorNome = e.target.value.trim();
+  sessionStorage.setItem('autorNome', state.autorNome);
+});
+
 async function requestAdminLogin(onSuccess) {
   const senha = prompt('Digite a senha de administrador:');
   if (senha === null || senha === '') return;
@@ -113,6 +127,7 @@ function activateTab(btn) {
   document.getElementById('view-dashboard').classList.toggle('hidden', btn.dataset.tab !== 'dashboard');
   document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
   if (btn.dataset.tab === 'dashboard') renderDashboard();
+  if (btn.dataset.tab === 'admin') renderAuditLog();
 }
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -127,6 +142,7 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
+  loadAutorSession();
   const [areas, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/gps'),
@@ -796,6 +812,32 @@ document.getElementById('form-permissoes').addEventListener('submit', async (e) 
   }
 });
 
+// ---------- Historico de alteracoes (auditoria) ----------
+async function renderAuditLog() {
+  const host = document.getElementById('audit-log-list');
+  const apenasDatas = document.getElementById('audit-apenas-datas').checked;
+  let entries;
+  try {
+    entries = await api('/audit-log' + (apenasDatas ? '?apenas_datas=true' : ''));
+  } catch (err) {
+    host.innerHTML = `<p class="muted">${err.message}</p>`;
+    return;
+  }
+  if (entries.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum registro ainda.</p>';
+    return;
+  }
+  const acaoLabel = { criado: 'criou', editado: 'editou', excluido: 'excluiu' };
+  host.innerHTML = entries.map(e => `
+    <div class="hist-row${e.envolve_data ? ' envolve-data' : ''}">
+      <span class="hist-date">${new Date(e.criado_em).toLocaleString('pt-BR')}</span> —
+      <strong>${e.autor || 'anônimo'}</strong> ${acaoLabel[e.acao] || e.acao} ${e.entidade}${e.projeto_nome ? ' em "' + e.projeto_nome + '"' : ''}
+      ${e.detalhes ? `<p class="audit-detalhes">${e.detalhes}</p>` : ''}
+    </div>
+  `).join('');
+}
+document.getElementById('audit-apenas-datas').addEventListener('change', renderAuditLog);
+
 // ---------- dashboard ----------
 function buildDonutSvg(segments) {
   const total = segments.reduce((s, x) => s + x.value, 0) || 1;
@@ -1219,7 +1261,165 @@ async function renderDashboard() {
       </div>
     </div>
   `).join('') || '<p class="muted">Nenhum projeto em aberto.</p>';
+
+  // carga de trabalho por GP
+  renderGpWorkload(projects);
+
+  // projetos por cliente
+  renderClienteWorkload(projects);
+
+  // tendencia de atrasos
+  renderTrend(projects);
+
+  // projetos esquecidos (sem atualizacao recente)
+  renderEsquecidos(projects);
 }
+
+function workloadRowHtml(nome, total, atrasados, bloqueados, maxTotal) {
+  const extras = [];
+  if (atrasados > 0) extras.push(`<span style="color:var(--danger)">${atrasados} atrasado${atrasados > 1 ? 's' : ''}</span>`);
+  if (bloqueados > 0) extras.push(`<span style="color:var(--warning)">${bloqueados} bloqueado${bloqueados > 1 ? 's' : ''}</span>`);
+  return `
+    <div class="workload-row">
+      <span class="workload-label" title="${nome}">${nome}</span>
+      <div class="bar-chart-track"><div class="bar-chart-fill" style="width:${(total / maxTotal) * 100}%"></div></div>
+      <span class="workload-counts">${total} total${extras.length ? ' · ' + extras.join(' · ') : ''}</span>
+    </div>
+  `;
+}
+
+function renderGpWorkload(projects) {
+  const host = document.getElementById('dash-gp-bars');
+  const linhas = state.gps.map(gp => {
+    const projs = projects.filter(p => p.gp_id === gp.id);
+    return {
+      nome: gp.nome,
+      total: projs.length,
+      atrasados: projs.filter(p => p.status_prazo === 'atrasado').length,
+      bloqueados: projs.filter(p => p.status_prazo === 'bloqueado').length,
+    };
+  }).filter(l => l.total > 0).sort((a, b) => b.total - a.total);
+
+  if (linhas.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum GP com projetos atribuídos ainda.</p>';
+    return;
+  }
+  const maxTotal = Math.max(...linhas.map(l => l.total), 1);
+  const semGp = projects.filter(p => !p.gp_id).length;
+  host.innerHTML = linhas.map(l => workloadRowHtml(l.nome, l.total, l.atrasados, l.bloqueados, maxTotal)).join('') +
+    (semGp > 0 ? `<p class="muted" style="margin-top:12px;">${semGp} projeto(s) sem GP definido.</p>` : '');
+}
+
+function renderClienteWorkload(projects) {
+  const host = document.getElementById('dash-cliente-bars');
+  const mapa = {};
+  projects.forEach(p => {
+    const nome = p.cliente_nome || 'Sem cliente definido';
+    if (!mapa[nome]) mapa[nome] = { total: 0, atrasados: 0, bloqueados: 0 };
+    mapa[nome].total++;
+    if (p.status_prazo === 'atrasado') mapa[nome].atrasados++;
+    if (p.status_prazo === 'bloqueado') mapa[nome].bloqueados++;
+  });
+  const linhas = Object.entries(mapa).map(([nome, v]) => ({ nome, ...v })).sort((a, b) => b.total - a.total);
+  if (linhas.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum projeto cadastrado ainda.</p>';
+    return;
+  }
+  const maxTotal = Math.max(...linhas.map(l => l.total), 1);
+  host.innerHTML = linhas.map(l => workloadRowHtml(l.nome, l.total, l.atrasados, l.bloqueados, maxTotal)).join('');
+}
+
+function buildTrendSvg(buckets) {
+  const w = 620, h = 220, padLeft = 34, padRight = 20, padTop = 26, padBottom = 30;
+  const maxVal = Math.max(...buckets.map(b => b.value), 1);
+  const innerW = w - padLeft - padRight;
+  const innerH = h - padTop - padBottom;
+  const stepX = buckets.length > 1 ? innerW / (buckets.length - 1) : 0;
+  const points = buckets.map((b, i) => ({
+    x: padLeft + i * stepX,
+    y: padTop + innerH - (b.value / maxVal) * innerH,
+    ...b,
+  }));
+  const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x.toFixed(1) + ' ' + p.y.toFixed(1)).join(' ');
+  const areaD = pathD + ` L ${points[points.length - 1].x.toFixed(1)} ${(padTop + innerH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(padTop + innerH).toFixed(1)} Z`;
+  const dots = points.map(p => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4" fill="var(--danger)" />`).join('');
+  const labels = points.map(p => `<text x="${p.x.toFixed(1)}" y="${h - 8}" text-anchor="middle" font-size="10.5" fill="var(--text-muted)">${p.label}</text>`).join('');
+  const values = points.map(p => `<text x="${p.x.toFixed(1)}" y="${(p.y - 10).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--danger)">${p.value}</text>`).join('');
+  const baseline = `<line x1="${padLeft}" y1="${padTop + innerH}" x2="${w - padRight}" y2="${padTop + innerH}" stroke="var(--border)" stroke-width="1" />`;
+  return `
+    <svg width="100%" height="${h}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet">
+      ${baseline}
+      <path d="${areaD}" fill="var(--danger-soft)" opacity="0.6" />
+      <path d="${pathD}" fill="none" stroke="var(--danger)" stroke-width="2.5" />
+      ${dots}${labels}${values}
+    </svg>
+  `;
+}
+
+function renderTrend(projects) {
+  const host = document.getElementById('dash-trend-chart');
+  const hoje = new Date();
+  const buckets = [];
+  for (let i = 7; i >= 0; i--) {
+    const d = new Date(hoje);
+    d.setDate(d.getDate() - i * 7);
+    const dStr = d.toISOString().slice(0, 10);
+    const atrasados = projects.filter(p => p.data_fim && p.data_fim < dStr).length;
+    buckets.push({ label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), value: atrasados });
+  }
+  if (projects.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum projeto cadastrado ainda.</p>';
+    return;
+  }
+  host.innerHTML = buildTrendSvg(buckets);
+}
+
+function renderEsquecidos(projects) {
+  const host = document.getElementById('dash-esquecidos-list');
+  const LIMITE_DIAS = 15;
+  const agora = Date.now();
+  const lista = projects
+    .filter(p => {
+      const s = (p.status_prazo || '').toLowerCase();
+      if (s === 'concluído' || s === 'concluido') return false;
+      const ultima = (p.historico && p.historico.length > 0) ? p.historico[0].criado_em : p.criado_em;
+      if (!ultima) return false;
+      const dias = (agora - new Date(ultima).getTime()) / (1000 * 60 * 60 * 24);
+      return dias >= LIMITE_DIAS;
+    })
+    .map(p => {
+      const ultima = (p.historico && p.historico.length > 0) ? p.historico[0].criado_em : p.criado_em;
+      const dias = Math.floor((agora - new Date(ultima).getTime()) / (1000 * 60 * 60 * 24));
+      return { ...p, diasSemAtualizar: dias };
+    })
+    .sort((a, b) => b.diasSemAtualizar - a.diasSemAtualizar);
+
+  if (lista.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum projeto esquecido — todos tiveram atualização recente. 👍</p>';
+    return;
+  }
+  host.innerHTML = lista.map(p => `
+    <div class="deadline-row">
+      <div>
+        <p class="deadline-name">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+        <p class="deadline-meta">${p.cliente_nome ? 'Cliente: ' + p.cliente_nome + ' · ' : ''}GP: ${p.gerente_nome || '-'}</p>
+      </div>
+      <div style="text-align:right;">
+        <p style="margin:0;font-size:13px;color:var(--danger);font-weight:600;">${p.diasSemAtualizar} dias sem atualizar</p>
+        <span class="badge ${statusClass(p.status_prazo)}">${p.status_prazo}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ---------- submenu do dashboard ----------
+function activateDashPage(key) {
+  document.querySelectorAll('.dash-subnav-btn').forEach(b => b.classList.toggle('active', b.dataset.dash === key));
+  document.querySelectorAll('.dash-page').forEach(p => p.classList.toggle('hidden', p.id !== `dash-page-${key}`));
+}
+document.querySelectorAll('.dash-subnav-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateDashPage(btn.dataset.dash));
+});
 
 // ---------- New project modal ----------
 const modal = document.getElementById('modal-new-project');

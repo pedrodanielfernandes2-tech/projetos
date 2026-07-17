@@ -22,6 +22,10 @@
         <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
       </nav>
       <p class="sidebar-footer">Visual Mix · Tecnologia para o varejo</p>
+      <div class="sidebar-autor">
+        <label for="input-autor-nome">Seu nome (aparece no histórico)</label>
+        <input type="text" id="input-autor-nome" placeholder="ex: Pedro" />
+      </div>
     </aside>
 
     <main class="content-area">
@@ -70,55 +74,106 @@
         <p class="page-subtitle">Indicadores gerais de todos os projetos cadastrados</p>
       </div>
 
-      <div class="stats-grid" id="dash-stats"></div>
+      <div class="dash-subnav">
+        <button class="dash-subnav-btn active" data-dash="geral">Visão geral</button>
+        <button class="dash-subnav-btn" data-dash="area">Por área</button>
+        <button class="dash-subnav-btn" data-dash="gp">Por GP</button>
+        <button class="dash-subnav-btn" data-dash="cliente">Por cliente</button>
+        <button class="dash-subnav-btn" data-dash="calendario">Calendário</button>
+        <button class="dash-subnav-btn" data-dash="velocimetro">Velocímetro</button>
+        <button class="dash-subnav-btn" data-dash="linha-tempo">Linha do tempo</button>
+        <button class="dash-subnav-btn" data-dash="tendencia">Tendência</button>
+        <button class="dash-subnav-btn" data-dash="esquecidos">Esquecidos</button>
+      </div>
 
-      <div class="dashboard-grid">
+      <div id="dash-page-geral" class="dash-page">
+        <div class="stats-grid" id="dash-stats"></div>
         <div class="chart-panel">
           <h2 class="panel-title">Status dos projetos</h2>
           <div class="donut-wrap" id="dash-donut"></div>
         </div>
+        <div class="chart-panel">
+          <h2 class="panel-title">Prazos mais próximos</h2>
+          <div id="dash-deadlines" class="deadline-list"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-area" class="dash-page hidden">
         <div class="chart-panel">
           <h2 class="panel-title">Projetos por área</h2>
           <div id="dash-area-bars" class="stack tight"></div>
         </div>
       </div>
 
-      <div class="chart-panel">
-        <div class="calendar-header">
-          <h2 class="panel-title" style="margin:0;">Calendário de entregas</h2>
-          <div class="calendar-nav">
-            <button class="btn" id="cal-prev" aria-label="Mês anterior">‹</button>
-            <span id="cal-label" class="calendar-label"></span>
-            <button class="btn" id="cal-next" aria-label="Próximo mês">›</button>
-            <button class="btn" id="cal-hoje">Hoje</button>
-          </div>
+      <div id="dash-page-gp" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Carga de trabalho por GP</h2>
+          <p class="muted">Quantos projetos cada GP tem sob responsabilidade, e quantos estão atrasados ou bloqueados.</p>
+          <div id="dash-gp-bars" class="stack tight"></div>
         </div>
-        <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
-        <div id="cal-grid" class="calendar-grid"></div>
       </div>
 
-      <div class="chart-panel">
-        <h2 class="panel-title">Velocímetro — tempo gasto na demanda</h2>
-        <p class="muted">Mostra quantas horas já foram investidas naquela demanda, considerando dias úteis e jornada de 8h/dia. Escolha uma área e, se quiser, um chamado específico — sem chamado, soma todas as tarefas da área dentro do período.</p>
-        <div class="gauge-filters">
-          <select id="vel-area"></select>
-          <select id="vel-chamado"><option value="">Todos os chamados (média do período)</option></select>
-          <div class="gauge-periodo">
-            <label>De <input type="date" id="vel-periodo-inicio" /></label>
-            <label>Até <input type="date" id="vel-periodo-fim" /></label>
-          </div>
+      <div id="dash-page-cliente" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos por cliente</h2>
+          <p class="muted">Quantos projetos cada cliente tem em andamento, e quantos estão atrasados ou bloqueados.</p>
+          <div id="dash-cliente-bars" class="stack tight"></div>
         </div>
-        <div id="vel-gauge-wrap" class="gauge-wrap"></div>
       </div>
 
-      <div class="chart-panel">
-        <h2 class="panel-title">Linha do tempo dos projetos</h2>
-        <div id="dash-gantt" class="stack tight"></div>
+      <div id="dash-page-calendario" class="dash-page hidden">
+        <div class="chart-panel">
+          <div class="calendar-header">
+            <h2 class="panel-title" style="margin:0;">Calendário de entregas</h2>
+            <div class="calendar-nav">
+              <button class="btn" id="cal-prev" aria-label="Mês anterior">‹</button>
+              <span id="cal-label" class="calendar-label"></span>
+              <button class="btn" id="cal-next" aria-label="Próximo mês">›</button>
+              <button class="btn" id="cal-hoje">Hoje</button>
+            </div>
+          </div>
+          <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
+          <div id="cal-grid" class="calendar-grid"></div>
+        </div>
       </div>
 
-      <div class="chart-panel">
-        <h2 class="panel-title">Prazos mais próximos</h2>
-        <div id="dash-deadlines" class="deadline-list"></div>
+      <div id="dash-page-velocimetro" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Velocímetro — tempo gasto na demanda</h2>
+          <p class="muted">Mostra quantas horas já foram investidas naquela demanda, considerando dias úteis e jornada de 8h/dia. Escolha uma área e, se quiser, um chamado específico — sem chamado, soma todas as tarefas da área dentro do período.</p>
+          <div class="gauge-filters">
+            <select id="vel-area"></select>
+            <select id="vel-chamado"><option value="">Todos os chamados (média do período)</option></select>
+            <div class="gauge-periodo">
+              <label>De <input type="date" id="vel-periodo-inicio" /></label>
+              <label>Até <input type="date" id="vel-periodo-fim" /></label>
+            </div>
+          </div>
+          <div id="vel-gauge-wrap" class="gauge-wrap"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-linha-tempo" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Linha do tempo dos projetos</h2>
+          <div id="dash-gantt" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-tendencia" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Tendência de atrasos</h2>
+          <p class="muted">Estimativa de quantos projetos estariam atrasados a cada semana, com base nas datas de entrega atuais dos projetos cadastrados hoje. Não reflete bloqueios manuais retroativos nem prazos que já foram alterados.</p>
+          <div id="dash-trend-chart"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-esquecidos" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos sem atualização recente</h2>
+          <p class="muted">Projetos não concluídos sem nenhuma linha de histórico nos últimos 15 dias — um sinal de abandono ou silêncio que os outros indicadores não capturam.</p>
+          <div id="dash-esquecidos-list" class="deadline-list"></div>
+        </div>
       </div>
     </section>
 
@@ -221,6 +276,15 @@
             </div>
             <p id="perm-status" class="status-msg hidden"></p>
           </form>
+        </div>
+
+        <div class="panel">
+          <h2>Histórico de alterações</h2>
+          <p class="muted">Quem criou, editou ou excluiu cada item — com destaque para mudanças de datas. Baseado no campo "Seu nome" preenchido na sidebar (não é uma autenticação real, então trate como um registro de boa-fé).</p>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;">
+            <input type="checkbox" id="audit-apenas-datas" style="width:auto;" /> Mostrar só alterações de datas
+          </label>
+          <div id="audit-log-list" class="stack tight" style="max-height:440px;overflow-y:auto;"></div>
         </div>
 
       </div>
