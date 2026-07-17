@@ -3,6 +3,7 @@ const { pool } = require('../db');
 const { requireAdminIfSetting } = require('../adminAuth');
 const { calcularStatusPrazo, calcularStatusTarefa } = require('../statusCalc');
 const { registrarAuditoria } = require('../audit');
+const { postToTeams } = require('../teams');
 const router = express.Router();
 
 function getAutor(req) {
@@ -235,6 +236,32 @@ router.post('/:id/links', async (req, res) => {
 router.delete('/:id/links/:linkId', async (req, res) => {
   await pool.query('DELETE FROM project_links WHERE id = $1 AND project_id = $2', [req.params.linkId, req.params.id]);
   res.json({ ok: true });
+});
+
+// Notificar um projeto especifico no Teams (sob demanda)
+router.post('/:id/notificar-teams', async (req, res) => {
+  const project = await loadProject(req.params.id);
+  if (!project) return res.status(404).json({ error: 'projeto nao encontrado' });
+
+  const linhasTarefas = project.tarefas.map(t =>
+    `- ${t.area}: ${t.inicio || 'sem data'} → ${t.fim || 'sem data'} (${t.status})`
+  ).join('\n');
+
+  const partes = [
+    project.chamado ? `Chamado: ${project.chamado}` : null,
+    project.cliente_nome ? `Cliente: ${project.cliente_nome}` : null,
+    `GP: ${project.gerente_nome || '-'}`,
+    `Fase: ${project.fase} · Status do prazo: **${project.status_prazo}**`,
+    project.resumo ? `Resumo: ${project.resumo}` : null,
+    linhasTarefas ? `\nÁreas:\n${linhasTarefas}` : null,
+  ].filter(Boolean);
+
+  try {
+    await postToTeams({ title: `📋 ${project.nome}`, text: partes.join('\n') });
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
