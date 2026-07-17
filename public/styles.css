@@ -80,17 +80,6 @@ body {
   margin-top: auto; font-size: 11px; color: rgba(255, 255, 255, 0.38);
   padding: 0 22px;
 }
-.sidebar-autor { padding: 10px 22px 0; }
-.sidebar-autor label {
-  display: block; font-size: 10.5px; color: rgba(255, 255, 255, 0.45);
-  margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.03em;
-}
-.sidebar-autor input {
-  width: 100%; background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #fff; font-size: 13px; padding: 7px 10px;
-}
-.sidebar-autor input::placeholder { color: rgba(255, 255, 255, 0.35); }
-.sidebar-autor input:focus { border-color: var(--brand-red); box-shadow: none; }
 
 .content-area {
   flex: 1; min-width: 0; max-width: 1440px; margin: 0 auto;

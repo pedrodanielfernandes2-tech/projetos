@@ -94,17 +94,6 @@ function loadAdminSession() {
   }
 }
 
-// ---------- autor (identificacao simples, sem senha) ----------
-function loadAutorSession() {
-  const stored = sessionStorage.getItem('autorNome');
-  if (stored) state.autorNome = stored;
-  document.getElementById('input-autor-nome').value = state.autorNome;
-}
-document.getElementById('input-autor-nome').addEventListener('change', (e) => {
-  state.autorNome = e.target.value.trim();
-  sessionStorage.setItem('autorNome', state.autorNome);
-});
-
 async function requestAdminLogin(onSuccess) {
   const senha = prompt('Digite a senha de administrador:');
   if (senha === null || senha === '') return;
@@ -142,7 +131,6 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  loadAutorSession();
   const [areas, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/gps'),
