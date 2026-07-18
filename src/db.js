@@ -128,12 +128,19 @@ async function init() {
       parent_id INTEGER REFERENCES wbs_items(id) ON DELETE CASCADE,
       titulo TEXT NOT NULL,
       area TEXT DEFAULT '',
+      acao TEXT DEFAULT '',
       responsavel TEXT DEFAULT '',
       status TEXT DEFAULT 'Pendente',
       data_inicio DATE,
       data_fim DATE,
       observacao TEXT DEFAULT '',
       ordem INTEGER DEFAULT 0,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS acoes (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL UNIQUE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
   `);
@@ -147,6 +154,7 @@ async function init() {
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS cliente_id INTEGER REFERENCES clientes(id) ON DELETE SET NULL;');
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS ultimo_status_notificado TEXT;');
   await pool.query('ALTER TABLE email_config ADD COLUMN IF NOT EXISTS enviar_teams BOOLEAN DEFAULT FALSE;');
+  await pool.query("ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS acao TEXT DEFAULT '';");
 
   // Popula as areas padrao apenas na primeira vez (tabela vazia). Depois disso,
   // respeita qualquer area que o usuario tenha removido de proposito.
@@ -155,6 +163,15 @@ async function init() {
     const areasIniciais = ['Desenvolvimento', 'PDV', 'Visual Store', 'Integração', 'Inovação', 'Tesouraria'];
     for (const nome of areasIniciais) {
       await pool.query('INSERT INTO areas (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+    }
+  }
+
+  // Mesma logica para acoes: popula apenas na primeira vez.
+  const { rows: acaoCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM acoes');
+  if (acaoCountRows[0].n === 0) {
+    const acoesIniciais = ['Desenvolvimento', 'Análise'];
+    for (const nome of acoesIniciais) {
+      await pool.query('INSERT INTO acoes (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
     }
   }
 }
