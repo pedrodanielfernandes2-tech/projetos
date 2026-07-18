@@ -55,6 +55,22 @@ function elapsedPercent(inicio, fim) {
   if (total <= 0) return 100;
   return Math.round(((hoje - start) / total) * 100);
 }
+
+// Sinaliza a saude do prazo de um item da WBS: 'atrasado' | 'risco' | 'ok' | null (nao avaliavel).
+function wbsPrazoStatus(item) {
+  if (item.status === 'Concluído' || item.status === 'Impasse') return null;
+  if (!item.data_fim) return null;
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  if (hojeStr > item.data_fim) return 'atrasado';
+  if (item.data_inicio) {
+    const elapsed = elapsedPercent(item.data_inicio, item.data_fim);
+    if (elapsed !== null && elapsed >= 80) return 'risco';
+  } else {
+    const diasRestantes = (new Date(item.data_fim + 'T00:00:00') - new Date()) / (1000 * 60 * 60 * 24);
+    if (diasRestantes <= 3) return 'risco';
+  }
+  return 'ok';
+}
 function taskBarInfo(t) {
   const s = (t.status || '').toLowerCase();
   if (s === 'atrasado') return { percent: 100, color: 'var(--danger)' };
@@ -1716,6 +1732,11 @@ function buildWbsNode(item, depth) {
   const colapsado = !!state.wbsCollapsed[item.id];
 
   const temPrazo = item.data_inicio || item.data_fim;
+  const prazoStatus = wbsPrazoStatus(item);
+  const prazoIcone = prazoStatus === 'atrasado' ? '⚠️ ' : prazoStatus === 'risco' ? '⏳ ' : '';
+  const prazoClasse = prazoStatus === 'atrasado' ? ' wbs-prazo-atrasado' : prazoStatus === 'risco' ? ' wbs-prazo-risco' : '';
+  if (prazoStatus === 'atrasado') row.classList.add('wbs-row-atrasado');
+  else if (prazoStatus === 'risco') row.classList.add('wbs-row-risco');
   row.innerHTML = `
     ${temFilhos ? `<button class="wbs-toggle" type="button">${colapsado ? '▸' : '▾'}</button>` : '<span class="wbs-toggle-spacer"></span>'}
     <span class="wbs-numero">${item.numero}</span>
@@ -1723,7 +1744,7 @@ function buildWbsNode(item, depth) {
     <span class="wbs-col-area">${item.area ? `<span class="area-tag">${item.area}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-responsavel">${item.responsavel || '<span class="wbs-empty-cell">—</span>'}</span>
-    <span class="wbs-datas">${temPrazo ? `${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-datas${prazoClasse}" title="${prazoStatus === 'atrasado' ? 'Atrasado' : prazoStatus === 'risco' ? 'Possível atraso' : prazoStatus === 'ok' ? 'Dentro do prazo' : ''}">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
     <div class="wbs-actions">
       <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima">↑</button>

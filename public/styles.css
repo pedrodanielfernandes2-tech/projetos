@@ -398,6 +398,10 @@ input:focus, select:focus, textarea:focus {
 .wbs-tag-acao { font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--surface-alt); color: var(--text-muted); }
 .wbs-responsavel { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wbs-datas { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.wbs-prazo-atrasado { color: var(--danger); font-weight: 700; }
+.wbs-prazo-risco { color: var(--warning); font-weight: 700; }
+.wbs-row-atrasado { border-left: 3px solid var(--danger); }
+.wbs-row-risco { border-left: 3px solid var(--warning); }
 .wbs-col-status { }
 .wbs-empty-cell { color: var(--border); }
 .wbs-actions { display: flex; gap: 3px; justify-content: flex-end; }
