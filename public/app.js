@@ -374,6 +374,10 @@ function renderStats() {
 function renderAreaFilters() {
   const el = document.getElementById('area-filters');
   el.innerHTML = '';
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:12px;color:var(--text-muted);align-self:center;margin-right:2px;';
+  label.textContent = 'Produto:';
+  el.appendChild(label);
   const allChip = document.createElement('button');
   allChip.className = 'chip' + (state.activeFilter ? '' : ' selected');
   allChip.textContent = 'Todas';

@@ -93,6 +93,11 @@ body {
   letter-spacing: -0.02em; color: var(--text);
 }
 .page-subtitle { color: var(--text-muted); font-size: 14px; margin: 0; }
+.page-header-with-action {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 14px; flex-wrap: wrap;
+}
+.page-header-with-action .btn-primary { flex-shrink: 0; }
 
 /* ---------- submenu do dashboard ---------- */
 .dash-subnav {
@@ -409,9 +414,28 @@ input:focus, select:focus, textarea:focus {
 .wbs-children { }
 .wbs-observacao { font-size: 12px; color: var(--text-muted); padding: 0 6px 8px 68px; font-style: italic; }
 
-@media (max-width: 900px) {
-  .wbs-row { grid-template-columns: 22px 40px minmax(120px, 1fr) 90px; }
-  .wbs-col-acao, .wbs-responsavel, .wbs-datas, .wbs-header-row .wbs-col-acao { display: none; }
+@media (max-width: 720px) {
+  .wbs-header-row { display: none; }
+  .wbs-row {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 10px; padding: 12px 8px;
+  }
+  .wbs-toggle, .wbs-toggle-spacer { order: 1; }
+  .wbs-numero { order: 2; }
+  .wbs-titulo {
+    order: 3; flex: 1 1 100%; padding-left: 0 !important;
+    white-space: normal; font-size: 14px;
+  }
+  .wbs-col-area, .wbs-col-acao, .wbs-responsavel, .wbs-col-status {
+    order: 4; font-size: 11px;
+  }
+  .wbs-datas {
+    order: 4; font-size: 11px; flex-basis: 100%;
+  }
+  .wbs-actions {
+    order: 5; flex: 1 1 100%; justify-content: flex-start; margin-top: 4px;
+  }
+  .wbs-observacao { padding-left: 10px !important; }
 }
 
 /* ---------- alerta de dependencia ---------- */
