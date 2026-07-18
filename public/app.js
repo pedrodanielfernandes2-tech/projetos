@@ -1,5 +1,6 @@
 const state = {
   areas: [],
+  acoes: [],
   allProjects: [], // lista completa, sem filtro (fonte da verdade)
   projects: [], // lista apos filtro/busca/ordenacao (o que e renderizado)
   gps: [],
@@ -131,8 +132,9 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  const [areas, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
+  const [areas, acoes, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
+    api('/acoes'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
@@ -140,6 +142,7 @@ async function loadAll() {
     api('/settings'),
   ]);
   state.areas = areas;
+  state.acoes = acoes;
   state.gps = gps;
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
@@ -151,6 +154,7 @@ async function loadAll() {
   renderAreaFilters();
   renderGpFilters();
   renderAreaList();
+  renderAcaoList();
   renderGpList();
   renderAdminList();
   renderEmailConfig();
@@ -294,6 +298,42 @@ document.getElementById('form-area').addEventListener('submit', async (e) => {
     await api('/areas', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
     input.value = '';
     await refreshAreas();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ---------- Acoes admin ----------
+function renderAcaoList() {
+  const el = document.getElementById('acao-list');
+  el.innerHTML = '';
+  state.acoes.forEach(nome => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span>${nome}</span><button class="icon-btn" aria-label="Remover ação">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/acoes/${encodeURIComponent(nome)}`, { method: 'DELETE' });
+        await refreshAcoes();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
+  });
+}
+async function refreshAcoes() {
+  state.acoes = await api('/acoes');
+  renderAcaoList();
+}
+document.getElementById('form-acao').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('acao-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/acoes', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await refreshAcoes();
   } catch (err) {
     alert(err.message);
   }
@@ -1613,6 +1653,7 @@ state.wbsCollapsed = {};
 function wbsStatusClass(status) {
   const map = {
     'Pendente': 'badge-wbs-pendente',
+    'Em Andamento': 'badge-em-andamento',
     'Em Elaboração': 'badge-wbs-em-elaboracao',
     'Homolog./Cliente': 'badge-wbs-homolog-cliente',
     'Concluído': 'badge-wbs-concluido',
@@ -1671,18 +1712,19 @@ function buildWbsNode(item, depth) {
 
   const row = document.createElement('div');
   row.className = 'wbs-row';
-  row.style.paddingLeft = (depth * 22) + 'px';
   const temFilhos = item.filhos && item.filhos.length > 0;
   const colapsado = !!state.wbsCollapsed[item.id];
 
+  const temPrazo = item.data_inicio || item.data_fim;
   row.innerHTML = `
     ${temFilhos ? `<button class="wbs-toggle" type="button">${colapsado ? '▸' : '▾'}</button>` : '<span class="wbs-toggle-spacer"></span>'}
     <span class="wbs-numero">${item.numero}</span>
-    <span class="wbs-titulo">${item.titulo}</span>
-    ${item.area ? `<span class="area-tag">${item.area}</span>` : ''}
-    ${item.responsavel ? `<span class="wbs-responsavel">${item.responsavel}</span>` : ''}
-    ${item.data_inicio || item.data_fim ? `<span class="wbs-datas">${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}</span>` : ''}
-    <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
+    <span class="wbs-titulo" style="padding-left:${depth * 20}px" title="${item.titulo}">${item.titulo}</span>
+    <span class="wbs-col-area">${item.area ? `<span class="area-tag">${item.area}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-col-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-responsavel">${item.responsavel || '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-datas">${temPrazo ? `${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
     <div class="wbs-actions">
       <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima">↑</button>
       <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo">↓</button>
@@ -1696,7 +1738,7 @@ function buildWbsNode(item, depth) {
   if (item.observacao) {
     const obs = document.createElement('p');
     obs.className = 'wbs-observacao';
-    obs.style.paddingLeft = (depth * 22 + 26) + 'px';
+    obs.style.paddingLeft = (84 + depth * 20) + 'px';
     obs.textContent = '💬 ' + item.observacao;
     wrapper.appendChild(obs);
   }
@@ -1751,14 +1793,20 @@ function populateWbsAreaSelect() {
   const sel = document.getElementById('wbs-item-area');
   sel.innerHTML = '<option value="">Sem área definida</option>' + state.areas.map(a => `<option value="${a}">${a}</option>`).join('');
 }
+function populateWbsAcaoSelect() {
+  const sel = document.getElementById('wbs-item-acao');
+  sel.innerHTML = '<option value="">Sem ação definida</option>' + state.acoes.map(a => `<option value="${a}">${a}</option>`).join('');
+}
 
 function openWbsItemModal(parentId, itemToEdit) {
   populateWbsAreaSelect();
+  populateWbsAcaoSelect();
   document.getElementById('wbs-modal-titulo').textContent = itemToEdit ? 'Editar item' : (parentId ? 'Novo sub-item' : 'Novo item');
   document.getElementById('wbs-item-id').value = itemToEdit ? itemToEdit.id : '';
   document.getElementById('wbs-item-parent-id').value = parentId || '';
   document.getElementById('wbs-item-titulo').value = itemToEdit ? itemToEdit.titulo : '';
   document.getElementById('wbs-item-area').value = itemToEdit ? (itemToEdit.area || '') : '';
+  document.getElementById('wbs-item-acao').value = itemToEdit ? (itemToEdit.acao || '') : '';
   document.getElementById('wbs-item-responsavel').value = itemToEdit ? (itemToEdit.responsavel || '') : '';
   document.getElementById('wbs-item-status').value = itemToEdit ? itemToEdit.status : 'Pendente';
   document.getElementById('wbs-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
@@ -1776,6 +1824,7 @@ document.getElementById('form-wbs-item').addEventListener('submit', async (e) =>
   const body = {
     titulo: document.getElementById('wbs-item-titulo').value.trim(),
     area: document.getElementById('wbs-item-area').value,
+    acao: document.getElementById('wbs-item-acao').value,
     responsavel: document.getElementById('wbs-item-responsavel').value.trim(),
     status: document.getElementById('wbs-item-status').value,
     data_inicio: document.getElementById('wbs-item-inicio').value || null,

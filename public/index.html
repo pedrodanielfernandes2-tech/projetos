@@ -192,6 +192,16 @@
         </div>
 
         <div class="panel">
+          <h2>Ações</h2>
+          <p class="muted">Cadastre os tipos de ação usados nos itens da WBS (ex: Desenvolvimento, Análise, Testes).</p>
+          <div id="acao-list" class="stack tight"></div>
+          <form id="form-acao" class="form-row" style="margin-top:10px;">
+            <input type="text" id="acao-nome" placeholder="Nome da ação (ex: Testes)" required />
+            <button type="submit" class="btn">Adicionar ação</button>
+          </form>
+        </div>
+
+        <div class="panel">
           <h2>Clientes</h2>
           <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
           <div id="cliente-list" class="stack tight"></div>
@@ -299,6 +309,17 @@
         <div class="toolbar" style="margin-bottom:14px;">
           <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
           <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+        </div>
+        <div class="wbs-row wbs-header-row">
+          <span class="wbs-toggle-spacer"></span>
+          <span class="wbs-numero">Item</span>
+          <span class="wbs-titulo">Título</span>
+          <span class="wbs-col-area">Área</span>
+          <span class="wbs-col-acao">Ação</span>
+          <span class="wbs-responsavel">Responsável</span>
+          <span class="wbs-datas">Prazo</span>
+          <span class="wbs-col-status">Status</span>
+          <span class="wbs-actions"></span>
         </div>
         <div id="wbs-tree" class="stack tight"></div>
       </div>
@@ -428,11 +449,13 @@
         <input type="text" id="wbs-item-titulo" placeholder="Título do item" class="full-width" required />
         <div class="form-row">
           <select id="wbs-item-area"><option value="">Sem área definida</option></select>
-          <input type="text" id="wbs-item-responsavel" placeholder="Responsável" />
+          <select id="wbs-item-acao"><option value="">Sem ação definida</option></select>
         </div>
         <div class="form-row">
+          <input type="text" id="wbs-item-responsavel" placeholder="Responsável" />
           <select id="wbs-item-status">
             <option>Pendente</option>
+            <option>Em Andamento</option>
             <option>Em Elaboração</option>
             <option>Homolog./Cliente</option>
             <option>Concluído</option>
