@@ -9,13 +9,13 @@ function getAutor(req) {
 }
 
 router.put('/:itemId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
-  const { titulo, area, responsavel, status, data_inicio, data_fim, observacao } = req.body;
+  const { titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao } = req.body;
   const antigo = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!antigo) return res.status(404).json({ error: 'item nao encontrado' });
 
   await pool.query(
-    `UPDATE wbs_items SET titulo=$1, area=$2, responsavel=$3, status=$4, data_inicio=$5, data_fim=$6, observacao=$7 WHERE id=$8`,
-    [titulo, area || '', responsavel || '', status, data_inicio || null, data_fim || null, observacao || '', req.params.itemId]
+    `UPDATE wbs_items SET titulo=$1, area=$2, acao=$3, responsavel=$4, status=$5, data_inicio=$6, data_fim=$7, observacao=$8 WHERE id=$9`,
+    [titulo, area || '', acao || '', responsavel || '', status, data_inicio || null, data_fim || null, observacao || '', req.params.itemId]
   );
 
   const mudancas = [];
