@@ -1700,15 +1700,29 @@ async function loadWbsData() {
   renderWbsTree(data.tree);
 }
 
+function wbsStatusColors(status) {
+  const map = {
+    'Pendente': { bg: 'var(--danger-soft)', text: 'var(--danger)' },
+    'Em Andamento': { bg: 'var(--accent-soft)', text: 'var(--accent)' },
+    'Em Elaboração': { bg: 'var(--warning-soft)', text: 'var(--warning)' },
+    'Homolog./Cliente': { bg: '#fdeedb', text: '#c2650c' },
+    'Concluído': { bg: 'var(--success-soft)', text: 'var(--success)' },
+    'Impasse': { bg: '#2a2a2a', text: '#ffffff' },
+  };
+  return map[status] || { bg: 'var(--surface-alt)', text: 'var(--text-muted)' };
+}
+
 function renderWbsStats(stats, total) {
   const el = document.getElementById('wbs-stats');
-  const cores = { 'Pendente': 'var(--danger)', 'Em Elaboração': 'var(--warning)', 'Homolog./Cliente': '#c2650c', 'Concluído': 'var(--success)', 'Impasse': '#2a2a2a' };
-  const cards = stats.map(s => `
-    <div class="stat-card">
-      <p class="stat-label">${s.status}</p>
-      <p class="stat-value" style="color:${cores[s.status] || 'var(--text)'}">${s.count}<span style="font-size:14px;font-weight:400;color:var(--text-muted);"> (${s.percent}%)</span></p>
-    </div>
-  `).join('');
+  const cards = stats.map(s => {
+    const cor = wbsStatusColors(s.status);
+    return `
+      <div class="stat-card" style="background:${cor.bg};border-color:transparent;">
+        <p class="stat-label" style="color:${cor.text};opacity:0.85;">${s.status}</p>
+        <p class="stat-value" style="color:${cor.text};">${s.count}<span style="font-size:14px;font-weight:400;opacity:0.75;"> (${s.percent}%)</span></p>
+      </div>
+    `;
+  }).join('');
   el.innerHTML = `<div class="stat-card"><p class="stat-label">Total de itens</p><p class="stat-value">${total}</p></div>` + cards;
 }
 
