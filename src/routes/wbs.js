@@ -106,4 +106,91 @@ router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, 
   res.status(201).json(rows[0]);
 });
 
+// ---------- modelos reutilizaveis de WBS ----------
+
+// busca a subarvore de wbs_items a partir de uma lista de linhas de um projeto (ja em memoria)
+function subarvoreDe(rows, parentId) {
+  return rows
+    .filter(r => r.parent_id === parentId)
+    .sort((a, b) => a.ordem - b.ordem)
+    .map(r => ({ ...r, filhos: subarvoreDe(rows, r.id) }));
+}
+
+router.post('/salvar-modelo', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const { nome } = req.body;
+  if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome do modelo obrigatorio' });
+
+  const { rows } = await pool.query('SELECT * FROM wbs_items WHERE project_id = $1 ORDER BY ordem', [req.params.id]);
+  if (rows.length === 0) return res.status(400).json({ error: 'esse projeto ainda nao tem itens de WBS para salvar como modelo' });
+
+  const arvore = subarvoreDe(rows, null);
+
+  const { rows: tplRows } = await pool.query('INSERT INTO wbs_templates (nome) VALUES ($1) RETURNING id', [nome.trim()]);
+  const templateId = tplRows[0].id;
+
+  async function inserirNoModelo(item, parentId, ordem) {
+    const { rows: r } = await pool.query(
+      'INSERT INTO wbs_template_items (template_id, parent_id, titulo, area, acao, ordem) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [templateId, parentId, item.titulo, item.area, item.acao, ordem]
+    );
+    let i = 0;
+    for (const filho of item.filhos) {
+      await inserirNoModelo(filho, r[0].id, i);
+      i++;
+    }
+  }
+  let i = 0;
+  for (const raiz of arvore) {
+    await inserirNoModelo(raiz, null, i);
+    i++;
+  }
+
+  await registrarAuditoria({
+    entidade: 'wbs_template', entidade_id: templateId, projeto_id: Number(req.params.id),
+    acao: 'criado', autor: getAutor(req), detalhes: `Modelo de WBS "${nome.trim()}" salvo a partir deste projeto (${rows.length} item(ns))`,
+  });
+
+  res.status(201).json({ id: templateId, nome: nome.trim() });
+});
+
+router.post('/aplicar-modelo', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const { template_id } = req.body;
+  if (!template_id) return res.status(400).json({ error: 'template_id obrigatorio' });
+
+  const { rows: itensModelo } = await pool.query('SELECT * FROM wbs_template_items WHERE template_id = $1 ORDER BY ordem', [template_id]);
+  if (itensModelo.length === 0) return res.status(404).json({ error: 'modelo nao encontrado ou vazio' });
+
+  const arvore = subarvoreDe(itensModelo, null);
+
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(ordem), -1) AS maxordem FROM wbs_items WHERE project_id = $1 AND parent_id IS NULL',
+    [req.params.id]
+  );
+  let proximaOrdem = maxRows[0].maxordem + 1;
+
+  async function inserirNoProjeto(item, parentId, ordem) {
+    const { rows: r } = await pool.query(
+      `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, status, ordem)
+       VALUES ($1, $2, $3, $4, $5, 'Pendente', $6) RETURNING id`,
+      [req.params.id, parentId, item.titulo, item.area, item.acao, ordem]
+    );
+    let i = 0;
+    for (const filho of item.filhos) {
+      await inserirNoProjeto(filho, r[0].id, i);
+      i++;
+    }
+  }
+  for (const raiz of arvore) {
+    await inserirNoProjeto(raiz, null, proximaOrdem);
+    proximaOrdem++;
+  }
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', projeto_id: Number(req.params.id),
+    acao: 'criado', autor: getAutor(req), detalhes: `Modelo de WBS aplicado a este projeto (${itensModelo.length} item(ns) adicionados)`,
+  });
+
+  res.json({ ok: true, itensAdicionados: itensModelo.length });
+});
+
 module.exports = router;

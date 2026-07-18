@@ -73,4 +73,50 @@ router.post('/:itemId/mover', requireAdminIfSetting('restringir_edicao_prazos'),
   res.json({ ok: true });
 });
 
+// Duplica um item e toda a sua subarvore, inserindo a copia como ultimo irmao.
+router.post('/:itemId/duplicar', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const original = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
+  if (!original) return res.status(404).json({ error: 'item nao encontrado' });
+
+  const { rows: todasDoProjeto } = await pool.query('SELECT * FROM wbs_items WHERE project_id = $1', [original.project_id]);
+
+  function subarvoreDe(parentId) {
+    return todasDoProjeto
+      .filter(r => r.parent_id === parentId)
+      .sort((a, b) => a.ordem - b.ordem)
+      .map(r => ({ ...r, filhos: subarvoreDe(r.id) }));
+  }
+  const filhosOriginais = subarvoreDe(original.id);
+
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(ordem), -1) AS maxordem FROM wbs_items WHERE project_id = $1 AND parent_id IS NOT DISTINCT FROM $2',
+    [original.project_id, original.parent_id]
+  );
+  const novaOrdem = maxRows[0].maxordem + 1;
+
+  async function inserirCopia(item, parentId, ordem, ehRaiz) {
+    const { rows } = await pool.query(
+      `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [item.project_id, parentId, ehRaiz ? `${item.titulo} (cópia)` : item.titulo, item.area, item.acao, item.responsavel, item.status, item.data_inicio, item.data_fim, item.observacao, ordem]
+    );
+    const novoId = rows[0].id;
+    let i = 0;
+    for (const filho of item.filhos) {
+      await inserirCopia(filho, novoId, i, false);
+      i++;
+    }
+    return novoId;
+  }
+
+  const novoIdRaiz = await inserirCopia({ ...original, filhos: filhosOriginais }, original.parent_id, novaOrdem, true);
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', entidade_id: novoIdRaiz, projeto_id: original.project_id,
+    acao: 'criado', autor: getAutor(req), detalhes: `Item "${original.titulo}" duplicado (com sub-itens, se houver)`,
+  });
+
+  res.status(201).json({ ok: true, id: novoIdRaiz });
+});
+
 module.exports = router;
