@@ -381,6 +381,15 @@ input:focus, select:focus, textarea:focus {
 .badge-wbs-impasse { background: #2a2a2a; color: #fff; }
 
 .wbs-node { }
+
+@keyframes wbs-btn-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(27, 99, 172, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(27, 99, 172, 0); }
+}
+.wbs-btn-has-items {
+  border-color: var(--brand-blue); color: var(--brand-blue); font-weight: 600;
+  animation: wbs-btn-pulse 1.8s ease-in-out infinite;
+}
 .wbs-row {
   display: grid;
   grid-template-columns: 22px 46px minmax(160px, 1fr) 100px 110px 100px 140px 120px 130px;

@@ -461,7 +461,7 @@ function renderProjectList() {
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
           <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>
-          <button class="btn" data-open-wbs style="font-size:12px;padding:6px 10px;">WBS</button>
+          <button class="btn${p.wbs_total_itens > 0 ? ' wbs-btn-has-items' : ''}" data-open-wbs style="font-size:12px;padding:6px 10px;" title="${p.wbs_total_itens > 0 ? p.wbs_total_itens + ' item(ns) cadastrados na WBS' : 'Nenhum item de WBS ainda'}">WBS</button>
         </div>
       </div>
       ${alertaHtml}
