@@ -121,6 +121,21 @@ async function init() {
       envolve_data BOOLEAN DEFAULT FALSE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS wbs_items (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      parent_id INTEGER REFERENCES wbs_items(id) ON DELETE CASCADE,
+      titulo TEXT NOT NULL,
+      area TEXT DEFAULT '',
+      responsavel TEXT DEFAULT '',
+      status TEXT DEFAULT 'Pendente',
+      data_inicio DATE,
+      data_fim DATE,
+      observacao TEXT DEFAULT '',
+      ordem INTEGER DEFAULT 0,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,

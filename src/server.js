@@ -17,6 +17,8 @@ app.use('/api/clientes', require('./routes/clientes'));
 app.use('/api/admin', require('./routes/adminAuth'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/audit-log', require('./routes/auditLog'));
+app.use('/api/projects/:id/wbs', require('./routes/wbs'));
+app.use('/api/wbs', require('./routes/wbsItems'));
 
 const PORT = process.env.PORT || 3000;
 

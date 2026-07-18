@@ -168,7 +168,6 @@ async function sendDigestNow() {
       await postToTeams({
         title: `Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}`,
         text: linhas.join('\n\n'),
-        color: atrasados.length > 0 ? 'C4211F' : (bloqueados.length > 0 ? 'B7791F' : '1F9D55'),
       });
       teams = 'enviado';
     } catch (e) {

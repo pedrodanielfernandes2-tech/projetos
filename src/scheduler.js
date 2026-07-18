@@ -45,7 +45,6 @@ async function checkStatusChangesAndNotify() {
         await postToTeams({
           title: `⚠️ Projeto ficou ${atual}`,
           text: `**${p.nome}**${p.chamado ? ' (Chamado ' + p.chamado + ')' : ''} mudou para **${atual}**.`,
-          color: atual === 'atrasado' ? 'C4211F' : 'B7791F',
         });
       } catch (e) {
         console.error('[teams] falha ao notificar mudanca de status:', e.message);
