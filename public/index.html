@@ -308,11 +308,28 @@
       <div class="stats-grid" id="wbs-stats"></div>
 
       <div class="chart-panel">
-        <div class="toolbar" style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+          <span style="font-weight:600;">Progresso geral</span>
+          <span id="wbs-progress-label"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="wbs-progress-fill" style="width:0%;"></div></div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="toolbar" style="margin-bottom:10px;">
           <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
-          <div style="display:flex;gap:8px;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btn-wbs-salvar-modelo" class="btn">💾 Salvar como modelo</button>
+            <button id="btn-wbs-aplicar-modelo" class="btn">📥 Aplicar modelo</button>
             <button id="btn-wbs-exportar-pdf" class="btn">📄 Exportar PDF</button>
             <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+          </div>
+        </div>
+        <div class="toolbar" style="margin-bottom:10px;">
+          <input type="text" id="wbs-search" placeholder="Buscar por título ou responsável..." style="max-width:320px;" />
+          <div style="display:flex;gap:8px;">
+            <button id="btn-wbs-expandir-tudo" class="btn" style="font-size:12px;">Expandir tudo</button>
+            <button id="btn-wbs-colapsar-tudo" class="btn" style="font-size:12px;">Colapsar tudo</button>
           </div>
         </div>
         <div class="legend-row" style="margin-top:-6px;">
@@ -484,6 +501,17 @@
           <button type="submit" class="btn btn-primary">Salvar item</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="modal-wbs-templates" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Aplicar modelo de WBS</h2>
+      <p class="muted">Os itens do modelo escolhido serão adicionados a este projeto (não substitui os itens já existentes).</p>
+      <div id="wbs-templates-list" class="stack tight" style="margin-bottom:16px;"></div>
+      <div class="form-actions">
+        <button type="button" id="btn-close-wbs-templates" class="btn">Fechar</button>
+      </div>
     </div>
   </div>
 

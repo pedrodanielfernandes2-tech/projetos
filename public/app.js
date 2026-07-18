@@ -1669,6 +1669,8 @@ loadAll();
 // ---------- WBS ----------
 state.currentWbsProject = null;
 state.wbsCollapsed = {};
+state.wbsFullTree = [];
+state.wbsSearchQuery = '';
 
 function wbsStatusClass(status) {
   const map = {
@@ -1700,8 +1702,19 @@ document.getElementById('btn-wbs-voltar').addEventListener('click', () => {
 async function loadWbsData() {
   if (!state.currentWbsProject) return;
   const data = await api(`/projects/${state.currentWbsProject.id}/wbs`);
+  state.wbsFullTree = data.tree;
   renderWbsStats(data.stats, data.total);
-  renderWbsTree(data.tree);
+  renderWbsProgress(data.stats, data.total);
+  renderWbsTreeFiltered();
+}
+
+function renderWbsProgress(stats, total) {
+  const concluido = stats.find(s => s.status === 'Concluído');
+  const percent = total > 0 && concluido ? Math.round((concluido.count / total) * 100) : 0;
+  document.getElementById('wbs-progress-label').textContent = `${percent}% concluído`;
+  const fill = document.getElementById('wbs-progress-fill');
+  fill.style.width = barWidth(percent) + '%';
+  fill.style.background = progressColor(percent);
 }
 
 function wbsStatusColors(status) {
@@ -1730,24 +1743,73 @@ function renderWbsStats(stats, total) {
   el.innerHTML = `<div class="stat-card"><p class="stat-label">Total de itens</p><p class="stat-value">${total}</p></div>` + cards;
 }
 
-function renderWbsTree(tree) {
+function renderWbsTree(tree, forceExpandIds) {
   const host = document.getElementById('wbs-tree');
   host.innerHTML = '';
   if (tree.length === 0) {
-    host.innerHTML = '<p class="muted">Nenhum item cadastrado ainda. Clique em "+ Novo item" para começar.</p>';
+    host.innerHTML = state.wbsSearchQuery
+      ? '<p class="muted">Nenhum item encontrado para essa busca.</p>'
+      : '<p class="muted">Nenhum item cadastrado ainda. Clique em "+ Novo item" para começar.</p>';
     return;
   }
-  tree.forEach(item => host.appendChild(buildWbsNode(item, 0)));
+  tree.forEach(item => host.appendChild(buildWbsNode(item, 0, forceExpandIds)));
 }
 
-function buildWbsNode(item, depth) {
+function wbsMatches(item, query) {
+  const q = query.toLowerCase();
+  return (item.titulo && item.titulo.toLowerCase().includes(q)) || (item.responsavel && item.responsavel.toLowerCase().includes(q));
+}
+function filterTreeForSearch(tree, query, matchedIds) {
+  const resultado = [];
+  tree.forEach(item => {
+    const filhosFiltrados = filterTreeForSearch(item.filhos || [], query, matchedIds);
+    const match = wbsMatches(item, query);
+    if (match || filhosFiltrados.length > 0) {
+      if (filhosFiltrados.length > 0) matchedIds.add(item.id); // forca expandir quem tem descendente encontrado
+      resultado.push({ ...item, filhos: filhosFiltrados });
+    }
+  });
+  return resultado;
+}
+function renderWbsTreeFiltered() {
+  if (!state.wbsSearchQuery) {
+    renderWbsTree(state.wbsFullTree);
+    return;
+  }
+  const matchedIds = new Set();
+  const filtrada = filterTreeForSearch(state.wbsFullTree, state.wbsSearchQuery, matchedIds);
+  renderWbsTree(filtrada, matchedIds);
+}
+document.getElementById('wbs-search').addEventListener('input', (e) => {
+  state.wbsSearchQuery = e.target.value.trim();
+  renderWbsTreeFiltered();
+});
+
+function wbsSetAllCollapsed(tree, collapsed) {
+  tree.forEach(item => {
+    if (item.filhos && item.filhos.length > 0) {
+      state.wbsCollapsed[item.id] = collapsed;
+      wbsSetAllCollapsed(item.filhos, collapsed);
+    }
+  });
+}
+document.getElementById('btn-wbs-expandir-tudo').addEventListener('click', () => {
+  wbsSetAllCollapsed(state.wbsFullTree, false);
+  renderWbsTreeFiltered();
+});
+document.getElementById('btn-wbs-colapsar-tudo').addEventListener('click', () => {
+  wbsSetAllCollapsed(state.wbsFullTree, true);
+  renderWbsTreeFiltered();
+});
+
+function buildWbsNode(item, depth, forceExpandIds) {
   const wrapper = document.createElement('div');
   wrapper.className = 'wbs-node';
 
   const row = document.createElement('div');
   row.className = 'wbs-row';
   const temFilhos = item.filhos && item.filhos.length > 0;
-  const colapsado = !!state.wbsCollapsed[item.id];
+  const colapsado = forceExpandIds && forceExpandIds.has(item.id) ? false : !!state.wbsCollapsed[item.id];
 
   const temPrazo = item.data_inicio || item.data_fim;
   const prazoStatus = wbsPrazoStatus(item);
@@ -1768,6 +1830,7 @@ function buildWbsNode(item, depth) {
       <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima">↑</button>
       <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo">↓</button>
       <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item">+</button>
+      <button class="icon-btn" data-wbs-duplicar type="button" aria-label="Duplicar item">⧉</button>
       <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item">✎</button>
       <button class="icon-btn" data-wbs-delete type="button" aria-label="Excluir item">✕</button>
     </div>
@@ -1786,7 +1849,7 @@ function buildWbsNode(item, depth) {
     const childrenWrap = document.createElement('div');
     childrenWrap.className = 'wbs-children';
     if (colapsado) childrenWrap.style.display = 'none';
-    item.filhos.forEach(child => childrenWrap.appendChild(buildWbsNode(child, depth + 1)));
+    item.filhos.forEach(child => childrenWrap.appendChild(buildWbsNode(child, depth + 1, forceExpandIds)));
     wrapper.appendChild(childrenWrap);
 
     row.querySelector('.wbs-toggle').onclick = () => {
@@ -1798,6 +1861,14 @@ function buildWbsNode(item, depth) {
 
   row.querySelector('[data-wbs-add-child]').onclick = () => openWbsItemModal(item.id, null);
   row.querySelector('[data-wbs-edit]').onclick = () => openWbsItemModal(item.parent_id, item);
+  row.querySelector('[data-wbs-duplicar]').onclick = async () => {
+    try {
+      await api(`/wbs/${item.id}/duplicar`, { method: 'POST' });
+      await loadWbsData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
   row.querySelector('[data-wbs-delete]').onclick = async () => {
     const aviso = temFilhos ? ` Isso vai remover também os ${countWbsDescendants(item)} sub-item(ns) dentro dele.` : '';
     if (!confirm(`Excluir o item "${item.titulo}"?${aviso}`)) return;
@@ -1830,6 +1901,75 @@ document.getElementById('btn-wbs-novo-item').addEventListener('click', () => ope
 document.getElementById('btn-wbs-exportar-pdf').addEventListener('click', () => {
   if (!state.currentWbsProject) return;
   window.open(`/api/projects/${state.currentWbsProject.id}/wbs/pdf`, '_blank');
+});
+
+document.getElementById('btn-wbs-salvar-modelo').addEventListener('click', async () => {
+  if (!state.currentWbsProject) return;
+  const nome = prompt('Nome para este modelo (ex: "Implantação PDV padrão"):');
+  if (!nome || !nome.trim()) return;
+  try {
+    await api(`/projects/${state.currentWbsProject.id}/wbs/salvar-modelo`, { method: 'POST', body: JSON.stringify({ nome: nome.trim() }) });
+    alert(`Modelo "${nome.trim()}" salvo com sucesso.`);
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+async function renderWbsTemplatesList() {
+  const host = document.getElementById('wbs-templates-list');
+  let templates;
+  try {
+    templates = await api('/wbs-templates');
+  } catch (err) {
+    host.innerHTML = `<p class="muted">${err.message}</p>`;
+    return;
+  }
+  if (templates.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum modelo salvo ainda. Abra a WBS de um projeto já preenchido e use "Salvar como modelo".</p>';
+    return;
+  }
+  host.innerHTML = '';
+  templates.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <div class="list-row-main">
+        <p class="list-row-name">${t.nome}</p>
+        <p class="list-row-sub">${t.total_itens} item(ns)</p>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" data-usar-modelo>Usar este</button>
+        <button class="icon-btn" data-excluir-modelo aria-label="Excluir modelo">✕</button>
+      </div>
+    `;
+    row.querySelector('[data-usar-modelo]').onclick = async () => {
+      if (!confirm(`Adicionar os ${t.total_itens} item(ns) do modelo "${t.nome}" a este projeto?`)) return;
+      try {
+        await api(`/projects/${state.currentWbsProject.id}/wbs/aplicar-modelo`, { method: 'POST', body: JSON.stringify({ template_id: t.id }) });
+        document.getElementById('modal-wbs-templates').classList.add('hidden');
+        await loadWbsData();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    row.querySelector('[data-excluir-modelo]').onclick = async () => {
+      if (!confirm(`Excluir o modelo "${t.nome}"? Isso não afeta os projetos onde ele já foi usado.`)) return;
+      try {
+        await api(`/wbs-templates/${t.id}`, { method: 'DELETE' });
+        await renderWbsTemplatesList();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    host.appendChild(row);
+  });
+}
+document.getElementById('btn-wbs-aplicar-modelo').addEventListener('click', () => {
+  document.getElementById('modal-wbs-templates').classList.remove('hidden');
+  renderWbsTemplatesList();
+});
+document.getElementById('btn-close-wbs-templates').addEventListener('click', () => {
+  document.getElementById('modal-wbs-templates').classList.add('hidden');
 });
 
 function populateWbsAreaSelect() {
