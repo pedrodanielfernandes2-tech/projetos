@@ -20,6 +20,7 @@ app.use('/api/settings', require('./routes/settings'));
 app.use('/api/audit-log', require('./routes/auditLog'));
 app.use('/api/projects/:id/wbs', require('./routes/wbs'));
 app.use('/api/wbs', require('./routes/wbsItems'));
+app.use('/api/wbs-templates', require('./routes/wbsTemplates'));
 
 const PORT = process.env.PORT || 3000;
 

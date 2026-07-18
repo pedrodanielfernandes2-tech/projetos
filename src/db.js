@@ -143,6 +143,22 @@ async function init() {
       nome TEXT NOT NULL UNIQUE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS wbs_templates (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS wbs_template_items (
+      id SERIAL PRIMARY KEY,
+      template_id INTEGER NOT NULL REFERENCES wbs_templates(id) ON DELETE CASCADE,
+      parent_id INTEGER REFERENCES wbs_template_items(id) ON DELETE CASCADE,
+      titulo TEXT NOT NULL,
+      area TEXT DEFAULT '',
+      acao TEXT DEFAULT '',
+      ordem INTEGER DEFAULT 0
+    );
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,
