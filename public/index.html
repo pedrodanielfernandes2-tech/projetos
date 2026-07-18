@@ -286,6 +286,24 @@
       </div>
     </section>
 
+    <section id="view-wbs" class="view hidden">
+      <button id="btn-wbs-voltar" class="btn" style="margin-bottom:16px;">← Voltar aos projetos</button>
+      <div class="page-header">
+        <h1 id="wbs-titulo-projeto">WBS do projeto</h1>
+        <p class="page-subtitle" id="wbs-subtitulo-projeto"></p>
+      </div>
+
+      <div class="stats-grid" id="wbs-stats"></div>
+
+      <div class="chart-panel">
+        <div class="toolbar" style="margin-bottom:14px;">
+          <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
+          <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+        </div>
+        <div id="wbs-tree" class="stack tight"></div>
+      </div>
+    </section>
+
     </main>
   </div>
 
@@ -326,7 +344,7 @@
           <input type="checkbox" id="np-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
         </label>
         <input type="text" id="np-resumo" placeholder="Resumo curto" class="full-width" />
-        <p class="field-label">Áreas envolvidas — selecione e defina o prazo da tarefa de cada uma (opcional se pendente)</p>
+        <p class="field-label">Áreas envolvidas — selecione e defina o prazo de cada uma (deixe em branco se ainda não tiver a data — a área fica marcada como pendente)</p>
         <div id="np-areas" class="chip-row"></div>
         <div id="np-area-dates" class="stack tight"></div>
         <div class="form-actions">
@@ -398,6 +416,40 @@
       <div class="form-actions">
         <button type="button" id="btn-close-day-modal" class="btn">Fechar</button>
       </div>
+    </div>
+  </div>
+
+  <div id="modal-wbs-item" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="wbs-modal-titulo">Novo item</h2>
+      <form id="form-wbs-item">
+        <input type="hidden" id="wbs-item-id" />
+        <input type="hidden" id="wbs-item-parent-id" />
+        <input type="text" id="wbs-item-titulo" placeholder="Título do item" class="full-width" required />
+        <div class="form-row">
+          <select id="wbs-item-area"><option value="">Sem área definida</option></select>
+          <input type="text" id="wbs-item-responsavel" placeholder="Responsável" />
+        </div>
+        <div class="form-row">
+          <select id="wbs-item-status">
+            <option>Pendente</option>
+            <option>Em Elaboração</option>
+            <option>Homolog./Cliente</option>
+            <option>Concluído</option>
+            <option>Impasse</option>
+          </select>
+        </div>
+        <p class="field-label">Prazo (opcional)</p>
+        <div class="form-row">
+          <input type="date" id="wbs-item-inicio" />
+          <input type="date" id="wbs-item-fim" />
+        </div>
+        <textarea id="wbs-item-observacao" placeholder="Observação" class="full-width" rows="3"></textarea>
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-wbs-item" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar item</button>
+        </div>
+      </form>
     </div>
   </div>
 

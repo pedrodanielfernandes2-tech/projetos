@@ -371,6 +371,10 @@ function renderProjectList() {
       : '';
     card.className = 'card' + cardAttentionClass;
     const areaTagsHtml = p.tarefas.map(t => `<span class="badge ${statusClass(t.status)}" title="${t.area}: ${t.status}">${t.area}</span>`).join(' ');
+    const areasPendentes = p.tarefas.filter(t => !t.inicio || !t.fim);
+    const areasPendentesHtml = areasPendentes.length > 0
+      ? `<p class="card-sub" style="color:var(--pending);font-weight:600;margin-bottom:8px;">📌 ${areasPendentes.length} área(s) envolvida(s) aguardando definição de data de entrega: ${areasPendentes.map(t => t.area).join(', ')}</p>`
+      : '';
     const open = state.expanded[p.id];
     const alertasDep = calcularAlertasDependencia(p);
     const alertaHtml = alertasDep.length > 0
@@ -397,11 +401,13 @@ function renderProjectList() {
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
           <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>
+          <button class="btn" data-open-wbs style="font-size:12px;padding:6px 10px;">WBS</button>
         </div>
       </div>
       ${alertaHtml}
       <p class="card-resumo">${p.resumo || ''}</p>
       <div class="chip-row" style="margin-bottom:8px;">${areaTagsHtml}</div>
+      ${areasPendentesHtml}
       ${prazoGeralHtml}
       <div class="toggle-row">
         <button class="toggle-btn" data-toggle="tarefas">${open === 'tarefas' ? 'Ocultar prazos por área' : 'Prazos por área'}</button>
@@ -619,6 +625,7 @@ function renderProjectList() {
         btn.textContent = textoOriginal;
       }
     };
+    card.querySelector('[data-open-wbs]').onclick = () => openWbsView(p);
     el.appendChild(card);
   });
 }
@@ -1498,13 +1505,8 @@ document.getElementById('form-new-project').addEventListener('submit', async (e)
     alert('Preencha o prazo geral, ou marque "Ainda não tenho as datas" para deixar pendente.');
     return;
   }
-  if (!semDatas) {
-    const incompletas = areasSel.filter(a => !state.newProjectAreas[a].inicio || !state.newProjectAreas[a].fim);
-    if (incompletas.length > 0) {
-      alert('Defina início e fim da tarefa para: ' + incompletas.join(', ') + ' (ou marque "Ainda não tenho as datas").');
-      return;
-    }
-  }
+  // Datas por area sao sempre opcionais: uma area sem inicio/fim fica marcada
+  // como "pendente" automaticamente, sem travar o cadastro do restante.
 
   if (chamado) {
     const duplicado = state.allProjects.find(p => (p.chamado || '').trim().toLowerCase() === chamado.toLowerCase());
@@ -1603,3 +1605,197 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
 });
 
 loadAll();
+
+// ---------- WBS ----------
+state.currentWbsProject = null;
+state.wbsCollapsed = {};
+
+function wbsStatusClass(status) {
+  const map = {
+    'Pendente': 'badge-wbs-pendente',
+    'Em Elaboração': 'badge-wbs-em-elaboracao',
+    'Homolog./Cliente': 'badge-wbs-homolog-cliente',
+    'Concluído': 'badge-wbs-concluido',
+    'Impasse': 'badge-wbs-impasse',
+  };
+  return map[status] || 'badge-planejamento';
+}
+
+function openWbsView(project) {
+  state.currentWbsProject = project;
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-wbs').classList.remove('hidden');
+  document.getElementById('wbs-titulo-projeto').textContent = 'WBS — ' + project.nome;
+  document.getElementById('wbs-subtitulo-projeto').textContent =
+    (project.chamado ? 'Chamado ' + project.chamado + ' · ' : '') + (project.cliente_nome ? 'Cliente: ' + project.cliente_nome : 'Estrutura detalhada de itens do projeto');
+  loadWbsData();
+}
+document.getElementById('btn-wbs-voltar').addEventListener('click', () => {
+  document.getElementById('view-wbs').classList.add('hidden');
+  document.getElementById('view-projetos').classList.remove('hidden');
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'projetos'));
+});
+
+async function loadWbsData() {
+  if (!state.currentWbsProject) return;
+  const data = await api(`/projects/${state.currentWbsProject.id}/wbs`);
+  renderWbsStats(data.stats, data.total);
+  renderWbsTree(data.tree);
+}
+
+function renderWbsStats(stats, total) {
+  const el = document.getElementById('wbs-stats');
+  const cores = { 'Pendente': 'var(--danger)', 'Em Elaboração': 'var(--warning)', 'Homolog./Cliente': '#c2650c', 'Concluído': 'var(--success)', 'Impasse': '#2a2a2a' };
+  const cards = stats.map(s => `
+    <div class="stat-card">
+      <p class="stat-label">${s.status}</p>
+      <p class="stat-value" style="color:${cores[s.status] || 'var(--text)'}">${s.count}<span style="font-size:14px;font-weight:400;color:var(--text-muted);"> (${s.percent}%)</span></p>
+    </div>
+  `).join('');
+  el.innerHTML = `<div class="stat-card"><p class="stat-label">Total de itens</p><p class="stat-value">${total}</p></div>` + cards;
+}
+
+function renderWbsTree(tree) {
+  const host = document.getElementById('wbs-tree');
+  host.innerHTML = '';
+  if (tree.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum item cadastrado ainda. Clique em "+ Novo item" para começar.</p>';
+    return;
+  }
+  tree.forEach(item => host.appendChild(buildWbsNode(item, 0)));
+}
+
+function buildWbsNode(item, depth) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'wbs-node';
+
+  const row = document.createElement('div');
+  row.className = 'wbs-row';
+  row.style.paddingLeft = (depth * 22) + 'px';
+  const temFilhos = item.filhos && item.filhos.length > 0;
+  const colapsado = !!state.wbsCollapsed[item.id];
+
+  row.innerHTML = `
+    ${temFilhos ? `<button class="wbs-toggle" type="button">${colapsado ? '▸' : '▾'}</button>` : '<span class="wbs-toggle-spacer"></span>'}
+    <span class="wbs-numero">${item.numero}</span>
+    <span class="wbs-titulo">${item.titulo}</span>
+    ${item.area ? `<span class="area-tag">${item.area}</span>` : ''}
+    ${item.responsavel ? `<span class="wbs-responsavel">${item.responsavel}</span>` : ''}
+    ${item.data_inicio || item.data_fim ? `<span class="wbs-datas">${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}</span>` : ''}
+    <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
+    <div class="wbs-actions">
+      <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima">↑</button>
+      <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo">↓</button>
+      <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item">+</button>
+      <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item">✎</button>
+      <button class="icon-btn" data-wbs-delete type="button" aria-label="Excluir item">✕</button>
+    </div>
+  `;
+  wrapper.appendChild(row);
+
+  if (item.observacao) {
+    const obs = document.createElement('p');
+    obs.className = 'wbs-observacao';
+    obs.style.paddingLeft = (depth * 22 + 26) + 'px';
+    obs.textContent = '💬 ' + item.observacao;
+    wrapper.appendChild(obs);
+  }
+
+  if (temFilhos) {
+    const childrenWrap = document.createElement('div');
+    childrenWrap.className = 'wbs-children';
+    if (colapsado) childrenWrap.style.display = 'none';
+    item.filhos.forEach(child => childrenWrap.appendChild(buildWbsNode(child, depth + 1)));
+    wrapper.appendChild(childrenWrap);
+
+    row.querySelector('.wbs-toggle').onclick = () => {
+      state.wbsCollapsed[item.id] = !state.wbsCollapsed[item.id];
+      childrenWrap.style.display = state.wbsCollapsed[item.id] ? 'none' : '';
+      row.querySelector('.wbs-toggle').textContent = state.wbsCollapsed[item.id] ? '▸' : '▾';
+    };
+  }
+
+  row.querySelector('[data-wbs-add-child]').onclick = () => openWbsItemModal(item.id, null);
+  row.querySelector('[data-wbs-edit]').onclick = () => openWbsItemModal(item.parent_id, item);
+  row.querySelector('[data-wbs-delete]').onclick = async () => {
+    const aviso = temFilhos ? ` Isso vai remover também os ${countWbsDescendants(item)} sub-item(ns) dentro dele.` : '';
+    if (!confirm(`Excluir o item "${item.titulo}"?${aviso}`)) return;
+    try {
+      await api(`/wbs/${item.id}`, { method: 'DELETE' });
+      await loadWbsData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  row.querySelector('[data-wbs-up]').onclick = async () => {
+    await api(`/wbs/${item.id}/mover`, { method: 'POST', body: JSON.stringify({ direcao: 'up' }) });
+    await loadWbsData();
+  };
+  row.querySelector('[data-wbs-down]').onclick = async () => {
+    await api(`/wbs/${item.id}/mover`, { method: 'POST', body: JSON.stringify({ direcao: 'down' }) });
+    await loadWbsData();
+  };
+
+  return wrapper;
+}
+
+function countWbsDescendants(item) {
+  let count = 0;
+  (item.filhos || []).forEach(child => { count += 1 + countWbsDescendants(child); });
+  return count;
+}
+
+document.getElementById('btn-wbs-novo-item').addEventListener('click', () => openWbsItemModal(null, null));
+
+function populateWbsAreaSelect() {
+  const sel = document.getElementById('wbs-item-area');
+  sel.innerHTML = '<option value="">Sem área definida</option>' + state.areas.map(a => `<option value="${a}">${a}</option>`).join('');
+}
+
+function openWbsItemModal(parentId, itemToEdit) {
+  populateWbsAreaSelect();
+  document.getElementById('wbs-modal-titulo').textContent = itemToEdit ? 'Editar item' : (parentId ? 'Novo sub-item' : 'Novo item');
+  document.getElementById('wbs-item-id').value = itemToEdit ? itemToEdit.id : '';
+  document.getElementById('wbs-item-parent-id').value = parentId || '';
+  document.getElementById('wbs-item-titulo').value = itemToEdit ? itemToEdit.titulo : '';
+  document.getElementById('wbs-item-area').value = itemToEdit ? (itemToEdit.area || '') : '';
+  document.getElementById('wbs-item-responsavel').value = itemToEdit ? (itemToEdit.responsavel || '') : '';
+  document.getElementById('wbs-item-status').value = itemToEdit ? itemToEdit.status : 'Pendente';
+  document.getElementById('wbs-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
+  document.getElementById('wbs-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
+  document.getElementById('wbs-item-observacao').value = itemToEdit ? (itemToEdit.observacao || '') : '';
+  document.getElementById('modal-wbs-item').classList.remove('hidden');
+}
+document.getElementById('btn-cancel-wbs-item').addEventListener('click', () => {
+  document.getElementById('modal-wbs-item').classList.add('hidden');
+});
+document.getElementById('form-wbs-item').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('wbs-item-id').value;
+  const parent_id = document.getElementById('wbs-item-parent-id').value || null;
+  const body = {
+    titulo: document.getElementById('wbs-item-titulo').value.trim(),
+    area: document.getElementById('wbs-item-area').value,
+    responsavel: document.getElementById('wbs-item-responsavel').value.trim(),
+    status: document.getElementById('wbs-item-status').value,
+    data_inicio: document.getElementById('wbs-item-inicio').value || null,
+    data_fim: document.getElementById('wbs-item-fim').value || null,
+    observacao: document.getElementById('wbs-item-observacao').value.trim(),
+  };
+  if (!body.titulo) {
+    alert('Preencha o título do item.');
+    return;
+  }
+  try {
+    if (id) {
+      await api(`/wbs/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+    } else {
+      body.parent_id = parent_id;
+      await api(`/projects/${state.currentWbsProject.id}/wbs`, { method: 'POST', body: JSON.stringify(body) });
+    }
+    document.getElementById('modal-wbs-item').classList.add('hidden');
+    await loadWbsData();
+  } catch (err) {
+    alert(err.message);
+  }
+});
