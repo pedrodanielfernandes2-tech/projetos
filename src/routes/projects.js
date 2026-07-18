@@ -28,9 +28,11 @@ async function loadProject(id) {
   const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1 ORDER BY inicio', [id]);
   const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
   const links = await pool.query('SELECT * FROM project_links WHERE project_id = $1 ORDER BY id DESC', [id]);
+  const wbsCount = await pool.query('SELECT COUNT(*)::int AS total FROM wbs_items WHERE project_id = $1', [id]);
   project.tarefas = tarefas.rows.map(t => ({ ...t, status: calcularStatusTarefa(t) }));
   project.historico = historico.rows;
   project.links = links.rows;
+  project.wbs_total_itens = wbsCount.rows[0].total;
   project.status_prazo = calcularStatusPrazo(project);
   return project;
 }
