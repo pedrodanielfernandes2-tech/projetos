@@ -308,9 +308,17 @@
       <div class="chart-panel">
         <div class="toolbar" style="margin-bottom:14px;">
           <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
-          <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+          <div style="display:flex;gap:8px;">
+            <button id="btn-wbs-exportar-pdf" class="btn">📄 Exportar PDF</button>
+            <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+          </div>
         </div>
-        <p class="muted" style="margin-top:-6px;">⚠️ Atrasado · ⏳ Possível atraso (prazo perto do fim) · sem ícone = dentro do prazo. Itens concluídos ou em impasse não recebem esse sinal.</p>
+        <div class="legend-row" style="margin-top:-6px;">
+          <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>⚠️ Atrasado</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>⏳ Possível atraso (prazo perto do fim)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--border)"></span>Sem marcação = dentro do prazo</span>
+          <span class="legend-item" style="color:var(--text-muted);">· Concluído/Impasse não são avaliados</span>
+        </div>
         <div class="wbs-row wbs-header-row">
           <span class="wbs-toggle-spacer"></span>
           <span class="wbs-numero">Item</span>

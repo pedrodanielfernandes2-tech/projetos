@@ -1809,6 +1809,10 @@ function countWbsDescendants(item) {
 }
 
 document.getElementById('btn-wbs-novo-item').addEventListener('click', () => openWbsItemModal(null, null));
+document.getElementById('btn-wbs-exportar-pdf').addEventListener('click', () => {
+  if (!state.currentWbsProject) return;
+  window.open(`/api/projects/${state.currentWbsProject.id}/wbs/pdf`, '_blank');
+});
 
 function populateWbsAreaSelect() {
   const sel = document.getElementById('wbs-item-area');
