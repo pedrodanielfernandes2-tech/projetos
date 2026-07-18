@@ -1,7 +1,9 @@
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const { pool } = require('../db');
 const { requireAdminIfSetting } = require('../adminAuth');
 const { registrarAuditoria } = require('../audit');
+const { renderWbsPdf } = require('../wbsPdf');
 const router = express.Router({ mergeParams: true });
 
 function getAutor(req) {
@@ -48,6 +50,35 @@ function buildStats(rows) {
 router.get('/', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM wbs_items WHERE project_id = $1 ORDER BY ordem', [req.params.id]);
   res.json({ tree: buildTree(rows), stats: buildStats(rows), total: rows.length });
+});
+
+router.get('/pdf', async (req, res) => {
+  const { rows: projRows } = await pool.query(`
+    SELECT p.*, g.nome AS gerente_nome, c.nome AS cliente_nome
+    FROM projects p
+    LEFT JOIN gps g ON g.id = p.gp_id
+    LEFT JOIN clientes c ON c.id = p.cliente_id
+    WHERE p.id = $1
+  `, [req.params.id]);
+  const project = projRows[0];
+  if (!project) return res.status(404).json({ error: 'projeto nao encontrado' });
+
+  const { rows } = await pool.query('SELECT * FROM wbs_items WHERE project_id = $1 ORDER BY ordem', [req.params.id]);
+  const tree = buildTree(rows);
+  const stats = buildStats(rows);
+
+  const nomeArquivo = `WBS-${(project.chamado || project.nome).replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+
+  const doc = new PDFDocument({ size: 'A4', margin: 40, bufferPages: true });
+  doc.pipe(res);
+  try {
+    renderWbsPdf(doc, { project, tree, stats, total: rows.length });
+  } catch (e) {
+    console.error('[wbs-pdf] falha ao gerar PDF:', e.message);
+  }
+  doc.end();
 });
 
 router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
