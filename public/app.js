@@ -1827,12 +1827,12 @@ function buildWbsNode(item, depth, forceExpandIds) {
     <span class="wbs-datas${prazoClasse}" title="${prazoStatus === 'atrasado' ? 'Atrasado' : prazoStatus === 'risco' ? 'Possível atraso' : prazoStatus === 'ok' ? 'Dentro do prazo' : ''}">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
     <div class="wbs-actions">
-      <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima">↑</button>
-      <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo">↓</button>
-      <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item">+</button>
-      <button class="icon-btn" data-wbs-duplicar type="button" aria-label="Duplicar item">⧉</button>
-      <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item">✎</button>
-      <button class="icon-btn" data-wbs-delete type="button" aria-label="Excluir item">✕</button>
+      <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima" title="Mover para cima">↑</button>
+      <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo" title="Mover para baixo">↓</button>
+      <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item" title="Adicionar sub-item">+</button>
+      <button class="icon-btn" data-wbs-duplicar type="button" aria-label="Duplicar item" title="Duplicar item (com os sub-itens)">⧉</button>
+      <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item" title="Editar item">✎</button>
+      <button class="icon-btn" data-wbs-delete type="button" aria-label="Excluir item" title="Excluir item">✕</button>
     </div>
   `;
   wrapper.appendChild(row);
@@ -1896,6 +1896,90 @@ function countWbsDescendants(item) {
   (item.filhos || []).forEach(child => { count += 1 + countWbsDescendants(child); });
   return count;
 }
+
+// ---------- modo apresentacao da WBS ----------
+function buildWbsPresentationNode(item, depth) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'wbs-pres-node';
+
+  const row = document.createElement('div');
+  row.className = 'wbs-pres-row';
+  row.style.paddingLeft = (depth * 26 + 10) + 'px';
+
+  const temPrazo = item.data_inicio || item.data_fim;
+  const prazoStatus = wbsPrazoStatus(item);
+  const prazoIcone = prazoStatus === 'atrasado' ? '⚠️ ' : prazoStatus === 'risco' ? '⏳ ' : '';
+  if (prazoStatus === 'atrasado') row.classList.add('wbs-row-atrasado');
+  else if (prazoStatus === 'risco') row.classList.add('wbs-row-risco');
+
+  row.innerHTML = `
+    <span class="wbs-pres-numero">${item.numero}</span>
+    <span class="wbs-pres-titulo">${item.titulo}</span>
+    ${item.area ? `<span class="area-tag">${item.area}</span>` : ''}
+    ${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : ''}
+    ${item.responsavel ? `<span class="wbs-pres-responsavel">👤 ${item.responsavel}</span>` : ''}
+    ${temPrazo ? `<span class="wbs-pres-datas">${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}</span>` : ''}
+    <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
+  `;
+  wrapper.appendChild(row);
+
+  (item.filhos || []).forEach(child => wrapper.appendChild(buildWbsPresentationNode(child, depth + 1)));
+  return wrapper;
+}
+
+function openWbsPresentation() {
+  const project = state.currentWbsProject;
+  if (!project) return;
+
+  document.getElementById('wbs-presentation-titulo').textContent = project.nome;
+  document.getElementById('wbs-presentation-subtitulo').textContent =
+    [project.chamado ? 'Chamado ' + project.chamado : null, project.cliente_nome ? 'Cliente: ' + project.cliente_nome : null]
+      .filter(Boolean).join(' · ');
+
+  const progressLabel = document.getElementById('wbs-progress-label').textContent;
+  const progressWidth = document.getElementById('wbs-progress-fill').style.width;
+  const progressBg = document.getElementById('wbs-progress-fill').style.background;
+  document.getElementById('wbs-presentation-progress').innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:16px;margin-bottom:8px;">
+      <span style="font-weight:700;">Progresso geral</span><span>${progressLabel}</span>
+    </div>
+    <div class="progress-track" style="height:14px;"><div class="progress-fill" style="width:${progressWidth};background:${progressBg};"></div></div>
+  `;
+
+  const treeHost = document.getElementById('wbs-presentation-tree');
+  treeHost.innerHTML = '';
+  if (state.wbsFullTree.length === 0) {
+    treeHost.innerHTML = '<p class="muted">Nenhum item cadastrado ainda.</p>';
+  } else {
+    state.wbsFullTree.forEach(item => treeHost.appendChild(buildWbsPresentationNode(item, 0)));
+  }
+
+  document.getElementById('wbs-presentation-overlay').classList.remove('hidden');
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {}); // falha silenciosa se o navegador negar (ex: sem gesto do usuario)
+  }
+}
+
+function closeWbsPresentation() {
+  document.getElementById('wbs-presentation-overlay').classList.add('hidden');
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+}
+
+document.getElementById('btn-wbs-apresentacao').addEventListener('click', openWbsPresentation);
+document.getElementById('btn-wbs-sair-apresentacao').addEventListener('click', closeWbsPresentation);
+document.addEventListener('fullscreenchange', () => {
+  // se o usuario sair da tela cheia pelo Esc do navegador, fecha a apresentacao junto
+  if (!document.fullscreenElement && !document.getElementById('wbs-presentation-overlay').classList.contains('hidden')) {
+    document.getElementById('wbs-presentation-overlay').classList.add('hidden');
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !document.getElementById('wbs-presentation-overlay').classList.contains('hidden')) {
+    closeWbsPresentation();
+  }
+});
 
 document.getElementById('btn-wbs-novo-item').addEventListener('click', () => openWbsItemModal(null, null));
 document.getElementById('btn-wbs-exportar-pdf').addEventListener('click', () => {

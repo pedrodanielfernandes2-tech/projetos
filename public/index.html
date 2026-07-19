@@ -319,6 +319,7 @@
         <div class="toolbar" style="margin-bottom:10px;">
           <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btn-wbs-apresentacao" class="btn">🖥️ Modo Apresentação</button>
             <button id="btn-wbs-salvar-modelo" class="btn">💾 Salvar como modelo</button>
             <button id="btn-wbs-aplicar-modelo" class="btn">📥 Aplicar modelo</button>
             <button id="btn-wbs-exportar-pdf" class="btn">📄 Exportar PDF</button>
@@ -513,6 +514,19 @@
         <button type="button" id="btn-close-wbs-templates" class="btn">Fechar</button>
       </div>
     </div>
+  </div>
+
+  <div id="wbs-presentation-overlay" class="wbs-presentation hidden">
+    <p class="wbs-presentation-rotate-hint">📱 Gire a tela para paisagem para uma melhor visualização.</p>
+    <div class="wbs-presentation-header">
+      <div>
+        <h1 id="wbs-presentation-titulo"></h1>
+        <p id="wbs-presentation-subtitulo"></p>
+      </div>
+      <button type="button" id="btn-wbs-sair-apresentacao" class="btn">✕ Sair</button>
+    </div>
+    <div id="wbs-presentation-progress" class="wbs-presentation-progress"></div>
+    <div id="wbs-presentation-tree"></div>
   </div>
 
   <script src="app.js"></script>
