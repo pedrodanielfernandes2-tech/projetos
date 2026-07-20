@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Painel de Projetos</title>
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+<link rel="icon" type="image/png" href="assets/favicon.png" />
+<link rel="apple-touch-icon" href="assets/favicon.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-brand-wrap">
+        <img src="assets/logo-white.png" alt="Visual Mix" class="sidebar-logo" />
+        <p class="sidebar-subtitle">Painel de Projetos</p>
+      </div>
+      <nav class="sidebar-nav">
+        <button class="sidebar-nav-btn active" data-tab="projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
+        <button class="sidebar-nav-btn" data-tab="dashboard"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
+        <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
+      </nav>
+      <p class="sidebar-footer">Visual Mix · Tecnologia para o varejo</p>
+    </aside>
+
+    <main class="content-area">
+
+    <section id="view-projetos" class="view">
+      <div class="page-header page-header-with-action">
+        <div>
+          <h1>Projetos</h1>
+          <p class="page-subtitle">Visão consolidada dos projetos, prazos e status por área</p>
+        </div>
+        <button id="btn-open-new-project" class="btn btn-primary">+ Novo projeto</button>
+      </div>
+
+      <div class="stats-grid" id="stats-grid"></div>
+
+      <div class="toolbar">
+        <div id="area-filters" class="chip-row"></div>
+      </div>
+
+      <div class="toolbar" style="margin-top:-6px;">
+        <div id="gp-filters" class="chip-row"></div>
+      </div>
+
+      <div class="toolbar" style="margin-top:-6px;">
+        <input type="text" id="search-projetos" placeholder="Buscar por nome, chamado ou cliente..." style="max-width:320px;" />
+        <select id="sort-projetos" style="max-width:220px;">
+          <option value="prazo">Ordenar por: prazo mais próximo</option>
+          <option value="nome">Ordenar por: nome (A-Z)</option>
+          <option value="status">Ordenar por: status</option>
+        </select>
+      </div>
+
+      <div id="alerta-dependencias" class="stack tight" style="margin-bottom:14px;"></div>
+
+      <div class="legend-row">
+        <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>Abaixo de 30%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>Entre 30% e 70%</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--success)"></span>Acima de 70%</span>
+        <span class="legend-item" style="color:var(--text-muted);">· Borda vermelha = prazo esgotado · Borda amarela = bloqueado · Borda roxa = datas pendentes</span>
+      </div>
+
+      <div id="project-list" class="stack"></div>
+    </section>
+
+    <section id="view-dashboard" class="view hidden">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p class="page-subtitle">Indicadores gerais de todos os projetos cadastrados</p>
+      </div>
+
+      <div class="dash-subnav">
+        <button class="dash-subnav-btn active" data-dash="geral">Visão geral</button>
+        <button class="dash-subnav-btn" data-dash="area">Por área</button>
+        <button class="dash-subnav-btn" data-dash="gp">Por GP</button>
+        <button class="dash-subnav-btn" data-dash="cliente">Por cliente</button>
+        <button class="dash-subnav-btn" data-dash="calendario">Calendário</button>
+        <button class="dash-subnav-btn" data-dash="velocimetro">Velocímetro</button>
+        <button class="dash-subnav-btn" data-dash="linha-tempo">Linha do tempo</button>
+        <button class="dash-subnav-btn" data-dash="tendencia">Tendência</button>
+        <button class="dash-subnav-btn" data-dash="esquecidos">Esquecidos</button>
+      </div>
+
+      <div id="dash-page-geral" class="dash-page">
+        <div class="stats-grid" id="dash-stats"></div>
+        <div class="chart-panel">
+          <h2 class="panel-title">Status dos projetos</h2>
+          <div class="donut-wrap" id="dash-donut"></div>
+        </div>
+        <div class="chart-panel">
+          <h2 class="panel-title">Prazos mais próximos</h2>
+          <div id="dash-deadlines" class="deadline-list"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-area" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos por área</h2>
+          <div id="dash-area-bars" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-gp" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Carga de trabalho por GP</h2>
+          <p class="muted">Quantos projetos cada GP tem sob responsabilidade, e quantos estão atrasados ou bloqueados.</p>
+          <div id="dash-gp-bars" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-cliente" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos por cliente</h2>
+          <p class="muted">Quantos projetos cada cliente tem em andamento, e quantos estão atrasados ou bloqueados.</p>
+          <div id="dash-cliente-bars" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-calendario" class="dash-page hidden">
+        <div class="chart-panel">
+          <div class="calendar-header">
+            <h2 class="panel-title" style="margin:0;">Calendário de entregas</h2>
+            <div class="calendar-nav">
+              <button class="btn" id="cal-prev" aria-label="Mês anterior">‹</button>
+              <span id="cal-label" class="calendar-label"></span>
+              <button class="btn" id="cal-next" aria-label="Próximo mês">›</button>
+              <button class="btn" id="cal-hoje">Hoje</button>
+            </div>
+          </div>
+          <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
+          <div id="cal-grid" class="calendar-grid"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-velocimetro" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Velocímetro — tempo gasto na demanda</h2>
+          <p class="muted">Mostra quantas horas já foram investidas naquela demanda, considerando dias úteis e jornada de 8h/dia. Escolha uma área e, se quiser, um chamado específico — sem chamado, soma todas as tarefas da área dentro do período.</p>
+          <div class="gauge-filters">
+            <select id="vel-area"></select>
+            <select id="vel-chamado"><option value="">Todos os chamados (média do período)</option></select>
+            <div class="gauge-periodo">
+              <label>De <input type="date" id="vel-periodo-inicio" /></label>
+              <label>Até <input type="date" id="vel-periodo-fim" /></label>
+            </div>
+          </div>
+          <div id="vel-gauge-wrap" class="gauge-wrap"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-linha-tempo" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Linha do tempo dos projetos</h2>
+          <div id="dash-gantt" class="stack tight"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-tendencia" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Tendência de atrasos</h2>
+          <p class="muted">Estimativa de quantos projetos estariam atrasados a cada semana, com base nas datas de entrega atuais dos projetos cadastrados hoje. Não reflete bloqueios manuais retroativos nem prazos que já foram alterados.</p>
+          <div id="dash-trend-chart"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-esquecidos" class="dash-page hidden">
+        <div class="chart-panel">
+          <h2 class="panel-title">Projetos sem atualização recente</h2>
+          <p class="muted">Projetos não concluídos sem nenhuma linha de histórico nos últimos 15 dias — um sinal de abandono ou silêncio que os outros indicadores não capturam.</p>
+          <div id="dash-esquecidos-list" class="deadline-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-admin" class="view hidden">
+      <div class="page-header">
+        <h1>Administração</h1>
+        <p class="page-subtitle">Áreas, clientes, gerentes de projeto, e-mails e permissões</p>
+      </div>
+
+      <div class="admin-grid">
+
+        <div class="panel">
+          <h2>Áreas</h2>
+          <p class="muted">Cadastre as áreas da empresa. Elas alimentam os filtros, o cadastro de GP e o cadastro de projetos.</p>
+          <div id="area-list" class="stack tight"></div>
+          <form id="form-area" class="form-row" style="margin-top:10px;">
+            <input type="text" id="area-nome" placeholder="Nome da área (ex: Marketing)" required />
+            <button type="submit" class="btn">Adicionar área</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Ações</h2>
+          <p class="muted">Cadastre os tipos de ação usados nos itens da WBS (ex: Desenvolvimento, Análise, Testes).</p>
+          <div id="acao-list" class="stack tight"></div>
+          <form id="form-acao" class="form-row" style="margin-top:10px;">
+            <input type="text" id="acao-nome" placeholder="Nome da ação (ex: Testes)" required />
+            <button type="submit" class="btn">Adicionar ação</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Fases do projeto</h2>
+          <p class="muted">Cadastre as etapas usadas no ciclo de vida do projeto (ex: Planejamento, Desenvolvimento). Novas fases entram no final da lista.</p>
+          <div id="fase-list" class="stack tight"></div>
+          <form id="form-fase" class="form-row" style="margin-top:10px;">
+            <input type="text" id="fase-nome" placeholder="Nome da fase (ex: Retrospectiva)" required />
+            <button type="submit" class="btn">Adicionar fase</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Clientes</h2>
+          <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
+          <div id="cliente-list" class="stack tight"></div>
+          <form id="form-cliente" class="form-row" style="margin-top:10px;">
+            <input type="text" id="cliente-nome" placeholder="Nome do cliente" required />
+            <button type="submit" class="btn">Adicionar cliente</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Gerentes de projeto</h2>
+          <p class="muted">Cadastre o GP e o e-mail. Ele recebe o resumo dos projetos em que for o responsável.</p>
+          <div id="gp-list" class="stack tight"></div>
+          <form id="form-gp" class="form">
+            <div class="form-row">
+              <input type="text" id="gp-nome" placeholder="Nome do GP" required />
+              <input type="email" id="gp-email" placeholder="e-mail@empresa.com" required />
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Adicionar GP</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Destinatários admin</h2>
+          <p class="muted">E-mails que recebem o resumo geral, além dos GPs.</p>
+          <div id="admin-list" class="stack tight"></div>
+          <form id="form-admin" class="form-row">
+            <input type="email" id="admin-email" placeholder="e-mail@empresa.com" required />
+            <button type="submit" class="btn">Adicionar</button>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Envio automático de resumo</h2>
+          <p class="muted">Define a periodicidade do resumo enviado a GPs, admins e/ou Microsoft Teams.</p>
+          <form id="form-email-config">
+            <div class="form-row">
+              <select id="cfg-frequencia">
+                <option value="diaria">Diária</option>
+                <option value="semanal">Semanal</option>
+                <option value="quinzenal">Quinzenal</option>
+                <option value="mensal">Mensal</option>
+              </select>
+              <select id="cfg-dia-semana">
+                <option value="1">Segunda-feira</option>
+                <option value="2">Terça-feira</option>
+                <option value="3">Quarta-feira</option>
+                <option value="4">Quinta-feira</option>
+                <option value="5">Sexta-feira</option>
+              </select>
+            </div>
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="cfg-enviar-gps" checked /> Enviar para todos os GPs (filtrado por área)</label>
+              <label><input type="checkbox" id="cfg-enviar-admins" checked /> Enviar para admins (resumo geral)</label>
+              <label><input type="checkbox" id="cfg-enviar-teams" /> Enviar também para o Microsoft Teams (requer <code>TEAMS_WEBHOOK_URL</code> configurada)</label>
+            </div>
+            <p class="muted" style="margin-top:-4px;">Além do resumo periódico, o sistema avisa automaticamente no Teams (dentro de até 15 minutos) sempre que um projeto virar atrasado ou bloqueado — não depende deste agendamento.</p>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Salvar configuração</button>
+              <button type="button" id="btn-send-now" class="btn">Enviar agora (teste)</button>
+            </div>
+            <p id="email-status" class="status-msg hidden"></p>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Permissões</h2>
+          <p class="muted">Define se ações sensíveis exigem a senha de admin. O acesso a esta aba (Admin) sempre exige senha.</p>
+          <form id="form-permissoes">
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="perm-exclusao" /> Somente admin pode excluir projetos</label>
+              <label><input type="checkbox" id="perm-prazos" /> Somente admin pode editar projetos e prazos por área</label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Salvar permissões</button>
+            </div>
+            <p id="perm-status" class="status-msg hidden"></p>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Histórico de alterações</h2>
+          <p class="muted">Quem criou, editou ou excluiu cada item — com destaque para mudanças de datas. Baseado no campo "Seu nome" preenchido na sidebar (não é uma autenticação real, então trate como um registro de boa-fé).</p>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;">
+            <input type="checkbox" id="audit-apenas-datas" style="width:auto;" /> Mostrar só alterações de datas
+          </label>
+          <div id="audit-log-list" class="stack tight" style="max-height:440px;overflow-y:auto;"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="view-wbs" class="view hidden">
+      <button id="btn-wbs-voltar" class="btn" style="margin-bottom:16px;">← Voltar aos projetos</button>
+      <div class="page-header">
+        <h1 id="wbs-titulo-projeto">WBS do projeto</h1>
+        <p class="page-subtitle" id="wbs-subtitulo-projeto"></p>
+      </div>
+
+      <div class="stats-grid" id="wbs-stats"></div>
+
+      <div class="chart-panel">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px;">
+          <span style="font-weight:600;">Progresso geral</span>
+          <span id="wbs-progress-label"></span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="wbs-progress-fill" style="width:0%;"></div></div>
+      </div>
+
+      <div class="chart-panel">
+        <div class="toolbar" style="margin-bottom:10px;">
+          <h2 class="panel-title" style="margin:0;">Estrutura de itens</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="btn-wbs-apresentacao" class="btn">🖥️ Modo Apresentação</button>
+            <button id="btn-wbs-salvar-modelo" class="btn">💾 Salvar como modelo</button>
+            <button id="btn-wbs-aplicar-modelo" class="btn">📥 Aplicar modelo</button>
+            <button id="btn-wbs-exportar-pdf" class="btn">📄 Exportar PDF</button>
+            <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
+          </div>
+        </div>
+        <div class="toolbar" style="margin-bottom:10px;">
+          <input type="text" id="wbs-search" placeholder="Buscar por título ou responsável..." style="max-width:320px;" />
+          <div style="display:flex;gap:8px;">
+            <button id="btn-wbs-expandir-tudo" class="btn" style="font-size:12px;">Expandir tudo</button>
+            <button id="btn-wbs-colapsar-tudo" class="btn" style="font-size:12px;">Colapsar tudo</button>
+          </div>
+        </div>
+        <div class="legend-row" style="margin-top:-6px;">
+          <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>⚠️ Atrasado</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>⏳ Possível atraso (prazo perto do fim)</span>
+          <span class="legend-item"><span class="legend-dot" style="background:var(--border)"></span>Sem marcação = dentro do prazo</span>
+          <span class="legend-item" style="color:var(--text-muted);">· Concluído/Impasse não são avaliados</span>
+        </div>
+        <div class="wbs-row wbs-header-row">
+          <span class="wbs-toggle-spacer"></span>
+          <span class="wbs-numero">Item</span>
+          <span class="wbs-titulo">Título</span>
+          <span class="wbs-col-area">Área</span>
+          <span class="wbs-col-acao">Ação</span>
+          <span class="wbs-responsavel">Responsável</span>
+          <span class="wbs-datas">Prazo</span>
+          <span class="wbs-col-status">Status</span>
+          <span class="wbs-actions"></span>
+        </div>
+        <div id="wbs-tree" class="stack tight"></div>
+      </div>
+    </section>
+
+    </main>
+  </div>
+
+  <div id="modal-new-project" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Novo projeto</h2>
+      <form id="form-new-project">
+        <div class="form-row">
+          <input type="text" id="np-nome" placeholder="Nome do projeto" required />
+          <input type="text" id="np-chamado" placeholder="Nº do chamado" />
+        </div>
+        <div class="form-row">
+          <select id="np-cliente"></select>
+          <select id="np-gp"></select>
+        </div>
+        <div class="form-row">
+          <select id="np-tipo">
+            <option>Projeto</option>
+            <option>Release</option>
+            <option>Melhoria</option>
+            <option>Implantação</option>
+            <option>Correção</option>
+          </select>
+          <select id="np-fase"></select>
+        </div>
+        <p class="field-label">Prazo geral do projeto</p>
+        <div class="form-row">
+          <input type="date" id="np-inicio" />
+          <input type="date" id="np-fim" />
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
+          <input type="checkbox" id="np-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
+        </label>
+        <input type="text" id="np-resumo" placeholder="Resumo curto" class="full-width" />
+        <p class="field-label">Áreas envolvidas — selecione e defina o prazo de cada uma (deixe em branco se ainda não tiver a data — a área fica marcada como pendente)</p>
+        <div id="np-areas" class="chip-row"></div>
+        <div id="np-area-dates" class="stack tight"></div>
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-new-project" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar projeto</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-edit-project" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Editar projeto</h2>
+      <form id="form-edit-project">
+        <input type="hidden" id="edit-id" />
+        <div class="form-row">
+          <input type="text" id="edit-nome" placeholder="Nome do projeto" required />
+          <input type="text" id="edit-chamado" placeholder="Nº do chamado" />
+        </div>
+        <div class="form-row">
+          <select id="edit-cliente"></select>
+          <select id="edit-gp"></select>
+        </div>
+        <div class="form-row">
+          <select id="edit-tipo">
+            <option>Projeto</option>
+            <option>Release</option>
+            <option>Melhoria</option>
+            <option>Implantação</option>
+            <option>Correção</option>
+          </select>
+          <select id="edit-fase"></select>
+        </div>
+        <p class="field-label">Prazo geral do projeto</p>
+        <div class="form-row">
+          <input type="date" id="edit-inicio" />
+          <input type="date" id="edit-fim" />
+        </div>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
+          <input type="checkbox" id="edit-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
+        </label>
+        <div class="form-row">
+          <select id="edit-status-prazo">
+            <option value="automatico">Status do prazo: automático (pelas datas)</option>
+            <option value="bloqueado">Marcar como: bloqueado</option>
+            <option value="concluído">Marcar como: concluído</option>
+          </select>
+        </div>
+        <p class="field-label" style="margin-top:-4px;">O progresso exibido é calculado automaticamente pelo tempo decorrido entre início e fim.</p>
+        <input type="text" id="edit-resumo" placeholder="Resumo curto" class="full-width" />
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-edit-project" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar alterações</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-day-details" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="day-modal-title">Entregas do dia</h2>
+      <div id="day-modal-list" class="stack tight"></div>
+      <div class="form-actions">
+        <button type="button" id="btn-close-day-modal" class="btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-wbs-item" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="wbs-modal-titulo">Novo item</h2>
+      <form id="form-wbs-item">
+        <input type="hidden" id="wbs-item-id" />
+        <input type="hidden" id="wbs-item-parent-id" />
+        <input type="text" id="wbs-item-titulo" placeholder="Título do item" class="full-width" required />
+        <div class="form-row">
+          <select id="wbs-item-area"><option value="">Sem área definida</option></select>
+          <select id="wbs-item-acao"><option value="">Sem ação definida</option></select>
+        </div>
+        <div class="form-row">
+          <input type="text" id="wbs-item-responsavel" placeholder="Responsável" />
+          <select id="wbs-item-status">
+            <option>Pendente</option>
+            <option>Em Andamento</option>
+            <option>Em Elaboração</option>
+            <option>Homolog./Cliente</option>
+            <option>Concluído</option>
+            <option>Impasse</option>
+          </select>
+        </div>
+        <p class="field-label">Prazo (opcional)</p>
+        <div class="form-row">
+          <input type="date" id="wbs-item-inicio" />
+          <input type="date" id="wbs-item-fim" />
+        </div>
+        <textarea id="wbs-item-observacao" placeholder="Observação" class="full-width" rows="3"></textarea>
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-wbs-item" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar item</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="modal-wbs-templates" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Aplicar modelo de WBS</h2>
+      <p class="muted">Os itens do modelo escolhido serão adicionados a este projeto (não substitui os itens já existentes).</p>
+      <div id="wbs-templates-list" class="stack tight" style="margin-bottom:16px;"></div>
+      <div class="form-actions">
+        <button type="button" id="btn-close-wbs-templates" class="btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="wbs-presentation-overlay" class="wbs-presentation hidden">
+    <p class="wbs-presentation-rotate-hint">📱 Gire a tela para paisagem para uma melhor visualização.</p>
+    <div class="wbs-presentation-header">
+      <div>
+        <h1 id="wbs-presentation-titulo"></h1>
+        <p id="wbs-presentation-subtitulo"></p>
+      </div>
+      <button type="button" id="btn-wbs-sair-apresentacao" class="btn">✕ Sair</button>
+    </div>
+    <div id="wbs-presentation-progress" class="wbs-presentation-progress"></div>
+    <div id="wbs-presentation-tree"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
