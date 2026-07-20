@@ -271,7 +271,7 @@ router.post('/:id/notificar-teams', async (req, res) => {
   const partes = [
     project.chamado ? `Chamado: ${project.chamado}` : null,
     project.cliente_nome ? `Cliente: ${project.cliente_nome}` : null,
-    `GP: ${project.gerente_nome || '-'}`,
+    project.gerente_email ? `GP: <at>${project.gerente_nome}</at>` : `GP: ${project.gerente_nome || '-'}`,
     `Fase: ${project.fase} · Status do prazo: **${project.status_prazo}**`,
     project.resumo ? `Resumo: ${project.resumo}` : null,
     linhasTarefas ? `\nÁreas:\n${linhasTarefas}` : null,
@@ -280,7 +280,8 @@ router.post('/:id/notificar-teams', async (req, res) => {
   ].filter(Boolean);
 
   try {
-    await postToTeams({ title: `📋 ${project.nome}`, text: partes.join('\n') });
+    const mentions = project.gerente_email ? [{ name: project.gerente_nome, email: project.gerente_email }] : [];
+    await postToTeams({ title: `📋 ${project.nome}`, text: partes.join('\n'), mentions });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
