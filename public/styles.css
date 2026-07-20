@@ -383,7 +383,7 @@ input:focus, select:focus, textarea:focus {
 .badge-wbs-em-elaboracao { background: var(--warning-soft); color: var(--warning); }
 .badge-wbs-homolog-cliente { background: #fdeedb; color: #c2650c; }
 .badge-wbs-concluido { background: var(--success-soft); color: var(--success); }
-.badge-wbs-impasse { background: #2a2a2a; color: #fff; }
+.badge-wbs-suspensa { background: #2a2a2a; color: #fff; }
 
 .wbs-node { }
 

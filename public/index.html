@@ -214,6 +214,16 @@
         </div>
 
         <div class="panel">
+          <h2>Status da WBS</h2>
+          <p class="muted">Cadastre os status usados nos itens da WBS. "Concluído" e "Suspensa" têm efeitos especiais no sistema (progresso geral e isenção do alerta de prazo) — evite excluí-los.</p>
+          <div id="wbs-status-list" class="stack tight"></div>
+          <form id="form-wbs-status" class="form-row" style="margin-top:10px;">
+            <input type="text" id="wbs-status-nome" placeholder="Nome do status (ex: Aguardando Cliente)" required />
+            <button type="submit" class="btn">Adicionar status</button>
+          </form>
+        </div>
+
+        <div class="panel">
           <h2>Clientes</h2>
           <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
           <div id="cliente-list" class="stack tight"></div>
@@ -347,7 +357,7 @@
           <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>⚠️ Atrasado</span>
           <span class="legend-item"><span class="legend-dot" style="background:var(--warning)"></span>⏳ Possível atraso (prazo perto do fim)</span>
           <span class="legend-item"><span class="legend-dot" style="background:var(--border)"></span>Sem marcação = dentro do prazo</span>
-          <span class="legend-item" style="color:var(--text-muted);">· Concluído/Impasse não são avaliados</span>
+          <span class="legend-item" style="color:var(--text-muted);">· Concluído/Suspensa não são avaliados</span>
         </div>
         <div class="wbs-row wbs-header-row">
           <span class="wbs-toggle-spacer"></span>
@@ -480,14 +490,7 @@
         </div>
         <div class="form-row">
           <input type="text" id="wbs-item-responsavel" placeholder="Responsável" />
-          <select id="wbs-item-status">
-            <option>Pendente</option>
-            <option>Em Andamento</option>
-            <option>Em Elaboração</option>
-            <option>Homolog./Cliente</option>
-            <option>Concluído</option>
-            <option>Impasse</option>
-          </select>
+          <select id="wbs-item-status"></select>
         </div>
         <p class="field-label">Prazo (opcional)</p>
         <div class="form-row">

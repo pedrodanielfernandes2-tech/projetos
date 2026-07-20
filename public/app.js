@@ -2,6 +2,7 @@ const state = {
   areas: [],
   acoes: [],
   fases: [],
+  wbsStatusList: [],
   allProjects: [], // lista completa, sem filtro (fonte da verdade)
   projects: [], // lista apos filtro/busca/ordenacao (o que e renderizado)
   gps: [],
@@ -59,7 +60,7 @@ function elapsedPercent(inicio, fim) {
 
 // Sinaliza a saude do prazo de um item da WBS: 'atrasado' | 'risco' | 'ok' | null (nao avaliavel).
 function wbsPrazoStatus(item) {
-  if (item.status === 'Concluído' || item.status === 'Impasse') return null;
+  if (item.status === 'Concluído' || item.status === 'Suspensa') return null;
   if (!item.data_fim) return null;
   const hojeStr = new Date().toISOString().slice(0, 10);
   if (hojeStr > item.data_fim) return 'atrasado';
@@ -149,10 +150,11 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  const [areas, acoes, fases, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
+  const [areas, acoes, fases, wbsStatusList, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/acoes'),
     api('/fases'),
+    api('/wbs-status'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
@@ -162,6 +164,7 @@ async function loadAll() {
   state.areas = areas;
   state.acoes = acoes;
   state.fases = fases;
+  state.wbsStatusList = wbsStatusList;
   state.gps = gps;
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
@@ -175,6 +178,7 @@ async function loadAll() {
   renderAreaList();
   renderAcaoList();
   renderFaseList();
+  renderWbsStatusList();
   renderGpList();
   renderAdminList();
   renderEmailConfig();
@@ -398,6 +402,42 @@ document.getElementById('form-fase').addEventListener('submit', async (e) => {
     await api('/fases', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
     input.value = '';
     await refreshFases();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ---------- Status da WBS admin ----------
+function renderWbsStatusList() {
+  const el = document.getElementById('wbs-status-list');
+  el.innerHTML = '';
+  state.wbsStatusList.forEach(nome => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span>${nome}</span><button class="icon-btn" aria-label="Remover status">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/wbs-status/${encodeURIComponent(nome)}`, { method: 'DELETE' });
+        await refreshWbsStatusList();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
+  });
+}
+async function refreshWbsStatusList() {
+  state.wbsStatusList = await api('/wbs-status');
+  renderWbsStatusList();
+}
+document.getElementById('form-wbs-status').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('wbs-status-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/wbs-status', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await refreshWbsStatusList();
   } catch (err) {
     alert(err.message);
   }
@@ -1736,7 +1776,7 @@ function wbsStatusClass(status) {
     'Em Elaboração': 'badge-wbs-em-elaboracao',
     'Homolog./Cliente': 'badge-wbs-homolog-cliente',
     'Concluído': 'badge-wbs-concluido',
-    'Impasse': 'badge-wbs-impasse',
+    'Suspensa': 'badge-wbs-suspensa',
   };
   return map[status] || 'badge-planejamento';
 }
@@ -1781,7 +1821,7 @@ function wbsStatusColors(status) {
     'Em Elaboração': { bg: 'var(--warning-soft)', text: 'var(--warning)' },
     'Homolog./Cliente': { bg: '#fdeedb', text: '#c2650c' },
     'Concluído': { bg: 'var(--success-soft)', text: 'var(--success)' },
-    'Impasse': { bg: '#2a2a2a', text: '#ffffff' },
+    'Suspensa': { bg: '#2a2a2a', text: '#ffffff' },
   };
   return map[status] || { bg: 'var(--surface-alt)', text: 'var(--text-muted)' };
 }
@@ -2121,10 +2161,15 @@ function populateWbsAcaoSelect() {
   const sel = document.getElementById('wbs-item-acao');
   sel.innerHTML = '<option value="">Sem ação definida</option>' + state.acoes.map(a => `<option value="${a}">${a}</option>`).join('');
 }
+function populateWbsStatusSelect() {
+  const sel = document.getElementById('wbs-item-status');
+  sel.innerHTML = state.wbsStatusList.map(s => `<option>${s}</option>`).join('');
+}
 
 function openWbsItemModal(parentId, itemToEdit) {
   populateWbsAreaSelect();
   populateWbsAcaoSelect();
+  populateWbsStatusSelect();
   document.getElementById('wbs-modal-titulo').textContent = itemToEdit ? 'Editar item' : (parentId ? 'Novo sub-item' : 'Novo item');
   document.getElementById('wbs-item-id').value = itemToEdit ? itemToEdit.id : '';
   document.getElementById('wbs-item-parent-id').value = parentId || '';
