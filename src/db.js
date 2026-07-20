@@ -151,6 +151,13 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS wbs_status (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL UNIQUE,
+      ordem INTEGER DEFAULT 0,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS wbs_templates (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
@@ -179,6 +186,11 @@ async function init() {
   await pool.query('ALTER TABLE email_config ADD COLUMN IF NOT EXISTS enviar_teams BOOLEAN DEFAULT FALSE;');
   await pool.query("ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS acao TEXT DEFAULT '';");
 
+  // Renomeia o status "Impasse" para "Suspensa" em instalacoes ja existentes
+  // (tanto no cadastro quanto nos itens de WBS que ja usavam esse status).
+  await pool.query("UPDATE wbs_status SET nome = 'Suspensa' WHERE nome = 'Impasse'");
+  await pool.query("UPDATE wbs_items SET status = 'Suspensa' WHERE status = 'Impasse'");
+
   // Popula as areas padrao apenas na primeira vez (tabela vazia). Depois disso,
   // respeita qualquer area que o usuario tenha removido de proposito.
   const { rows: areaCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM areas');
@@ -204,6 +216,15 @@ async function init() {
     const fasesIniciais = ['Planejamento', 'Levantamento', 'Desenvolvimento', 'Homologação', 'Concluído'];
     for (let i = 0; i < fasesIniciais.length; i++) {
       await pool.query('INSERT INTO fases (nome, ordem) VALUES ($1, $2) ON CONFLICT (nome) DO NOTHING', [fasesIniciais[i], i]);
+    }
+  }
+
+  // Mesma logica para status da WBS: popula apenas na primeira vez.
+  const { rows: wbsStatusCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM wbs_status');
+  if (wbsStatusCountRows[0].n === 0) {
+    const statusIniciais = ['Pendente', 'Em Andamento', 'Em Elaboração', 'Homolog./Cliente', 'Concluído', 'Suspensa'];
+    for (let i = 0; i < statusIniciais.length; i++) {
+      await pool.query('INSERT INTO wbs_status (nome, ordem) VALUES ($1, $2) ON CONFLICT (nome) DO NOTHING', [statusIniciais[i], i]);
     }
   }
 }

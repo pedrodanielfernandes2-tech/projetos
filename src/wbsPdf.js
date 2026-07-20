@@ -4,7 +4,7 @@ const STATUS_COLORS = {
   'Em Elaboração': { bg: '#FDF3E3', text: '#B7791F' },
   'Homolog./Cliente': { bg: '#FDEEDB', text: '#C2650C' },
   'Concluído': { bg: '#E4F7EC', text: '#1F9D55' },
-  'Impasse': { bg: '#2A2A2A', text: '#FFFFFF' },
+  'Suspensa': { bg: '#2A2A2A', text: '#FFFFFF' },
 };
 function corStatus(status) {
   return STATUS_COLORS[status] || { bg: '#EEF0F3', text: '#667085' };
