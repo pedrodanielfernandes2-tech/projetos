@@ -249,6 +249,25 @@ router.post('/:id/notificar-teams', async (req, res) => {
     `- ${t.area}: ${t.inicio || 'sem data'} → ${t.fim || 'sem data'} (${t.status})`
   ).join('\n');
 
+  // historico: as atualizacoes mais recentes primeiro (ja vem ordenado assim do loadProject)
+  const LIMITE_HISTORICO = 5;
+  const historicoVisivel = project.historico.slice(0, LIMITE_HISTORICO);
+  const linhasHistorico = historicoVisivel.map(h => `- ${h.data ? h.data.slice(0, 10).split('-').reverse().join('/') : ''}: ${h.texto}`).join('\n');
+  const restanteHistorico = project.historico.length - historicoVisivel.length;
+
+  // WBS: resumo (contagem por status) + link pro PDF completo, se houver itens
+  const { rows: wbsRows } = await pool.query('SELECT status FROM wbs_items WHERE project_id = $1', [req.params.id]);
+  let blocoWbs = null;
+  if (wbsRows.length > 0) {
+    const contagem = {};
+    wbsRows.forEach(r => { contagem[r.status] = (contagem[r.status] || 0) + 1; });
+    const concluidos = contagem['Concluído'] || 0;
+    const percentConcluido = Math.round((concluidos / wbsRows.length) * 100);
+    const resumoStatus = Object.entries(contagem).map(([status, n]) => `${status}: ${n}`).join(' · ');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    blocoWbs = `WBS: ${wbsRows.length} item(ns) · ${percentConcluido}% concluído\n${resumoStatus}\n📄 PDF completo: ${baseUrl}/api/projects/${req.params.id}/wbs/pdf`;
+  }
+
   const partes = [
     project.chamado ? `Chamado: ${project.chamado}` : null,
     project.cliente_nome ? `Cliente: ${project.cliente_nome}` : null,
@@ -256,6 +275,8 @@ router.post('/:id/notificar-teams', async (req, res) => {
     `Fase: ${project.fase} · Status do prazo: **${project.status_prazo}**`,
     project.resumo ? `Resumo: ${project.resumo}` : null,
     linhasTarefas ? `\nÁreas:\n${linhasTarefas}` : null,
+    linhasHistorico ? `\nHistórico recente:\n${linhasHistorico}${restanteHistorico > 0 ? `\n(+${restanteHistorico} atualização(ões) anterior(es))` : ''}` : null,
+    blocoWbs ? `\n${blocoWbs}` : null,
   ].filter(Boolean);
 
   try {
