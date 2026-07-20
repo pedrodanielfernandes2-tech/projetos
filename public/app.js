@@ -1,6 +1,7 @@
 const state = {
   areas: [],
   acoes: [],
+  fases: [],
   allProjects: [], // lista completa, sem filtro (fonte da verdade)
   projects: [], // lista apos filtro/busca/ordenacao (o que e renderizado)
   gps: [],
@@ -148,9 +149,10 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  const [areas, acoes, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
+  const [areas, acoes, fases, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/acoes'),
+    api('/fases'),
     api('/gps'),
     api('/admin-emails'),
     api('/email-config'),
@@ -159,6 +161,7 @@ async function loadAll() {
   ]);
   state.areas = areas;
   state.acoes = acoes;
+  state.fases = fases;
   state.gps = gps;
   state.adminEmails = adminEmails;
   state.emailConfig = emailConfig;
@@ -171,11 +174,13 @@ async function loadAll() {
   renderGpFilters();
   renderAreaList();
   renderAcaoList();
+  renderFaseList();
   renderGpList();
   renderAdminList();
   renderEmailConfig();
   renderPermissoes();
   populateGpSelect();
+  populateFaseSelect();
   renderNewProjectAreaChips();
   renderClienteList();
   populateClienteSelect();
@@ -355,6 +360,49 @@ document.getElementById('form-acao').addEventListener('submit', async (e) => {
   }
 });
 
+// ---------- Fases admin ----------
+function renderFaseList() {
+  const el = document.getElementById('fase-list');
+  el.innerHTML = '';
+  state.fases.forEach(nome => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span>${nome}</span><button class="icon-btn" aria-label="Remover fase">✕</button>`;
+    row.querySelector('button').onclick = async () => {
+      try {
+        await api(`/fases/${encodeURIComponent(nome)}`, { method: 'DELETE' });
+        await refreshFases();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
+  });
+}
+async function refreshFases() {
+  state.fases = await api('/fases');
+  renderFaseList();
+  populateFaseSelect();
+}
+function populateFaseSelect() {
+  const options = state.fases.map(f => `<option>${f}</option>`).join('');
+  document.getElementById('np-fase').innerHTML = options;
+  const editSel = document.getElementById('edit-fase');
+  if (editSel) editSel.innerHTML = options;
+}
+document.getElementById('form-fase').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('fase-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/fases', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await refreshFases();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
 // ---------- stats ----------
 function renderStats() {
   const total = state.projects.length;
@@ -464,7 +512,7 @@ function renderProjectList() {
           <p class="card-title">${p.nome}${p.chamado ? ' <span style="color:var(--text-muted);font-weight:400;">· Chamado ' + p.chamado + '</span>' : ''}</p>
           <p class="card-sub">GP: ${p.gerente_nome || '-'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''} · ${p.tipo} · fase: ${p.fase}</p>
         </div>
-        <div style="display:flex;align-items:center;gap:6px;">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
           ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} de atraso</span>` : ''}
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>

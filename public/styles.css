@@ -176,6 +176,7 @@ body {
   border-left: 4px solid var(--border);
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.15s, transform 0.15s;
+  overflow: hidden;
 }
 .card:hover { box-shadow: var(--shadow-md); }
 .card-atrasado { border-left-color: var(--danger); background: #fdf6f6; }

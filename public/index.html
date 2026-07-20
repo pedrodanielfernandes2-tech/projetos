@@ -204,6 +204,16 @@
         </div>
 
         <div class="panel">
+          <h2>Fases do projeto</h2>
+          <p class="muted">Cadastre as etapas usadas no ciclo de vida do projeto (ex: Planejamento, Desenvolvimento). Novas fases entram no final da lista.</p>
+          <div id="fase-list" class="stack tight"></div>
+          <form id="form-fase" class="form-row" style="margin-top:10px;">
+            <input type="text" id="fase-nome" placeholder="Nome da fase (ex: Retrospectiva)" required />
+            <button type="submit" class="btn">Adicionar fase</button>
+          </form>
+        </div>
+
+        <div class="panel">
           <h2>Clientes</h2>
           <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
           <div id="cliente-list" class="stack tight"></div>
@@ -377,13 +387,7 @@
             <option>Implantação</option>
             <option>Correção</option>
           </select>
-          <select id="np-fase">
-            <option>Planejamento</option>
-            <option>Levantamento</option>
-            <option>Desenvolvimento</option>
-            <option>Homologação</option>
-            <option>Concluído</option>
-          </select>
+          <select id="np-fase"></select>
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
@@ -426,13 +430,7 @@
             <option>Implantação</option>
             <option>Correção</option>
           </select>
-          <select id="edit-fase">
-            <option>Planejamento</option>
-            <option>Levantamento</option>
-            <option>Desenvolvimento</option>
-            <option>Homologação</option>
-            <option>Concluído</option>
-          </select>
+          <select id="edit-fase"></select>
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
