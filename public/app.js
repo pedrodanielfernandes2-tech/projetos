@@ -38,8 +38,15 @@ function fmtDateFull(d) {
   return dt.toLocaleDateString('pt-BR');
 }
 function progressColor(progresso) {
-  if (progresso < 30) return 'var(--danger)';
+  if (progresso < 30) return 'var(--success)';
   if (progresso < 70) return 'var(--warning)';
+  return 'var(--danger)';
+}
+// Diferente de progressColor: aqui mais % e melhor (mais itens concluidos), entao a logica
+// nao e invertida - baixo = vermelho, alto = verde.
+function completionColor(percent) {
+  if (percent < 30) return 'var(--danger)';
+  if (percent < 70) return 'var(--warning)';
   return 'var(--success)';
 }
 function barWidth(progresso) {
@@ -1811,7 +1818,7 @@ function renderWbsProgress(stats, total) {
   document.getElementById('wbs-progress-label').textContent = `${percent}% concluído`;
   const fill = document.getElementById('wbs-progress-fill');
   fill.style.width = barWidth(percent) + '%';
-  fill.style.background = progressColor(percent);
+  fill.style.background = completionColor(percent);
 }
 
 function wbsStatusColors(status) {
