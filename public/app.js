@@ -441,6 +441,14 @@ function renderProjectList() {
       ? `<div class="dependency-alert" style="margin-bottom:10px;"><span class="dependency-alert-icon">⚠️</span><span>${alertasDep.join('<br>')}</span></div>`
       : '';
     const elapsed = elapsedPercent(p.data_inicio, p.data_fim);
+    let diasAtraso = null;
+    if (statusAtencao === 'atrasado' && p.data_fim) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const fim = new Date(p.data_fim + 'T00:00:00');
+      const diff = Math.floor((hoje - fim) / (1000 * 60 * 60 * 24));
+      if (diff > 0) diasAtraso = diff;
+    }
     const prazoGeralHtml = elapsed === null
       ? `<p class="card-sub" style="color:var(--pending);font-weight:600;">📌 Datas do projeto ainda não definidas</p>`
       : `
@@ -458,6 +466,7 @@ function renderProjectList() {
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
+          ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} de atraso</span>` : ''}
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
           <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>

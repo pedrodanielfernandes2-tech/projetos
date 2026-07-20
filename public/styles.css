@@ -179,6 +179,10 @@ body {
 }
 .card:hover { box-shadow: var(--shadow-md); }
 .card-atrasado { border-left-color: var(--danger); background: #fdf6f6; }
+.dias-atraso-tag {
+  font-size: 11px; font-weight: 700; color: var(--danger); background: var(--danger-soft);
+  padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+}
 .card-bloqueado { border-left-color: var(--warning); background: #fdfaf5; }
 .card-pendente { border-left-color: var(--pending); background: #fbf8fe; }
 .card-head {
