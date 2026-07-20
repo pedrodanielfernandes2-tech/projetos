@@ -144,6 +144,13 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS fases (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL UNIQUE,
+      ordem INTEGER DEFAULT 0,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS wbs_templates (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
@@ -188,6 +195,15 @@ async function init() {
     const acoesIniciais = ['Desenvolvimento', 'Análise'];
     for (const nome of acoesIniciais) {
       await pool.query('INSERT INTO acoes (nome) VALUES ($1) ON CONFLICT (nome) DO NOTHING', [nome]);
+    }
+  }
+
+  // Mesma logica para fases: popula apenas na primeira vez.
+  const { rows: faseCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM fases');
+  if (faseCountRows[0].n === 0) {
+    const fasesIniciais = ['Planejamento', 'Levantamento', 'Desenvolvimento', 'Homologação', 'Concluído'];
+    for (let i = 0; i < fasesIniciais.length; i++) {
+      await pool.query('INSERT INTO fases (nome, ordem) VALUES ($1, $2) ON CONFLICT (nome) DO NOTHING', [fasesIniciais[i], i]);
     }
   }
 }

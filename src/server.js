@@ -14,6 +14,7 @@ app.use('/api/projects', require('./routes/projects'));
 app.use('/api/email-config', require('./routes/emailConfig'));
 app.use('/api/areas', require('./routes/areas'));
 app.use('/api/acoes', require('./routes/acoes'));
+app.use('/api/fases', require('./routes/fases'));
 app.use('/api/clientes', require('./routes/clientes'));
 app.use('/api/admin', require('./routes/adminAuth'));
 app.use('/api/settings', require('./routes/settings'));
