@@ -1882,10 +1882,11 @@ function BacklogPorClientePage({ chamados, onEditar }) {
 }
 
 function ChamadosListaPage({ chamados, analistas, onEditar }) {
+  const VAZIA = "(Vazia)";
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState([]);
-  const [analistaFiltro, setAnalistaFiltro] = useState([]);
-  const [propostaFiltro, setPropostaFiltro] = useState([]);
+  const [analistaFiltro, setAnalistaFiltro] = useState(["Pedro", "Luciane", "Evandro", "Débora"]);
+  const [propostaFiltro, setPropostaFiltro] = useState(["Enviado", VAZIA]);
   const [pagina, setPagina] = useState(1);
   const porPagina = 25;
 
@@ -1894,7 +1895,6 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
     [chamados]
   );
 
-  const VAZIA = "(Vazia)";
   const propostaDisponiveis = useMemo(
     () => [...new Set(chamados.map((c) => c.proposta_status || VAZIA))],
     [chamados]
@@ -2089,6 +2089,7 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
 
 function ChamadosDashboard() {
   const [ativo, setAtivo] = useState("visao-geral");
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [modalAberto, setModalAberto] = useState(false);
   const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
   const [configAberto, setConfigAberto] = useState(false);
@@ -2318,9 +2319,20 @@ function ChamadosDashboard() {
   const totalBacklog = useMemo(() => chamadosData.filter((c) => c.status === "BackLog").length, [chamadosData]);
 
   return (
-    <div className="flex h-screen w-full bg-[#F5F6F4] text-slate-800" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <aside className="w-64 shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col">
+    <div className="flex h-screen w-full bg-[#F5F6F4] text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {menuMobileAberto && (
+        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMenuMobileAberto(false)} />
+      )}
+      <aside
+        className={`w-64 shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-transform duration-200 ${
+          menuMobileAberto ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+      >
         <div className="px-5 py-6 border-b border-white/10">
+          <a href="/" className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors">
+            <ChevronRight size={12} className="rotate-180" />
+            Voltar para Projetos
+          </a>
           <Wordmark size={20} variant="light" />
           <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-4">Painel de Chamados</div>
         </div>
@@ -2332,7 +2344,7 @@ function ChamadosDashboard() {
                 const IconComp = item.icon;
                 const selecionado = ativo === item.id;
                 return (
-                  <button key={item.id} onClick={() => (item.id === "config" ? setConfigAberto(true) : setAtivo(item.id))}
+                  <button key={item.id} onClick={() => { if (item.id === "config") setConfigAberto(true); else setAtivo(item.id); setMenuMobileAberto(false); }}
                     className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm mb-0.5 font-medium transition-colors"
                     style={selecionado ? { backgroundColor: "rgba(226,0,26,0.14)", color: "#FF9FAE" } : { color: "#94a3b8" }}>
                     <span className="flex items-center gap-2.5"><IconComp size={15} />{item.label}</span>
@@ -2351,14 +2363,37 @@ function ChamadosDashboard() {
         <div className="px-5 py-4 border-t border-white/10 text-[11px] text-slate-500">Dados migrados de 34 abas → 1 base única</div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto">
-        <header className="flex items-center justify-between px-8 py-7 bg-[#F5F6F4]">
-          <div>
-            <h1 className="text-[28px] font-extrabold text-slate-900 leading-tight" style={{ fontFamily: "'Poppins', sans-serif" }}>{ativo === "chamados" ? "Chamados" : ativo === "backlog" ? "Backlog por Cliente" : ativo === "analistas" ? "Carga por Analista" : ativo === "propostas" ? "Propostas Enviadas" : ativo === "aprovadas" ? "Aprovadas por Mês" : ativo === "financeiro" ? "Valores & Margem" : "Visão Geral"}</h1>
-            <p className="text-sm text-slate-500 mt-1">{ativo === "chamados" ? "Lista completa de chamados, com busca e filtros" : ativo === "backlog" ? "Chamados parados em BackLog, agrupados por cliente" : ativo === "analistas" ? "Distribuição de chamados por analista responsável" : ativo === "propostas" ? "Chamados concluídos com proposta enviada aguardando retorno" : ativo === "aprovadas" ? "Propostas aprovadas, mês a mês" : ativo === "financeiro" ? "Valores de projeto, descontos e margem" : "Visão consolidada dos chamados, prazos e status por cliente"}</p>
+      <main className="flex-1 overflow-y-auto w-full min-w-0">
+        <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-5 md:py-7 bg-[#F5F6F4]">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMenuMobileAberto(true)}
+              className="md:hidden shrink-0 text-slate-600 p-1.5 -ml-1.5 rounded-md hover:bg-slate-200"
+              aria-label="Abrir menu"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h1
+                className="text-xl md:text-[28px] font-extrabold text-slate-900 leading-tight truncate"
+                style={{ fontFamily: "'Poppins', sans-serif" }}
+              >
+                {ativo === "chamados" ? "Chamados" : ativo === "backlog" ? "Backlog por Cliente" : ativo === "analistas" ? "Carga por Analista" : ativo === "propostas" ? "Propostas Enviadas" : ativo === "aprovadas" ? "Aprovadas por Mês" : ativo === "financeiro" ? "Valores & Margem" : "Visão Geral"}
+              </h1>
+              <p className="text-xs md:text-sm text-slate-500 mt-1 hidden sm:block truncate">
+                {ativo === "chamados" ? "Lista completa de chamados, com busca e filtros" : ativo === "backlog" ? "Chamados parados em BackLog, agrupados por cliente" : ativo === "analistas" ? "Distribuição de chamados por analista responsável" : ativo === "propostas" ? "Chamados concluídos com proposta enviada aguardando retorno" : ativo === "aprovadas" ? "Propostas aprovadas, mês a mês" : ativo === "financeiro" ? "Valores de projeto, descontos e margem" : "Visão consolidada dos chamados, prazos e status por cliente"}
+              </p>
+            </div>
           </div>
-          <button onClick={() => { setChamadoEmEdicao(null); setModalAberto(true); }} className="flex items-center gap-1.5 text-sm font-medium text-white px-4 py-2.5 rounded-lg" style={{ backgroundColor: BRAND_BLUE }}>
-            <Plus size={15} />Novo Chamado
+          <button
+            onClick={() => { setChamadoEmEdicao(null); setModalAberto(true); }}
+            className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-white px-3 md:px-4 py-2 md:py-2.5 rounded-lg"
+            style={{ backgroundColor: BRAND_BLUE }}
+          >
+            <Plus size={15} />
+            <span className="hidden sm:inline">Novo Chamado</span>
           </button>
         </header>
 
@@ -2371,7 +2406,7 @@ function ChamadosDashboard() {
           <div className="mx-8 mt-4 text-sm text-slate-400">Carregando dados do banco...</div>
         )}
 
-        <div className="p-8 space-y-6">
+        <div className="p-4 md:p-8 space-y-6">
           {ativo === "chamados" ? (
             <ChamadosListaPage chamados={chamadosData} analistas={analistas} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
           ) : ativo === "backlog" ? (
