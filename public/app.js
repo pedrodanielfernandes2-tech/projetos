@@ -134,6 +134,34 @@ async function requestAdminLogin(onSuccess) {
   }
 }
 
+// ---------- chamados login ----------
+function loadChamadosSession() {
+  const stored = sessionStorage.getItem('chamadosPassword');
+  if (stored) {
+    state.chamadosPassword = stored;
+    state.isChamados = true;
+  }
+}
+
+async function requestChamadosLogin(onSuccess) {
+  const senha = prompt('Digite a senha de acesso ao Chamados:');
+  if (senha === null || senha === '') return;
+  try {
+    const res = await fetch('/api/chamados-auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ senha }),
+    });
+    if (!res.ok) throw new Error('senha incorreta');
+    state.chamadosPassword = senha;
+    state.isChamados = true;
+    sessionStorage.setItem('chamadosPassword', senha);
+    if (onSuccess) onSuccess();
+  } catch (err) {
+    alert('Senha incorreta.');
+  }
+}
+
 // ---------- tabs ----------
 function activateTab(btn) {
   document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
@@ -150,6 +178,14 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       requestAdminLogin(() => activateTab(btn));
       return;
     }
+    if (btn.dataset.tab === 'chamados') {
+      if (state.isChamados) {
+        window.location.href = '/chamados.html';
+      } else {
+        requestChamadosLogin(() => { window.location.href = '/chamados.html'; });
+      }
+      return;
+    }
     activateTab(btn);
   });
 });
@@ -157,6 +193,7 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
+  loadChamadosSession();
   const [areas, acoes, fases, wbsStatusList, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/acoes'),
