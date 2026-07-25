@@ -2311,8 +2311,13 @@ function ChamadosDashboard() {
   }, [chamadosFiltrados]);
 
   const topClientes = useMemo(() => {
+    const anoFoco = new Date().getFullYear();
     const contagem = {};
-    chamadosVisiveis.forEach((c) => { contagem[c.cliente_nome] = (contagem[c.cliente_nome] || 0) + 1; });
+    chamadosVisiveis.forEach((c) => {
+      if (!c.data_abertura) return;
+      if (parseDataLocal(c.data_abertura).getFullYear() !== anoFoco) return;
+      contagem[c.cliente_nome] = (contagem[c.cliente_nome] || 0) + 1;
+    });
     return Object.entries(contagem).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([nome, chamados]) => ({ nome, chamados }));
   }, [chamadosVisiveis]);
 
@@ -2328,17 +2333,17 @@ function ChamadosDashboard() {
           menuMobileAberto ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
-        <div className="px-5 py-6 border-b border-white/10">
-          <a href="/" className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-4 transition-colors">
+        <div className="px-5 py-4 border-b border-white/10">
+          <a href="/" className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-3 transition-colors">
             <ChevronRight size={12} className="rotate-180" />
             Voltar para Projetos
           </a>
           <Wordmark size={20} variant="light" />
-          <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-4">Painel de Chamados</div>
+          <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-3">Painel de Chamados</div>
         </div>
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
+        <nav className="flex-1 overflow-y-auto py-3 px-3">
           {navSecoes(kpis.total, totalBacklog).map((secao) => (
-            <div key={secao.titulo} className="mb-5">
+            <div key={secao.titulo} className="mb-4">
               <div className="text-[10px] font-mono tracking-widest text-slate-500 px-2 mb-1.5">{secao.titulo}</div>
               {secao.itens.map((item) => {
                 const IconComp = item.icon;
@@ -2360,7 +2365,7 @@ function ChamadosDashboard() {
             </div>
           ))}
         </nav>
-        <div className="px-5 py-4 border-t border-white/10 text-[11px] text-slate-500">Dados migrados de 34 abas → 1 base única</div>
+        <div className="px-5 py-2.5 border-t border-white/10 text-[11px] text-slate-500">Dados migrados de 34 abas → 1 base única</div>
       </aside>
 
       <main className="flex-1 overflow-y-auto w-full min-w-0">
@@ -2492,7 +2497,7 @@ function ChamadosDashboard() {
             </div>
 
             <div className="bg-white border border-slate-200 rounded-lg p-5">
-              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top Clientes</h2>
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top Clientes · {new Date().getFullYear()}</h2>
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={topClientes.slice(0, 6)} layout="vertical" margin={{ left: 10 }}>
                   <XAxis type="number" hide />
