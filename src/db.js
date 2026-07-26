@@ -180,6 +180,7 @@ async function init() {
     CREATE TABLE IF NOT EXISTS chamados_clientes (
       id SERIAL PRIMARY KEY,
       nome TEXT NOT NULL,
+      ativo BOOLEAN DEFAULT TRUE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
@@ -195,7 +196,9 @@ async function init() {
       pct_qa NUMERIC NOT NULL DEFAULT 0.6,
       pct_gerencial NUMERIC NOT NULL DEFAULT 0.2,
       valor_hora NUMERIC NOT NULL DEFAULT 0,
+      vigente_desde TIMESTAMP DEFAULT NOW(),
       vigente_ate TIMESTAMP,
+      criado_por TEXT DEFAULT '',
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
@@ -205,11 +208,12 @@ async function init() {
 
     CREATE TABLE IF NOT EXISTS chamados (
       id SERIAL PRIMARY KEY,
-      numero INTEGER UNIQUE NOT NULL,
+      numero INTEGER NOT NULL,
       cliente_id INTEGER REFERENCES chamados_clientes(id) ON DELETE SET NULL,
       analista_id INTEGER REFERENCES chamados_analistas(id) ON DELETE SET NULL,
       descricao TEXT DEFAULT '',
       status TEXT DEFAULT '',
+      data_abertura DATE,
       grupo_trabalho TEXT,
       complexidade TEXT,
       proposta_status TEXT,
@@ -222,7 +226,11 @@ async function init() {
       pct_qa_aplicado NUMERIC DEFAULT 0,
       pct_gerencial_aplicado NUMERIC DEFAULT 0,
       valor_hora_aplicado NUMERIC DEFAULT 0,
-      criado_em TIMESTAMP DEFAULT NOW()
+      valor_projeto_real NUMERIC,
+      desconto_negociado_real NUMERIC,
+      valor_total_projeto_real NUMERIC,
+      criado_em TIMESTAMP DEFAULT NOW(),
+      atualizado_em TIMESTAMP DEFAULT NOW()
     );
   `);
 
@@ -287,6 +295,20 @@ async function init() {
   if (chamadosConfigCountRows[0].n === 0) {
     await pool.query('INSERT INTO chamados_config (pct_qa, pct_gerencial, valor_hora) VALUES (0.6, 0.2, 162.94)');
   }
+
+  // Migracao: ajusta o esquema de chamados criado na Fase 1 (antes de conhecermos
+  // a estrutura real dos dados do Supabase) para bater com os campos reais.
+  await pool.query('ALTER TABLE chamados_clientes ADD COLUMN IF NOT EXISTS ativo BOOLEAN DEFAULT TRUE;');
+  await pool.query('ALTER TABLE chamados_config ADD COLUMN IF NOT EXISTS vigente_desde TIMESTAMP DEFAULT NOW();');
+  await pool.query("ALTER TABLE chamados_config ADD COLUMN IF NOT EXISTS criado_por TEXT DEFAULT '';");
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS data_abertura DATE;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP DEFAULT NOW();');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_projeto_real NUMERIC;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS desconto_negociado_real NUMERIC;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_total_projeto_real NUMERIC;');
+  // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas
+  // tem numeros de chamado legitimamente repetidos entre si.
+  await pool.query('ALTER TABLE chamados DROP CONSTRAINT IF EXISTS chamados_numero_key;');
 }
 
 const ready = (async () => {
