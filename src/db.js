@@ -176,6 +176,54 @@ async function init() {
       acao TEXT DEFAULT '',
       ordem INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS chamados_clientes (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS chamados_analistas (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      ativo BOOLEAN DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS chamados_config (
+      id SERIAL PRIMARY KEY,
+      pct_qa NUMERIC NOT NULL DEFAULT 0.6,
+      pct_gerencial NUMERIC NOT NULL DEFAULT 0.2,
+      valor_hora NUMERIC NOT NULL DEFAULT 0,
+      vigente_ate TIMESTAMP,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS chamados_status_ocultos (
+      status TEXT PRIMARY KEY
+    );
+
+    CREATE TABLE IF NOT EXISTS chamados (
+      id SERIAL PRIMARY KEY,
+      numero INTEGER UNIQUE NOT NULL,
+      cliente_id INTEGER REFERENCES chamados_clientes(id) ON DELETE SET NULL,
+      analista_id INTEGER REFERENCES chamados_analistas(id) ON DELETE SET NULL,
+      descricao TEXT DEFAULT '',
+      status TEXT DEFAULT '',
+      grupo_trabalho TEXT,
+      complexidade TEXT,
+      proposta_status TEXT,
+      data_envio_proposta DATE,
+      data_aprovacao DATE,
+      horas_dev NUMERIC DEFAULT 0,
+      pct_margem NUMERIC DEFAULT 0,
+      pct_negociado NUMERIC DEFAULT 0,
+      qtd_parcelas INTEGER DEFAULT 1,
+      pct_qa_aplicado NUMERIC DEFAULT 0,
+      pct_gerencial_aplicado NUMERIC DEFAULT 0,
+      valor_hora_aplicado NUMERIC DEFAULT 0,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,
@@ -232,6 +280,12 @@ async function init() {
     for (let i = 0; i < statusIniciais.length; i++) {
       await pool.query('INSERT INTO wbs_status (nome, ordem) VALUES ($1, $2) ON CONFLICT (nome) DO NOTHING', [statusIniciais[i], i]);
     }
+  }
+
+  // Config inicial de calculo do modulo Chamados, so na primeira vez.
+  const { rows: chamadosConfigCountRows } = await pool.query('SELECT COUNT(*)::int AS n FROM chamados_config WHERE vigente_ate IS NULL');
+  if (chamadosConfigCountRows[0].n === 0) {
+    await pool.query('INSERT INTO chamados_config (pct_qa, pct_gerencial, valor_hora) VALUES (0.6, 0.2, 162.94)');
   }
 }
 
