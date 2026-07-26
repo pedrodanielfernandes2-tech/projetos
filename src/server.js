@@ -23,12 +23,6 @@ app.use('/api/audit-log', require('./routes/auditLog'));
 app.use('/api/projects/:id/wbs', require('./routes/wbs'));
 app.use('/api/wbs', require('./routes/wbsItems'));
 app.use('/api/wbs-templates', require('./routes/wbsTemplates'));
-app.use('/api/chamados-auth', require('./routes/chamadosLogin'));
-app.use('/api/chamados', require('./routes/chamados'));
-app.use('/api/chamados-clientes', require('./routes/chamadosClientes'));
-app.use('/api/chamados-analistas', require('./routes/chamadosAnalistas'));
-app.use('/api/chamados-config', require('./routes/chamadosConfig'));
-app.use('/api/chamados-status-ocultos', require('./routes/chamadosStatusOcultos'));
 
 const PORT = process.env.PORT || 3000;
 

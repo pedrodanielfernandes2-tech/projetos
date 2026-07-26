@@ -57,7 +57,8 @@ async function init() {
       data_fim DATE,
       progresso INTEGER DEFAULT 0,
       criado_em TIMESTAMP DEFAULT NOW(),
-      ultimo_status_notificado TEXT
+      ultimo_status_notificado TEXT,
+      priorizacao_ativa BOOLEAN DEFAULT FALSE
     );
 
     CREATE TABLE IF NOT EXISTS area_tasks (
@@ -135,7 +136,9 @@ async function init() {
       data_fim DATE,
       observacao TEXT DEFAULT '',
       ordem INTEGER DEFAULT 0,
-      criado_em TIMESTAMP DEFAULT NOW()
+      criado_em TIMESTAMP DEFAULT NOW(),
+      impacto NUMERIC DEFAULT 0,
+      esforco NUMERIC DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS acoes (
@@ -185,6 +188,9 @@ async function init() {
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS ultimo_status_notificado TEXT;');
   await pool.query('ALTER TABLE email_config ADD COLUMN IF NOT EXISTS enviar_teams BOOLEAN DEFAULT FALSE;');
   await pool.query("ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS acao TEXT DEFAULT '';");
+  await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS priorizacao_ativa BOOLEAN DEFAULT FALSE;');
+  await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS impacto NUMERIC DEFAULT 0;');
+  await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS esforco NUMERIC DEFAULT 0;');
 
   // Renomeia o status "Impasse" para "Suspensa" em instalacoes ja existentes
   // (tanto no cadastro quanto nos itens de WBS que ja usavam esse status).

@@ -1,4 +1,4 @@
-async function postToTeams({ title, text }) {
+async function postToTeams({ title, text, mentions }) {
   const url = process.env.TEAMS_WEBHOOK_URL;
   if (!url) {
     throw new Error('TEAMS_WEBHOOK_URL nao configurada (configure no Environment do Render)');
@@ -19,6 +19,19 @@ async function postToTeams({ title, text }) {
     version: '1.4',
     body,
   };
+
+  // Mencoes (@Nome) seguem um formato proprio do Teams: a tag <at>Nome</at> precisa
+  // aparecer dentro do texto, E ter uma entrada correspondente aqui em msteams.entities
+  // com o e-mail da pessoa. So colocar "<at>" no texto sem isso nao marca ninguem de verdade.
+  if (mentions && mentions.length > 0) {
+    adaptiveCard.msteams = {
+      entities: mentions.map(m => ({
+        type: 'mention',
+        text: `<at>${m.name}</at>`,
+        mentioned: { id: m.email, name: m.name },
+      })),
+    };
+  }
 
   const res = await fetch(url, {
     method: 'POST',
