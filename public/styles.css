@@ -454,16 +454,16 @@ input:focus, select:focus, textarea:focus {
 .wbs-row-atrasado { border-left: 3px solid var(--danger); }
 .wbs-row-risco { border-left: 3px solid var(--warning); }
 .wbs-col-status { }
-.wbs-col-criticidade { display: none; overflow: hidden; }
+.wbs-col-criticidade { display: none; overflow: hidden; justify-content: center; }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-row {
-  grid-template-columns: 22px 44px minmax(140px, 1fr) 90px 100px 90px 130px 110px 100px 130px;
+  grid-template-columns: 22px 44px minmax(160px, 1fr) 90px 100px 90px 130px 110px 56px 130px;
 }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-col-criticidade {
-  display: flex; align-items: center;
+  display: flex; align-items: center; justify-content: center;
 }
 .wbs-tag-criticidade {
-  font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 5px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-size: 12px; font-weight: 800; width: 24px; height: 24px; line-height: 24px;
+  border-radius: 50%; text-align: center; cursor: default;
 }
 .wbs-empty-cell { color: var(--border); }
 .wbs-actions { display: flex; gap: 3px; justify-content: flex-end; }

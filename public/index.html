@@ -393,7 +393,7 @@
           <span class="wbs-responsavel">Responsável</span>
           <span class="wbs-datas">Prazo</span>
           <span class="wbs-col-status">Status</span>
-          <span class="wbs-col-criticidade">Criticidade</span>
+          <span class="wbs-col-criticidade" title="Criticidade (1=faça agora · 9=perda de tempo)">Crit.</span>
           <span class="wbs-actions"></span>
         </div>
         <div id="wbs-tree" class="stack tight"></div>
@@ -526,6 +526,11 @@
         <textarea id="wbs-item-observacao" placeholder="Observação" class="full-width" rows="3"></textarea>
         <div id="wbs-item-priorizacao-wrap" class="hidden">
           <p class="field-label">Priorização (Impacto x Esforço)</p>
+          <p class="muted" style="margin-top:-4px;">
+            <strong>Impacto</strong>: o quanto essa entrega beneficia o cliente/negócio (vendas, redução de custo, satisfação). ·
+            <strong>Esforço</strong>: o quanto custa fazer (tempo, complexidade, investimento). ·
+            Em ambos: <strong>abaixo de 2</strong> = baixo · <strong>2 a 4</strong> = médio · <strong>acima de 4</strong> = alto.
+          </p>
           <div class="form-row" id="wbs-item-priorizacao-inputs">
             <label style="flex:1;font-size:12px;color:var(--text-muted);">Impacto (0-5)
               <input type="number" id="wbs-item-impacto" min="0" max="5" step="0.5" />

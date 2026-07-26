@@ -2018,7 +2018,9 @@ function corCriticidade(criticidade) {
 function wbsCriticidadeBadge(item) {
   if (!item.criticidade) return '';
   const cor = corCriticidade(item.criticidade);
-  return `<span class="wbs-tag-criticidade" style="background:${cor.bg};color:${cor.text};" title="Impacto: ${(item.impactoEfetivo ?? 0).toFixed(1)} · Esforço: ${(item.esforcoEfetivo ?? 0).toFixed(1)}">${item.criticidade}</span>`;
+  const numero = item.criticidade === 'AVALIAR' ? '?' : item.criticidade.split(' - ')[0];
+  const tooltip = `${item.criticidade} · Impacto: ${(item.impactoEfetivo ?? 0).toFixed(1)} · Esforço: ${(item.esforcoEfetivo ?? 0).toFixed(1)}`;
+  return `<span class="wbs-tag-criticidade" style="background:${cor.bg};color:${cor.text};" title="${tooltip}">${numero}</span>`;
 }
 
 function buildWbsNode(item, depth, forceExpandIds) {
