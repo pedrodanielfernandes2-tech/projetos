@@ -134,34 +134,6 @@ async function requestAdminLogin(onSuccess) {
   }
 }
 
-// ---------- chamados login ----------
-function loadChamadosSession() {
-  const stored = sessionStorage.getItem('chamadosPassword');
-  if (stored) {
-    state.chamadosPassword = stored;
-    state.isChamados = true;
-  }
-}
-
-async function requestChamadosLogin(onSuccess) {
-  const senha = prompt('Digite a senha de acesso ao Chamados:');
-  if (senha === null || senha === '') return;
-  try {
-    const res = await fetch('/api/chamados-auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senha }),
-    });
-    if (!res.ok) throw new Error('senha incorreta');
-    state.chamadosPassword = senha;
-    state.isChamados = true;
-    sessionStorage.setItem('chamadosPassword', senha);
-    if (onSuccess) onSuccess();
-  } catch (err) {
-    alert('Senha incorreta.');
-  }
-}
-
 // ---------- tabs ----------
 function activateTab(btn) {
   document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
@@ -178,14 +150,6 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
       requestAdminLogin(() => activateTab(btn));
       return;
     }
-    if (btn.dataset.tab === 'chamados') {
-      if (state.isChamados) {
-        window.location.href = '/chamados.html';
-      } else {
-        requestChamadosLogin(() => { window.location.href = '/chamados.html'; });
-      }
-      return;
-    }
     activateTab(btn);
   });
 });
@@ -193,7 +157,6 @@ document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
 // ---------- load all data ----------
 async function loadAll() {
   loadAdminSession();
-  loadChamadosSession();
   const [areas, acoes, fases, wbsStatusList, gps, adminEmails, emailConfig, clientes, settings] = await Promise.all([
     api('/areas'),
     api('/acoes'),
@@ -1812,6 +1775,8 @@ state.currentWbsProject = null;
 state.wbsCollapsed = {};
 state.wbsFullTree = [];
 state.wbsSearchQuery = '';
+state.wbsCriticidadeFiltro = '';
+state.wbsPriorizacaoAtiva = false;
 
 function wbsStatusClass(status) {
   const map = {
@@ -1825,13 +1790,51 @@ function wbsStatusClass(status) {
   return map[status] || 'badge-planejamento';
 }
 
+function aplicarClassePriorizacao() {
+  document.getElementById('wbs-estrutura-panel').classList.toggle('wbs-priorizacao-ativa', state.wbsPriorizacaoAtiva);
+  document.getElementById('wbs-priorizacao-extra').classList.toggle('hidden', !state.wbsPriorizacaoAtiva);
+}
+
+function populateCriticidadeFilter() {
+  const sel = document.getElementById('wbs-criticidade-filter');
+  const opcoes = [
+    '1 - Faça agora mesmo!', '2 - Ganho rápido', '3 - Iniciativa gratificante',
+    '4 - Tarefa pontual', '5 - Considerar', '6 - Projeto grande que vale a pena',
+    '7 - Não vale a pena', '8 - Não vale a pena', '9 - Perda de tempo! Nem considere',
+    'AVALIAR',
+  ];
+  sel.innerHTML = '<option value="">Todas as criticidades</option>' + opcoes.map(o => `<option value="${o}">${o}</option>`).join('');
+}
+document.getElementById('wbs-criticidade-filter').addEventListener('change', (e) => {
+  state.wbsCriticidadeFiltro = e.target.value;
+  renderWbsTreeFiltered();
+});
+document.getElementById('wbs-priorizacao-toggle').addEventListener('change', async (e) => {
+  const ativa = e.target.checked;
+  try {
+    await api(`/projects/${state.currentWbsProject.id}/priorizacao`, { method: 'PUT', body: JSON.stringify({ ativa }) });
+    state.wbsPriorizacaoAtiva = ativa;
+    state.currentWbsProject.priorizacao_ativa = ativa;
+    aplicarClassePriorizacao();
+  } catch (err) {
+    alert(err.message);
+    e.target.checked = !ativa;
+  }
+});
+
 function openWbsView(project) {
   state.currentWbsProject = project;
+  state.wbsPriorizacaoAtiva = !!project.priorizacao_ativa;
+  state.wbsCriticidadeFiltro = '';
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
   document.getElementById('view-wbs').classList.remove('hidden');
   document.getElementById('wbs-titulo-projeto').textContent = 'WBS — ' + project.nome;
   document.getElementById('wbs-subtitulo-projeto').textContent =
     (project.chamado ? 'Chamado ' + project.chamado + ' · ' : '') + (project.cliente_nome ? 'Cliente: ' + project.cliente_nome : 'Estrutura detalhada de itens do projeto');
+  document.getElementById('wbs-priorizacao-toggle').checked = state.wbsPriorizacaoAtiva;
+  document.getElementById('wbs-criticidade-filter').value = '';
+  populateCriticidadeFilter();
+  aplicarClassePriorizacao();
   loadWbsData();
 }
 document.getElementById('btn-wbs-voltar').addEventListener('click', () => {
@@ -1840,12 +1843,27 @@ document.getElementById('btn-wbs-voltar').addEventListener('click', () => {
   document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'projetos'));
 });
 
+function renderWbsPriorizacaoAlerta(pendente) {
+  const el = document.getElementById('wbs-priorizacao-alerta');
+  if (!state.wbsPriorizacaoAtiva || !pendente) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <div class="dependency-alert">
+      <span class="dependency-alert-icon">📌</span>
+      <span>${pendente} item(ns) aguardando priorização (ainda sem nota de impacto/esforço).</span>
+    </div>
+  `;
+}
+
 async function loadWbsData() {
   if (!state.currentWbsProject) return;
   const data = await api(`/projects/${state.currentWbsProject.id}/wbs`);
   state.wbsFullTree = data.tree;
   renderWbsStats(data.stats, data.total);
   renderWbsProgress(data.stats, data.total);
+  renderWbsPriorizacaoAlerta(data.prioridadePendente);
   renderWbsTreeFiltered();
 }
 
@@ -1888,8 +1906,8 @@ function renderWbsTree(tree, forceExpandIds) {
   const host = document.getElementById('wbs-tree');
   host.innerHTML = '';
   if (tree.length === 0) {
-    host.innerHTML = state.wbsSearchQuery
-      ? '<p class="muted">Nenhum item encontrado para essa busca.</p>'
+    host.innerHTML = (state.wbsSearchQuery || state.wbsCriticidadeFiltro)
+      ? '<p class="muted">Nenhum item encontrado para esse filtro.</p>'
       : '<p class="muted">Nenhum item cadastrado ainda. Clique em "+ Novo item" para começar.</p>';
     return;
   }
@@ -1900,11 +1918,11 @@ function wbsMatches(item, query) {
   const q = query.toLowerCase();
   return (item.titulo && item.titulo.toLowerCase().includes(q)) || (item.responsavel && item.responsavel.toLowerCase().includes(q));
 }
-function filterTreeForSearch(tree, query, matchedIds) {
+function filterTreeByPredicate(tree, predicate, matchedIds) {
   const resultado = [];
   tree.forEach(item => {
-    const filhosFiltrados = filterTreeForSearch(item.filhos || [], query, matchedIds);
-    const match = wbsMatches(item, query);
+    const filhosFiltrados = filterTreeByPredicate(item.filhos || [], predicate, matchedIds);
+    const match = predicate(item);
     if (match || filhosFiltrados.length > 0) {
       if (filhosFiltrados.length > 0) matchedIds.add(item.id); // forca expandir quem tem descendente encontrado
       resultado.push({ ...item, filhos: filhosFiltrados });
@@ -1913,12 +1931,19 @@ function filterTreeForSearch(tree, query, matchedIds) {
   return resultado;
 }
 function renderWbsTreeFiltered() {
-  if (!state.wbsSearchQuery) {
+  const temBusca = !!state.wbsSearchQuery;
+  const temCriticidade = !!state.wbsCriticidadeFiltro;
+  if (!temBusca && !temCriticidade) {
     renderWbsTree(state.wbsFullTree);
     return;
   }
+  const predicado = (item) => {
+    const okBusca = !temBusca || wbsMatches(item, state.wbsSearchQuery);
+    const okCriticidade = !temCriticidade || item.criticidade === state.wbsCriticidadeFiltro;
+    return okBusca && okCriticidade;
+  };
   const matchedIds = new Set();
-  const filtrada = filterTreeForSearch(state.wbsFullTree, state.wbsSearchQuery, matchedIds);
+  const filtrada = filterTreeByPredicate(state.wbsFullTree, predicado, matchedIds);
   renderWbsTree(filtrada, matchedIds);
 }
 document.getElementById('wbs-search').addEventListener('input', (e) => {
@@ -1942,6 +1967,19 @@ document.getElementById('btn-wbs-colapsar-tudo').addEventListener('click', () =>
   wbsSetAllCollapsed(state.wbsFullTree, true);
   renderWbsTreeFiltered();
 });
+
+function corCriticidade(criticidade) {
+  if (!criticidade || criticidade === 'AVALIAR') return { bg: 'var(--surface-alt)', text: 'var(--text-muted)' };
+  const numero = parseInt(criticidade, 10);
+  if (numero <= 3) return { bg: 'var(--success-soft)', text: 'var(--success)' };
+  if (numero <= 6) return { bg: 'var(--warning-soft)', text: 'var(--warning)' };
+  return { bg: 'var(--danger-soft)', text: 'var(--danger)' };
+}
+function wbsCriticidadeBadge(item) {
+  if (!item.criticidade) return '';
+  const cor = corCriticidade(item.criticidade);
+  return `<span class="wbs-tag-criticidade" style="background:${cor.bg};color:${cor.text};" title="Impacto: ${(item.impactoEfetivo ?? 0).toFixed(1)} · Esforço: ${(item.esforcoEfetivo ?? 0).toFixed(1)}">${item.criticidade}</span>`;
+}
 
 function buildWbsNode(item, depth, forceExpandIds) {
   const wrapper = document.createElement('div');
@@ -1967,6 +2005,7 @@ function buildWbsNode(item, depth, forceExpandIds) {
     <span class="wbs-responsavel">${item.responsavel || '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-datas${prazoClasse}" title="${prazoStatus === 'atrasado' ? 'Atrasado' : prazoStatus === 'risco' ? 'Possível atraso' : prazoStatus === 'ok' ? 'Dentro do prazo' : ''}">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
+    <span class="wbs-col-criticidade">${wbsCriticidadeBadge(item)}</span>
     <div class="wbs-actions">
       <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima" title="Mover para cima">↑</button>
       <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo" title="Mover para baixo">↓</button>
@@ -2225,6 +2264,27 @@ function openWbsItemModal(parentId, itemToEdit) {
   document.getElementById('wbs-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
   document.getElementById('wbs-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
   document.getElementById('wbs-item-observacao').value = itemToEdit ? (itemToEdit.observacao || '') : '';
+
+  const wrap = document.getElementById('wbs-item-priorizacao-wrap');
+  const inputsDiv = document.getElementById('wbs-item-priorizacao-inputs');
+  const calculadaP = document.getElementById('wbs-item-priorizacao-calculada');
+  if (state.wbsPriorizacaoAtiva) {
+    wrap.classList.remove('hidden');
+    const temFilhos = itemToEdit && itemToEdit.filhos && itemToEdit.filhos.length > 0;
+    if (temFilhos) {
+      inputsDiv.classList.add('hidden');
+      calculadaP.classList.remove('hidden');
+      calculadaP.textContent = `Calculado automaticamente pela média dos ${itemToEdit.filhos.length} sub-item(ns): Impacto ${itemToEdit.impactoEfetivo.toFixed(1)} · Esforço ${itemToEdit.esforcoEfetivo.toFixed(1)} · ${itemToEdit.criticidade}`;
+    } else {
+      inputsDiv.classList.remove('hidden');
+      calculadaP.classList.add('hidden');
+      document.getElementById('wbs-item-impacto').value = itemToEdit ? (itemToEdit.impacto || 0) : 0;
+      document.getElementById('wbs-item-esforco').value = itemToEdit ? (itemToEdit.esforco || 0) : 0;
+    }
+  } else {
+    wrap.classList.add('hidden');
+  }
+
   document.getElementById('modal-wbs-item').classList.remove('hidden');
 }
 document.getElementById('btn-cancel-wbs-item').addEventListener('click', () => {
@@ -2243,6 +2303,8 @@ document.getElementById('form-wbs-item').addEventListener('submit', async (e) =>
     data_inicio: document.getElementById('wbs-item-inicio').value || null,
     data_fim: document.getElementById('wbs-item-fim').value || null,
     observacao: document.getElementById('wbs-item-observacao').value.trim(),
+    impacto: Number(document.getElementById('wbs-item-impacto').value) || 0,
+    esforco: Number(document.getElementById('wbs-item-esforco').value) || 0,
   };
   if (!body.titulo) {
     alert('Preencha o título do item.');

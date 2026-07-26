@@ -454,6 +454,17 @@ input:focus, select:focus, textarea:focus {
 .wbs-row-atrasado { border-left: 3px solid var(--danger); }
 .wbs-row-risco { border-left: 3px solid var(--warning); }
 .wbs-col-status { }
+.wbs-col-criticidade { display: none; overflow: hidden; }
+#wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-row {
+  grid-template-columns: 22px 44px minmax(140px, 1fr) 90px 100px 90px 130px 110px 100px 130px;
+}
+#wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-col-criticidade {
+  display: flex; align-items: center;
+}
+.wbs-tag-criticidade {
+  font-size: 10.5px; font-weight: 700; padding: 3px 7px; border-radius: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .wbs-empty-cell { color: var(--border); }
 .wbs-actions { display: flex; gap: 3px; justify-content: flex-end; }
 .wbs-actions .icon-btn { width: 24px; height: 24px; font-size: 11px; }
@@ -474,6 +485,9 @@ input:focus, select:focus, textarea:focus {
   }
   .wbs-col-area, .wbs-col-acao, .wbs-responsavel, .wbs-col-status {
     order: 4; font-size: 11px;
+  }
+  #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-col-criticidade {
+    order: 4; font-size: 11px; display: flex;
   }
   .wbs-datas {
     order: 4; font-size: 11px; flex-basis: 100%;
