@@ -1,45 +1,35 @@
 const express = require('express');
-const { pool } = require('../chamadosDb');
+const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
 const router = express.Router();
 
-router.use(requireChamadosAuth);
-
-router.get('/', async (req, res) => {
-  try {
-    const { rows } = await pool.query(
-      'SELECT * FROM config_calculo WHERE vigente_ate IS NULL LIMIT 1'
-    );
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao buscar configuracao: ' + e.message });
-  }
+router.get('/', requireChamadosAuth, async (req, res) => {
+  const { rows } = await pool.query(
+    'SELECT * FROM chamados_config WHERE vigente_ate IS NULL ORDER BY id DESC LIMIT 1'
+  );
+  res.json(rows);
 });
 
-router.patch('/:id', async (req, res) => {
+router.post('/', requireChamadosAuth, async (req, res) => {
   const { pct_qa, pct_gerencial, valor_hora } = req.body;
-  try {
-    const { rows } = await pool.query(
-      'UPDATE config_calculo SET pct_qa = $1, pct_gerencial = $2, valor_hora = $3 WHERE id = $4 RETURNING *',
-      [pct_qa, pct_gerencial, valor_hora, req.params.id]
-    );
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao atualizar configuracao: ' + e.message });
-  }
+  const { rows } = await pool.query(
+    'INSERT INTO chamados_config (pct_qa, pct_gerencial, valor_hora) VALUES ($1, $2, $3) RETURNING *',
+    [pct_qa, pct_gerencial, valor_hora]
+  );
+  res.status(201).json(rows);
 });
 
-router.post('/', async (req, res) => {
-  const { pct_qa, pct_gerencial, valor_hora } = req.body;
-  try {
-    const { rows } = await pool.query(
-      'INSERT INTO config_calculo (pct_qa, pct_gerencial, valor_hora, criado_por) VALUES ($1,$2,$3,$4) RETURNING *',
-      [pct_qa, pct_gerencial, valor_hora, 'painel-unificado']
-    );
-    res.status(201).json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao criar configuracao: ' + e.message });
-  }
+router.patch('/:id', requireChamadosAuth, async (req, res) => {
+  const campos = [];
+  const valores = [];
+  let i = 1;
+  ['pct_qa', 'pct_gerencial', 'valor_hora'].forEach(campo => {
+    if (req.body[campo] !== undefined) { campos.push(`${campo} = $${i++}`); valores.push(req.body[campo]); }
+  });
+  if (campos.length === 0) return res.json({ ok: true });
+  valores.push(req.params.id);
+  await pool.query(`UPDATE chamados_config SET ${campos.join(', ')} WHERE id = $${i}`, valores);
+  res.json({ ok: true });
 });
 
 module.exports = router;

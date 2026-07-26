@@ -1,44 +1,33 @@
 const express = require('express');
-const { pool } = require('../chamadosDb');
+const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
 const router = express.Router();
 
-router.use(requireChamadosAuth);
-
-router.get('/', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT id, nome, ativo FROM analistas ORDER BY nome ASC');
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao buscar analistas: ' + e.message });
-  }
+router.get('/', requireChamadosAuth, async (req, res) => {
+  const { rows } = await pool.query('SELECT id, nome, ativo FROM chamados_analistas ORDER BY nome');
+  res.json(rows);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireChamadosAuth, async (req, res) => {
   const { nome, ativo } = req.body;
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome obrigatorio' });
-  try {
-    const { rows } = await pool.query(
-      'INSERT INTO analistas (nome, ativo) VALUES ($1, $2) RETURNING *',
-      [nome.trim(), ativo !== false]
-    );
-    res.status(201).json(rows);
-  } catch (e) {
-    res.status(400).json({ error: 'ja existe um analista com esse nome' });
-  }
+  const { rows } = await pool.query(
+    'INSERT INTO chamados_analistas (nome, ativo) VALUES ($1, $2) RETURNING id, nome, ativo',
+    [nome.trim(), ativo !== false]
+  );
+  res.status(201).json(rows);
 });
 
-router.patch('/:id', async (req, res) => {
-  const { ativo } = req.body;
-  try {
-    const { rows } = await pool.query(
-      'UPDATE analistas SET ativo = $1 WHERE id = $2 RETURNING *',
-      [!!ativo, req.params.id]
-    );
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao atualizar analista: ' + e.message });
-  }
+router.patch('/:id', requireChamadosAuth, async (req, res) => {
+  const campos = [];
+  const valores = [];
+  let i = 1;
+  if (req.body.nome !== undefined) { campos.push(`nome = $${i++}`); valores.push(req.body.nome); }
+  if (req.body.ativo !== undefined) { campos.push(`ativo = $${i++}`); valores.push(req.body.ativo); }
+  if (campos.length === 0) return res.json({ ok: true });
+  valores.push(req.params.id);
+  await pool.query(`UPDATE chamados_analistas SET ${campos.join(', ')} WHERE id = $${i}`, valores);
+  res.json({ ok: true });
 });
 
 module.exports = router;

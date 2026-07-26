@@ -1,37 +1,25 @@
 const express = require('express');
-const { pool } = require('../chamadosDb');
+const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
 const router = express.Router();
 
-router.use(requireChamadosAuth);
-
-router.get('/', async (req, res) => {
-  try {
-    const { rows } = await pool.query('SELECT status FROM status_ocultos');
-    res.json(rows);
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao buscar status ocultos: ' + e.message });
-  }
+router.get('/', requireChamadosAuth, async (req, res) => {
+  const { rows } = await pool.query('SELECT status FROM chamados_status_ocultos ORDER BY status');
+  res.json(rows);
 });
 
-router.post('/', async (req, res) => {
+router.post('/', requireChamadosAuth, async (req, res) => {
   const { status } = req.body;
-  try {
-    await pool.query('INSERT INTO status_ocultos (status) VALUES ($1) ON CONFLICT DO NOTHING', [status]);
-    res.status(201).json({ status });
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao ocultar status: ' + e.message });
-  }
+  if (!status) return res.status(400).json({ error: 'status obrigatorio' });
+  await pool.query('INSERT INTO chamados_status_ocultos (status) VALUES ($1) ON CONFLICT (status) DO NOTHING', [status]);
+  res.status(201).json([{ status }]);
 });
 
-router.delete('/', async (req, res) => {
-  const { status } = req.query;
-  try {
-    await pool.query('DELETE FROM status_ocultos WHERE status = $1', [status]);
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(500).json({ error: 'falha ao remover status oculto: ' + e.message });
-  }
+router.delete('/', requireChamadosAuth, async (req, res) => {
+  const status = req.query.status;
+  if (!status) return res.status(400).json({ error: 'status obrigatorio (query ?status=)' });
+  await pool.query('DELETE FROM chamados_status_ocultos WHERE status = $1', [status]);
+  res.json({ ok: true });
 });
 
 module.exports = router;
