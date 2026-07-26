@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const { requireAdminIfSetting } = require('../adminAuth');
 const { registrarAuditoria } = require('../audit');
 const { renderWbsPdf } = require('../wbsPdf');
+const { calcularPrioridades } = require('../wbsPrioridade');
 const router = express.Router({ mergeParams: true });
 
 function getAutor(req) {
@@ -47,9 +48,29 @@ function buildStats(rows) {
   }));
 }
 
+// conta quantos itens-folha (sem sub-itens) ainda nao tem impacto/esforco preenchidos
+function contarPendentesPriorizacao(tree) {
+  let count = 0;
+  function visitar(nos) {
+    nos.forEach(n => {
+      if (n.temNotaPropria && n.criticidade === 'AVALIAR') count++;
+      visitar(n.filhos);
+    });
+  }
+  visitar(tree);
+  return count;
+}
+
 router.get('/', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM wbs_items WHERE project_id = $1 ORDER BY ordem', [req.params.id]);
-  res.json({ tree: buildTree(rows), stats: buildStats(rows), total: rows.length });
+  const tree = buildTree(rows);
+  tree.forEach(calcularPrioridades);
+  res.json({
+    tree,
+    stats: buildStats(rows),
+    total: rows.length,
+    prioridadePendente: contarPendentesPriorizacao(tree),
+  });
 });
 
 router.get('/pdf', async (req, res) => {
@@ -82,7 +103,7 @@ router.get('/pdf', async (req, res) => {
 });
 
 router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
-  const { parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao } = req.body;
+  const { parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco } = req.body;
   if (!titulo || !titulo.trim()) return res.status(400).json({ error: 'titulo obrigatorio' });
 
   const { rows: maxRows } = await pool.query(
@@ -92,9 +113,9 @@ router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, 
   const ordem = maxRows[0].maxordem + 1;
 
   const { rows } = await pool.query(
-    `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
-    [req.params.id, parent_id || null, titulo.trim(), area || '', acao || '', responsavel || '', status || 'Pendente', data_inicio || null, data_fim || null, observacao || '', ordem]
+    `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem, impacto, esforco)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
+    [req.params.id, parent_id || null, titulo.trim(), area || '', acao || '', responsavel || '', status || 'Pendente', data_inicio || null, data_fim || null, observacao || '', ordem, impacto || 0, esforco || 0]
   );
 
   await registrarAuditoria({

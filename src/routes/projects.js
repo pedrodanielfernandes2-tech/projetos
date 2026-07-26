@@ -134,6 +134,18 @@ router.put('/:id', requireAdminIfSetting('restringir_edicao_prazos'), async (req
   res.json(await loadProject(req.params.id));
 });
 
+// Liga/desliga a matriz de priorizacao (Impacto x Esforco) da WBS desse projeto.
+router.put('/:id/priorizacao', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const { ativa } = req.body;
+  await pool.query('UPDATE projects SET priorizacao_ativa = $1 WHERE id = $2', [!!ativa, req.params.id]);
+  await registrarAuditoria({
+    entidade: 'projeto', entidade_id: Number(req.params.id), projeto_id: Number(req.params.id),
+    acao: 'editado', autor: getAutor(req),
+    detalhes: `Priorização (Impacto x Esforço) ${ativa ? 'ativada' : 'desativada'} para este projeto`,
+  });
+  res.json({ ok: true, priorizacao_ativa: !!ativa });
+});
+
 router.delete('/:id', requireAdminIfSetting('restringir_exclusao'), async (req, res) => {
   const projeto = (await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
@@ -271,7 +283,7 @@ router.post('/:id/notificar-teams', async (req, res) => {
   const partes = [
     project.chamado ? `Chamado: ${project.chamado}` : null,
     project.cliente_nome ? `Cliente: ${project.cliente_nome}` : null,
-    project.gerente_email ? `GP: <at>${project.gerente_nome}</at>` : `GP: ${project.gerente_nome || '-'}`,
+    `GP: ${project.gerente_nome || '-'}`,
     `Fase: ${project.fase} · Status do prazo: **${project.status_prazo}**`,
     project.resumo ? `Resumo: ${project.resumo}` : null,
     linhasTarefas ? `\nÁreas:\n${linhasTarefas}` : null,
@@ -280,8 +292,8 @@ router.post('/:id/notificar-teams', async (req, res) => {
   ].filter(Boolean);
 
   try {
-    const mentions = project.gerente_email ? [{ name: project.gerente_nome, email: project.gerente_email }] : [];
-    await postToTeams({ title: `📋 ${project.nome}`, text: partes.join('\n'), mentions });
+    // Mencao pausada por enquanto (o conector CardPlatform do fluxo nao repassa msteams.entities).
+    await postToTeams({ title: `📋 ${project.nome}`, text: partes.join('\n') });
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
