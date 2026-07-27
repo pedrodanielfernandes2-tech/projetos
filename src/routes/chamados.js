@@ -131,4 +131,11 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
   res.json({ ok: true });
 });
 
+router.delete('/:id', requireChamadosAuth, async (req, res) => {
+  const existente = (await pool.query('SELECT id FROM chamados WHERE id = $1', [req.params.id])).rows[0];
+  if (!existente) return res.status(404).json({ error: 'chamado nao encontrado' });
+  await pool.query('DELETE FROM chamados WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
 module.exports = router;
