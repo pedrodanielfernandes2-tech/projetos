@@ -317,7 +317,7 @@ const OPCOES_PROPOSTA = [
   "Release", "Suporte", "Recusada", "Equipe Exclusiva", "Negada",
 ];
 
-function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, config, analistas, chamadoExistente }) {
+function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, chamadoExistente }) {
   const editando = !!chamadoExistente;
 
   const [cliente, setCliente] = useState("");
@@ -639,18 +639,32 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, config, analis
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
-          <button onClick={onFechar} className="text-sm text-slate-500 px-4 py-2 hover:text-slate-700">
-            Cancelar
-          </button>
-          <button
-            disabled={!podeSalvar || salvando}
-            onClick={handleSalvar}
-            className="text-sm text-white px-4 py-2 rounded-md disabled:opacity-40"
-            style={{ backgroundColor: BRAND_BLUE }}
-          >
-            {salvando ? "Salvando..." : editando ? "Salvar Alterações" : "Salvar Chamado"}
-          </button>
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+          <div>
+            {editando && (
+              <button
+                type="button"
+                disabled={excluindo || salvando}
+                onClick={() => onExcluir && onExcluir(chamadoExistente.id)}
+                className="text-sm text-red-600 px-4 py-2 hover:text-red-700 disabled:opacity-40"
+              >
+                {excluindo ? "Excluindo..." : "Excluir chamado"}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={onFechar} className="text-sm text-slate-500 px-4 py-2 hover:text-slate-700">
+              Cancelar
+            </button>
+            <button
+              disabled={!podeSalvar || salvando}
+              onClick={handleSalvar}
+              className="text-sm text-white px-4 py-2 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvando ? "Salvando..." : editando ? "Salvar Alterações" : "Salvar Chamado"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -2094,6 +2108,7 @@ function ChamadosDashboard() {
   const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
   const [configAberto, setConfigAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
   const [salvandoConfig, setSalvandoConfig] = useState(false);
   const [config, setConfig] = useState(CONFIG_PADRAO);
   const [configId, setConfigId] = useState(null);
@@ -2185,6 +2200,21 @@ function ChamadosDashboard() {
       alert("Não foi possível salvar o chamado: " + e.message);
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function excluirChamado(id) {
+    if (!confirm("Excluir este chamado? Essa ação não pode ser desfeita.")) return;
+    setExcluindo(true);
+    try {
+      await sbFetch(`/chamados?id=eq.${id}`, { method: "DELETE" });
+      setModalAberto(false);
+      setChamadoEmEdicao(null);
+      await carregarTudo();
+    } catch (e) {
+      alert("Não foi possível excluir o chamado: " + e.message);
+    } finally {
+      setExcluindo(false);
     }
   }
 
@@ -2529,6 +2559,8 @@ function ChamadosDashboard() {
         onFechar={() => { setModalAberto(false); setChamadoEmEdicao(null); }}
         onSalvar={salvarChamado}
         salvando={salvando}
+        onExcluir={excluirChamado}
+        excluindo={excluindo}
         config={config}
         analistas={analistas}
         chamadoExistente={chamadoEmEdicao}
