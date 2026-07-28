@@ -1687,6 +1687,20 @@ function renderNewProjectAreaDates() {
     el.appendChild(row);
   });
 }
+// Se a pessoa digitar uma data manualmente, a caixinha "ainda não tenho as datas"
+// desmarca sozinha — sem isso, o valor digitado era silenciosamente descartado no
+// salvamento (a caixinha marcada tinha prioridade e forçava as datas para nulo).
+['np-inicio', 'np-fim'].forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    if (e.target.value) document.getElementById('np-sem-datas').checked = false;
+  });
+});
+['edit-inicio', 'edit-fim'].forEach(id => {
+  document.getElementById(id).addEventListener('input', (e) => {
+    if (e.target.value) document.getElementById('edit-sem-datas').checked = false;
+  });
+});
+
 document.getElementById('form-new-project').addEventListener('submit', async (e) => {
   e.preventDefault();
   const nome = document.getElementById('np-nome').value.trim();
