@@ -42,6 +42,15 @@ app.use('/api/projects/:id/wbs', gateProjetos, require('./routes/wbs'));
 app.use('/api/wbs', gateProjetos, require('./routes/wbsItems'));
 app.use('/api/wbs-templates', gateProjetos, require('./routes/wbsTemplates'));
 
+// Rede de seguranca: se qualquer rota deixar passar um erro (via next(err) ou
+// alguma promise rejeitada capturada pelo Express), devolve um JSON de erro
+// legivel em vez do navegador receber uma resposta vazia/quebrada.
+app.use((err, req, res, next) => {
+  console.error('[erro nao tratado]', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: err.message || 'erro interno no servidor' });
+});
+
 const PORT = process.env.PORT || 3000;
 
 ready.then(() => {
