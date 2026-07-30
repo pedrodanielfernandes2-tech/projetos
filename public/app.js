@@ -231,6 +231,41 @@ document.getElementById('form-esqueci-senha').addEventListener('submit', async (
   }
 });
 
+document.getElementById('link-primeiro-acesso').addEventListener('click', () => {
+  document.getElementById('login-form-wrap').classList.add('hidden');
+  document.getElementById('bootstrap-form-wrap').classList.remove('hidden');
+});
+document.getElementById('link-voltar-login-2').addEventListener('click', () => {
+  document.getElementById('bootstrap-form-wrap').classList.add('hidden');
+  document.getElementById('login-form-wrap').classList.remove('hidden');
+});
+document.getElementById('form-bootstrap').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nome = document.getElementById('bootstrap-nome').value.trim();
+  const email = document.getElementById('bootstrap-email').value.trim();
+  const senha = document.getElementById('bootstrap-senha').value;
+  const adminPassword = document.getElementById('bootstrap-admin-senha').value;
+  const erroEl = document.getElementById('bootstrap-erro');
+  erroEl.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/bootstrap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome, email, senha, adminPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'falha ao criar conta');
+    state.usuarioToken = data.token;
+    state.usuario = data.usuario;
+    localStorage.setItem('usuarioToken', data.token);
+    localStorage.setItem('usuarioInfo', JSON.stringify(data.usuario));
+    await aposLogin();
+  } catch (err) {
+    erroEl.textContent = err.message;
+    erroEl.classList.remove('hidden');
+  }
+});
+
 // ---------- admin login ----------
 function loadAdminSession() {
   const stored = sessionStorage.getItem('adminPassword');
