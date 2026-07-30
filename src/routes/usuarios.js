@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAdminAlways } = require('../adminAuth');
-const { gerarTokenSenha } = require('../usuariosAuth');
+const { gerarTokenSenha, hashSenha } = require('../usuariosAuth');
 const { sendMail } = require('../email');
 const router = express.Router();
 
@@ -15,20 +15,30 @@ router.get('/', requireAdminAlways, async (req, res) => {
 });
 
 router.post('/', requireAdminAlways, async (req, res) => {
-  const { nome, email, pode_projetos, pode_implantacao } = req.body;
+  const { nome, email, pode_projetos, pode_implantacao, senha } = req.body;
   if (!nome || !nome.trim() || !email || !email.trim()) {
     return res.status(400).json({ error: 'nome e e-mail são obrigatórios' });
+  }
+  if (senha && senha.length < 6) {
+    return res.status(400).json({ error: 'a senha precisa ter pelo menos 6 caracteres' });
   }
 
   let usuario;
   try {
+    const senhaHash = senha ? await hashSenha(senha) : null;
     const { rows } = await pool.query(
-      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao]
+      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao, senha_hash) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao, senhaHash]
     );
     usuario = rows[0];
   } catch (e) {
     return res.status(400).json({ error: 'já existe um usuário com esse e-mail' });
+  }
+
+  // Se o Admin ja definiu a senha direto na tela, o cadastro esta pronto pra uso
+  // imediato - nao precisa (nem tenta) mandar e-mail nenhum.
+  if (senha) {
+    return res.status(201).json({ id: usuario.id, nome: usuario.nome, email: usuario.email, senhaDefinidaDireto: true });
   }
 
   const token = await gerarTokenSenha(usuario.id);
@@ -69,6 +79,19 @@ router.patch('/:id', requireAdminAlways, async (req, res) => {
 
 router.delete('/:id', requireAdminAlways, async (req, res) => {
   await pool.query('DELETE FROM usuarios WHERE id = $1', [req.params.id]);
+  res.json({ ok: true });
+});
+
+// Define/redefine a senha de um usuario diretamente pelo Admin, sem precisar de e-mail.
+router.patch('/:id/senha', requireAdminAlways, async (req, res) => {
+  const { senha } = req.body;
+  if (!senha || senha.length < 6) {
+    return res.status(400).json({ error: 'a senha precisa ter pelo menos 6 caracteres' });
+  }
+  const existe = (await pool.query('SELECT id FROM usuarios WHERE id = $1', [req.params.id])).rows[0];
+  if (!existe) return res.status(404).json({ error: 'usuário não encontrado' });
+  const hash = await hashSenha(senha);
+  await pool.query('UPDATE usuarios SET senha_hash = $1 WHERE id = $2', [hash, req.params.id]);
   res.json({ ok: true });
 });
 
