@@ -34,6 +34,8 @@ router.post('/', requireAdminAlways, async (req, res) => {
   const token = await gerarTokenSenha(usuario.id);
   const baseUrl = `${req.protocol}://${req.get('host')}`;
   const link = `${baseUrl}/definir-senha.html?token=${token}`;
+  let emailEnviado = true;
+  let emailErro = null;
   try {
     await sendMail({
       to: usuario.email,
@@ -41,10 +43,12 @@ router.post('/', requireAdminAlways, async (req, res) => {
       html: `<p>Olá, ${usuario.nome}!</p><p>Você foi cadastrado(a) no Painel de Projetos. Clique no link abaixo para definir sua senha de acesso (válido por 24h):</p><p><a href="${link}">${link}</a></p>`,
     });
   } catch (e) {
+    emailEnviado = false;
+    emailErro = e.message;
     console.error('[usuarios] falha ao enviar e-mail de boas-vindas:', e.message);
   }
 
-  res.status(201).json({ id: usuario.id, nome: usuario.nome, email: usuario.email });
+  res.status(201).json({ id: usuario.id, nome: usuario.nome, email: usuario.email, emailEnviado, emailErro });
 });
 
 router.patch('/:id', requireAdminAlways, async (req, res) => {
