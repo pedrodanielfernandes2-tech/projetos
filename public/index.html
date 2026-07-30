@@ -24,6 +24,9 @@
             <button type="submit" class="btn btn-primary">Entrar</button>
           </div>
         </form>
+        <p style="margin-top:14px;font-size:12.5px;color:var(--text-muted);">
+          Primeiro acesso ao sistema? <button type="button" id="link-primeiro-acesso" class="btn" style="background:none;border:none;color:var(--accent);padding:0;font-size:inherit;">Criar a conta inicial</button>
+        </p>
       </div>
       <div id="esqueci-form-wrap" class="hidden">
         <h2>Redefinir senha</h2>
@@ -34,6 +37,21 @@
           <div class="form-actions" style="justify-content:space-between;">
             <button type="button" id="link-voltar-login" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Voltar</button>
             <button type="submit" class="btn btn-primary">Enviar link</button>
+          </div>
+        </form>
+      </div>
+      <div id="bootstrap-form-wrap" class="hidden">
+        <h2>Criar conta inicial</h2>
+        <p class="muted">Isso só funciona uma vez, enquanto não existir nenhum usuário cadastrado ainda. Pede a senha de Admin como confirmação.</p>
+        <form id="form-bootstrap">
+          <input type="text" id="bootstrap-nome" placeholder="Seu nome" class="full-width" required />
+          <input type="email" id="bootstrap-email" placeholder="seu-email@visualmix.com.br" class="full-width" required />
+          <input type="password" id="bootstrap-senha" placeholder="Crie uma senha (mín. 6 caracteres)" class="full-width" required minlength="6" />
+          <input type="password" id="bootstrap-admin-senha" placeholder="Senha de Admin (confirmação)" class="full-width" required />
+          <p id="bootstrap-erro" class="status-msg hidden" style="color:var(--danger);"></p>
+          <div class="form-actions" style="justify-content:space-between;">
+            <button type="button" id="link-voltar-login-2" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Voltar</button>
+            <button type="submit" class="btn btn-primary">Criar conta e entrar</button>
           </div>
         </form>
       </div>
