@@ -93,7 +93,7 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
 
   const b = req.body;
   const camposPermitidos = [
-    'descricao', 'status', 'analista_id', 'grupo_trabalho', 'complexidade', 'proposta_status',
+    'numero', 'descricao', 'status', 'analista_id', 'grupo_trabalho', 'complexidade', 'proposta_status',
     'data_envio_proposta', 'data_aprovacao', 'horas_dev', 'pct_margem', 'pct_negociado', 'qtd_parcelas',
     'pct_qa_aplicado', 'pct_gerencial_aplicado', 'valor_hora_aplicado', 'cliente_id', 'data_abertura',
   ];
