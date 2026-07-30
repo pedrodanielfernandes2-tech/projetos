@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Definir senha — Painel de Projetos</title>
+<link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);">
+  <div class="modal" style="max-width:380px;position:static;box-shadow:var(--shadow-md);">
+    <img src="assets/logo.png" alt="Visual Mix" style="height:32px;margin-bottom:16px;" />
+    <h2 id="titulo">Definir senha</h2>
+    <p class="muted" id="subtitulo">Escolha uma senha de pelo menos 6 caracteres.</p>
+    <form id="form-definir-senha">
+      <input type="password" id="senha" placeholder="Nova senha" class="full-width" required minlength="6" />
+      <input type="password" id="senha-confirma" placeholder="Confirme a nova senha" class="full-width" required minlength="6" />
+      <p id="erro" class="status-msg hidden" style="color:var(--danger);"></p>
+      <div class="form-actions" style="justify-content:flex-end;">
+        <button type="submit" class="btn btn-primary">Salvar e entrar</button>
+      </div>
+    </form>
+    <div id="sucesso" class="hidden">
+      <p>Senha definida com sucesso! Redirecionando...</p>
+    </div>
+    <div id="sem-token" class="hidden">
+      <p class="muted">Esse link parece inválido. Peça para o Admin reenviar o convite, ou use "Esqueci minha senha" na tela de login.</p>
+      <a href="/" class="btn">Voltar para o login</a>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (!token) {
+      document.getElementById('form-definir-senha').classList.add('hidden');
+      document.getElementById('sem-token').classList.remove('hidden');
+    }
+
+    document.getElementById('form-definir-senha').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const senha = document.getElementById('senha').value;
+      const confirma = document.getElementById('senha-confirma').value;
+      const erroEl = document.getElementById('erro');
+      erroEl.classList.add('hidden');
+
+      if (senha !== confirma) {
+        erroEl.textContent = 'As senhas não coincidem.';
+        erroEl.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/auth/definir-senha', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, senha }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'falha ao definir senha');
+
+        localStorage.setItem('usuarioToken', data.token);
+        localStorage.setItem('usuarioInfo', JSON.stringify(data.usuario));
+
+        document.getElementById('form-definir-senha').classList.add('hidden');
+        document.getElementById('sucesso').classList.remove('hidden');
+        setTimeout(() => { window.location.href = '/'; }, 1200);
+      } catch (err) {
+        erroEl.textContent = err.message;
+        erroEl.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>

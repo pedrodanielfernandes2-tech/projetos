@@ -18,8 +18,8 @@ const state = {
   isChamados: false,
   chamadosPassword: null,
   autorNome: '',
-  isChamados: false,
-  chamadosPassword: null,
+  usuarioToken: null,
+  usuario: null,
   expanded: {}, // projectId -> 'tarefas' | 'historico' | 'links' | null
   newProjectAreas: {}, // area -> {inicio, fim}
   calendarMonth: new Date().getMonth(),
@@ -99,6 +99,7 @@ async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
   if (state.autorNome) headers['x-autor'] = state.autorNome;
+  if (state.usuarioToken) headers['Authorization'] = 'Bearer ' + state.usuarioToken;
   const res = await fetch('/api' + path, {
     ...opts,
     headers: { ...headers, ...(opts.headers || {}) },
@@ -109,11 +110,126 @@ async function api(path, opts = {}) {
       state.isAdmin = false;
       state.adminPassword = null;
       sessionStorage.removeItem('adminPassword');
+      if (err.error === 'sessao invalida ou expirada' || err.error === 'nao autenticado') {
+        logout();
+      }
     }
     throw new Error(err.error || 'falha na requisicao');
   }
   return res.status === 204 ? null : res.json();
 }
+
+// ---------- login de usuario ----------
+function loadUsuarioSession() {
+  const token = localStorage.getItem('usuarioToken');
+  const infoRaw = localStorage.getItem('usuarioInfo');
+  if (token && infoRaw) {
+    try {
+      state.usuarioToken = token;
+      state.usuario = JSON.parse(infoRaw);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  return false;
+}
+
+function aplicarPermissoesMenu() {
+  document.querySelectorAll('.sidebar-nav-btn[data-requer]').forEach(btn => {
+    const permissao = btn.dataset.requer;
+    const temPermissao = state.usuario && state.usuario[permissao];
+    btn.classList.toggle('hidden', !temPermissao);
+  });
+  const nomeEl = document.getElementById('sidebar-usuario-nome');
+  if (nomeEl) nomeEl.textContent = state.usuario ? state.usuario.nome : '';
+}
+
+function mostrarPortaoLogin() {
+  document.getElementById('login-gate').classList.remove('hidden');
+  document.getElementById('app-shell').classList.add('hidden');
+}
+function esconderPortaoLogin() {
+  document.getElementById('login-gate').classList.add('hidden');
+  document.getElementById('app-shell').classList.remove('hidden');
+}
+
+function mostrarSemAcessoProjetos() {
+  const lista = document.getElementById('project-list');
+  const stats = document.getElementById('stats-grid');
+  if (lista) lista.innerHTML = '<p class="muted">Você ainda não tem acesso a este módulo. Peça para o Admin liberar seu acesso em "Projetos".</p>';
+  if (stats) stats.innerHTML = '';
+}
+
+function logout() {
+  localStorage.removeItem('usuarioToken');
+  localStorage.removeItem('usuarioInfo');
+  state.usuarioToken = null;
+  state.usuario = null;
+  mostrarPortaoLogin();
+}
+document.getElementById('btn-logout').addEventListener('click', logout);
+
+async function aposLogin() {
+  esconderPortaoLogin();
+  aplicarPermissoesMenu();
+  if (state.usuario.pode_projetos) {
+    await loadAll();
+  } else {
+    mostrarSemAcessoProjetos();
+  }
+}
+
+document.getElementById('form-login').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('login-email').value.trim();
+  const senha = document.getElementById('login-senha').value;
+  const erroEl = document.getElementById('login-erro');
+  erroEl.classList.add('hidden');
+  try {
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, senha }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'falha ao entrar');
+    state.usuarioToken = data.token;
+    state.usuario = data.usuario;
+    localStorage.setItem('usuarioToken', data.token);
+    localStorage.setItem('usuarioInfo', JSON.stringify(data.usuario));
+    await aposLogin();
+  } catch (err) {
+    erroEl.textContent = err.message;
+    erroEl.classList.remove('hidden');
+  }
+});
+
+document.getElementById('link-esqueci-senha').addEventListener('click', () => {
+  document.getElementById('login-form-wrap').classList.add('hidden');
+  document.getElementById('esqueci-form-wrap').classList.remove('hidden');
+});
+document.getElementById('link-voltar-login').addEventListener('click', () => {
+  document.getElementById('esqueci-form-wrap').classList.add('hidden');
+  document.getElementById('login-form-wrap').classList.remove('hidden');
+});
+document.getElementById('form-esqueci-senha').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('esqueci-email').value.trim();
+  const statusEl = document.getElementById('esqueci-status');
+  statusEl.classList.remove('hidden');
+  statusEl.textContent = 'Enviando...';
+  try {
+    await fetch('/api/auth/esqueci-senha', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    statusEl.textContent = 'Se esse e-mail existir no sistema, um link foi enviado.';
+  } catch (err) {
+    statusEl.textContent = 'Algo deu errado, tenta de novo em instantes.';
+  }
+});
 
 // ---------- admin login ----------
 function loadAdminSession() {
@@ -173,7 +289,7 @@ function activateTab(btn) {
   document.getElementById('view-dashboard').classList.toggle('hidden', btn.dataset.tab !== 'dashboard');
   document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
   if (btn.dataset.tab === 'dashboard') renderDashboard();
-  if (btn.dataset.tab === 'admin') renderAuditLog();
+  if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
 }
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1053,6 +1169,84 @@ async function renderAuditLog() {
 }
 document.getElementById('audit-apenas-datas').addEventListener('change', renderAuditLog);
 
+// ---------- Usuarios admin ----------
+async function refreshUsuarios() {
+  const host = document.getElementById('usuarios-list');
+  let usuarios;
+  try {
+    usuarios = await api('/usuarios');
+  } catch (err) {
+    host.innerHTML = `<p class="muted">${err.message}</p>`;
+    return;
+  }
+  if (usuarios.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum usuário cadastrado ainda.</p>';
+    return;
+  }
+  host.innerHTML = '';
+  usuarios.forEach(u => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    const menus = [u.pode_projetos ? 'Projetos' : null, u.pode_implantacao ? 'Implantação' : null].filter(Boolean).join(', ') || 'nenhum menu liberado';
+    row.innerHTML = `
+      <div class="list-row-main">
+        <p class="list-row-name">${u.nome}${!u.ativo ? ' <span style="color:var(--danger);font-weight:400;">(inativo)</span>' : ''}</p>
+        <p class="list-row-sub">${u.email} · ${menus} · ${u.senha_definida ? 'senha definida' : '⏳ aguardando definir senha'}</p>
+      </div>
+      <div style="display:flex;gap:6px;">
+        ${!u.senha_definida ? '<button class="btn" data-reenviar>Reenviar convite</button>' : ''}
+        <button class="btn" data-alternar-ativo>${u.ativo ? 'Desativar' : 'Reativar'}</button>
+        <button class="icon-btn" data-excluir-usuario aria-label="Excluir usuário">✕</button>
+      </div>
+    `;
+    if (!u.senha_definida) {
+      row.querySelector('[data-reenviar]').onclick = async () => {
+        try {
+          await api(`/usuarios/${u.id}/reenviar-convite`, { method: 'POST' });
+          alert(`Convite reenviado para ${u.email}.`);
+        } catch (err) {
+          alert(err.message);
+        }
+      };
+    }
+    row.querySelector('[data-alternar-ativo]').onclick = async () => {
+      try {
+        await api(`/usuarios/${u.id}`, { method: 'PATCH', body: JSON.stringify({ ativo: !u.ativo }) });
+        await refreshUsuarios();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    row.querySelector('[data-excluir-usuario]').onclick = async () => {
+      if (!confirm(`Excluir o usuário "${u.nome}"? Essa ação não pode ser desfeita.`)) return;
+      try {
+        await api(`/usuarios/${u.id}`, { method: 'DELETE' });
+        await refreshUsuarios();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    host.appendChild(row);
+  });
+}
+
+document.getElementById('form-usuario').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const nome = document.getElementById('usuario-nome').value.trim();
+  const email = document.getElementById('usuario-email').value.trim();
+  const pode_projetos = document.getElementById('usuario-pode-projetos').checked;
+  const pode_implantacao = document.getElementById('usuario-pode-implantacao').checked;
+  if (!nome || !email) return;
+  try {
+    await api('/usuarios', { method: 'POST', body: JSON.stringify({ nome, email, pode_projetos, pode_implantacao }) });
+    e.target.reset();
+    alert(`Usuário "${nome}" cadastrado. Um e-mail foi enviado para ${email} com o link para definir a senha.`);
+    await refreshUsuarios();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
 // ---------- dashboard ----------
 function buildDonutSvg(segments) {
   const total = segments.reduce((s, x) => s + x.value, 0) || 1;
@@ -1822,7 +2016,11 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
   }
 });
 
-loadAll();
+if (loadUsuarioSession()) {
+  aposLogin();
+} else {
+  mostrarPortaoLogin();
+}
 
 // ---------- WBS ----------
 state.currentWbsProject = null;

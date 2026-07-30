@@ -10,19 +10,53 @@
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="app-shell">
+  <div id="login-gate" class="modal-overlay">
+    <div class="modal" style="max-width:380px;">
+      <img src="assets/logo.png" alt="Visual Mix" style="height:32px;margin-bottom:16px;" />
+      <div id="login-form-wrap">
+        <h2>Entrar</h2>
+        <form id="form-login">
+          <input type="email" id="login-email" placeholder="seu-email@visualmix.com.br" class="full-width" required autocomplete="username" />
+          <input type="password" id="login-senha" placeholder="Senha" class="full-width" required autocomplete="current-password" />
+          <p id="login-erro" class="status-msg hidden" style="color:var(--danger);"></p>
+          <div class="form-actions" style="justify-content:space-between;">
+            <button type="button" id="link-esqueci-senha" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Esqueci minha senha</button>
+            <button type="submit" class="btn btn-primary">Entrar</button>
+          </div>
+        </form>
+      </div>
+      <div id="esqueci-form-wrap" class="hidden">
+        <h2>Redefinir senha</h2>
+        <p class="muted">Informe seu e-mail cadastrado — se ele existir, mandamos um link pra você definir uma senha nova.</p>
+        <form id="form-esqueci-senha">
+          <input type="email" id="esqueci-email" placeholder="seu-email@visualmix.com.br" class="full-width" required />
+          <p id="esqueci-status" class="status-msg hidden"></p>
+          <div class="form-actions" style="justify-content:space-between;">
+            <button type="button" id="link-voltar-login" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Voltar</button>
+            <button type="submit" class="btn btn-primary">Enviar link</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-shell hidden" id="app-shell">
     <aside class="sidebar">
       <div class="sidebar-brand-wrap">
         <img src="assets/logo-white.png" alt="Visual Mix" class="sidebar-logo" />
         <p class="sidebar-subtitle">Painel de Projetos</p>
       </div>
       <nav class="sidebar-nav">
-        <button class="sidebar-nav-btn active" data-tab="projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
-        <button class="sidebar-nav-btn" data-tab="dashboard"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
+        <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
+        <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
         <button class="sidebar-nav-btn" data-tab="chamados"><span class="sidebar-nav-icon">&#128179;</span>Chamados</button>
         <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
       </nav>
-      <p class="sidebar-footer">Visual Mix · Tecnologia para o varejo</p>
+      <p class="sidebar-footer">
+        <span id="sidebar-usuario-nome"></span> ·
+        <button id="btn-logout" class="btn" style="background:none;border:none;color:inherit;text-decoration:underline;padding:0;font-size:inherit;">Sair</button>
+        <br />Visual Mix · Tecnologia para o varejo
+      </p>
     </aside>
 
     <main class="content-area">
@@ -304,6 +338,25 @@
               <button type="submit" class="btn btn-primary">Salvar permissões</button>
             </div>
             <p id="perm-status" class="status-msg hidden"></p>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Usuários</h2>
+          <p class="muted">Cadastre quem pode acessar o sistema, com e-mail empresarial e permissão por menu. Ao cadastrar, a pessoa recebe um e-mail com um link para definir a própria senha.</p>
+          <div id="usuarios-list" class="stack tight"></div>
+          <form id="form-usuario" class="form" style="margin-top:10px;">
+            <div class="form-row">
+              <input type="text" id="usuario-nome" placeholder="Nome" required />
+              <input type="email" id="usuario-email" placeholder="email@visualmix.com.br" required />
+            </div>
+            <div class="checkbox-row">
+              <label><input type="checkbox" id="usuario-pode-projetos" /> Acessa Projetos/Dashboard</label>
+              <label><input type="checkbox" id="usuario-pode-implantacao" /> Acessa Implantação</label>
+            </div>
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary">Cadastrar usuário</button>
+            </div>
           </form>
         </div>
 

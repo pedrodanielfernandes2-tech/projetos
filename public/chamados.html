@@ -321,6 +321,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const editando = !!chamadoExistente;
 
   const [cliente, setCliente] = useState("");
+  const [numero, setNumero] = useState("");
   const [descricao, setDescricao] = useState("");
   const [analista, setAnalista] = useState("");
   const [status, setStatus] = useState("A Iniciar");
@@ -339,6 +340,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
     if (!aberto) return;
     if (chamadoExistente) {
       setCliente(chamadoExistente.cliente_nome || "");
+      setNumero(String(chamadoExistente.numero ?? ""));
       setDescricao(chamadoExistente.descricao || "");
       setAnalista(chamadoExistente.analista_nome || "");
       setStatus(chamadoExistente.status || "A Iniciar");
@@ -356,6 +358,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       );
     } else {
       setCliente("");
+      setNumero("");
       setDescricao("");
       setAnalista(analistas[0]?.nome || "");
       setStatus("A Iniciar");
@@ -396,11 +399,12 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmtMoeda = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const podeSalvar = cliente.trim() && Number(horasDev) >= 0;
+  const podeSalvar = cliente.trim() && Number(horasDev) >= 0 && numero && Number(numero) > 0;
 
   function handleSalvar() {
     onSalvar({
       id: chamadoExistente?.id,
+      numero: Number(numero),
       cliente,
       descricao,
       analista,
@@ -435,7 +439,17 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
         <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Campos manuais */}
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Nº do chamado</label>
+                <input
+                  type="number"
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  placeholder="Ex: 90125"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
               <div>
                 <label className="text-xs font-medium text-slate-500 block mb-1">Cliente</label>
                 <input
@@ -2167,6 +2181,7 @@ function ChamadosDashboard() {
       const analista = analistas.find((a) => a.nome === registro.analista);
 
       const payload = {
+        numero: registro.numero,
         descricao: registro.descricao,
         status: registro.status,
         analista_id: analista ? analista.id : null,
@@ -2187,10 +2202,9 @@ function ChamadosDashboard() {
       if (editando) {
         await sbFetch(`/chamados?id=eq.${registro.id}`, { method: "PATCH", body: JSON.stringify(payload) });
       } else {
-        const maiorNumero = chamadosData.reduce((max, c) => Math.max(max, Number(c.numero) || 0), 90000);
         await sbFetch("/chamados", {
           method: "POST",
-          body: JSON.stringify({ ...payload, numero: maiorNumero + 1, cliente_id: cliente.id }),
+          body: JSON.stringify({ ...payload, cliente_id: cliente.id }),
         });
       }
       setModalAberto(false);
