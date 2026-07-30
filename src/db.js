@@ -232,6 +232,26 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW(),
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS usuarios (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      senha_hash TEXT,
+      pode_projetos BOOLEAN DEFAULT FALSE,
+      pode_implantacao BOOLEAN DEFAULT FALSE,
+      ativo BOOLEAN DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    CREATE TABLE IF NOT EXISTS usuarios_tokens (
+      id SERIAL PRIMARY KEY,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      token TEXT NOT NULL UNIQUE,
+      usado BOOLEAN DEFAULT FALSE,
+      expira_em TIMESTAMP NOT NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
   `);
 
   // Migracao: remove a coluna "areas" de bancos criados por uma versao anterior,

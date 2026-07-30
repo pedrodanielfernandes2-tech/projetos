@@ -178,4 +178,4 @@ async function sendDigestNow() {
   return { enviados, emailErro, teams };
 }
 
-module.exports = { sendDigestNow, getAllProjectsFull };
+module.exports = { sendDigestNow, getAllProjectsFull, sendMail };
