@@ -1273,9 +1273,13 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
   const pode_implantacao = document.getElementById('usuario-pode-implantacao').checked;
   if (!nome || !email) return;
   try {
-    await api('/usuarios', { method: 'POST', body: JSON.stringify({ nome, email, pode_projetos, pode_implantacao }) });
+    const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify({ nome, email, pode_projetos, pode_implantacao }) });
     e.target.reset();
-    alert(`Usuário "${nome}" cadastrado. Um e-mail foi enviado para ${email} com o link para definir a senha.`);
+    if (resultado.emailEnviado) {
+      alert(`Usuário "${nome}" cadastrado. Um e-mail foi enviado para ${email} com o link para definir a senha.`);
+    } else {
+      alert(`Usuário "${nome}" foi cadastrado, mas o e-mail NÃO pôde ser enviado (motivo: ${resultado.emailErro}). Use o botão "Reenviar convite" na lista assim que corrigir o problema de envio de e-mail.`);
+    }
     await refreshUsuarios();
   } catch (err) {
     alert(err.message);
