@@ -1228,8 +1228,9 @@ async function refreshUsuarios() {
         <p class="list-row-name">${u.nome}${!u.ativo ? ' <span style="color:var(--danger);font-weight:400;">(inativo)</span>' : ''}</p>
         <p class="list-row-sub">${u.email} · ${menus} · ${u.senha_definida ? 'senha definida' : '⏳ aguardando definir senha'}</p>
       </div>
-      <div style="display:flex;gap:6px;">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${!u.senha_definida ? '<button class="btn" data-reenviar>Reenviar convite</button>' : ''}
+        <button class="btn" data-definir-senha>${u.senha_definida ? 'Redefinir senha' : 'Definir senha agora'}</button>
         <button class="btn" data-alternar-ativo>${u.ativo ? 'Desativar' : 'Reativar'}</button>
         <button class="icon-btn" data-excluir-usuario aria-label="Excluir usuário">✕</button>
       </div>
@@ -1244,6 +1245,21 @@ async function refreshUsuarios() {
         }
       };
     }
+    row.querySelector('[data-definir-senha]').onclick = async () => {
+      const novaSenha = prompt(`Nova senha para ${u.nome} (mínimo 6 caracteres):`);
+      if (!novaSenha) return;
+      if (novaSenha.length < 6) {
+        alert('A senha precisa ter pelo menos 6 caracteres.');
+        return;
+      }
+      try {
+        await api(`/usuarios/${u.id}/senha`, { method: 'PATCH', body: JSON.stringify({ senha: novaSenha }) });
+        alert(`Senha de ${u.nome} definida. Avise a pessoa por fora (WhatsApp, pessoalmente, etc.).`);
+        await refreshUsuarios();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
     row.querySelector('[data-alternar-ativo]').onclick = async () => {
       try {
         await api(`/usuarios/${u.id}`, { method: 'PATCH', body: JSON.stringify({ ativo: !u.ativo }) });
@@ -1269,16 +1285,25 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
   e.preventDefault();
   const nome = document.getElementById('usuario-nome').value.trim();
   const email = document.getElementById('usuario-email').value.trim();
+  const senha = document.getElementById('usuario-senha').value;
   const pode_projetos = document.getElementById('usuario-pode-projetos').checked;
   const pode_implantacao = document.getElementById('usuario-pode-implantacao').checked;
   if (!nome || !email) return;
+  if (senha && senha.length < 6) {
+    alert('A senha precisa ter pelo menos 6 caracteres (ou deixe em branco pra convidar por e-mail).');
+    return;
+  }
   try {
-    const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify({ nome, email, pode_projetos, pode_implantacao }) });
+    const body = { nome, email, pode_projetos, pode_implantacao };
+    if (senha) body.senha = senha;
+    const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
-    if (resultado.emailEnviado) {
+    if (resultado.senhaDefinidaDireto) {
+      alert(`Usuário "${nome}" cadastrado com a senha que você definiu. Já pode avisar a pessoa e ela entra direto.`);
+    } else if (resultado.emailEnviado) {
       alert(`Usuário "${nome}" cadastrado. Um e-mail foi enviado para ${email} com o link para definir a senha.`);
     } else {
-      alert(`Usuário "${nome}" foi cadastrado, mas o e-mail NÃO pôde ser enviado (motivo: ${resultado.emailErro}). Use o botão "Reenviar convite" na lista assim que corrigir o problema de envio de e-mail.`);
+      alert(`Usuário "${nome}" foi cadastrado, mas o e-mail NÃO pôde ser enviado (motivo: ${resultado.emailErro}). Use o botão "Definir senha agora" ou "Reenviar convite" na lista.`);
     }
     await refreshUsuarios();
   } catch (err) {

@@ -361,13 +361,14 @@
 
         <div class="panel">
           <h2>Usuários</h2>
-          <p class="muted">Cadastre quem pode acessar o sistema, com e-mail empresarial e permissão por menu. Ao cadastrar, a pessoa recebe um e-mail com um link para definir a própria senha.</p>
+          <p class="muted">Cadastre quem pode acessar o sistema, com e-mail empresarial e permissão por menu. Se você já definir uma senha aqui, a pessoa já pode entrar direto (avise ela por fora). Se deixar em branco, o sistema tenta mandar um e-mail com o link pra ela mesma definir.</p>
           <div id="usuarios-list" class="stack tight"></div>
           <form id="form-usuario" class="form" style="margin-top:10px;">
             <div class="form-row">
               <input type="text" id="usuario-nome" placeholder="Nome" required />
               <input type="email" id="usuario-email" placeholder="email@visualmix.com.br" required />
             </div>
+            <input type="password" id="usuario-senha" placeholder="Senha (opcional — deixe em branco pra convidar por e-mail)" minlength="6" />
             <div class="checkbox-row">
               <label><input type="checkbox" id="usuario-pode-projetos" /> Acessa Projetos/Dashboard</label>
               <label><input type="checkbox" id="usuario-pode-implantacao" /> Acessa Implantação</label>
