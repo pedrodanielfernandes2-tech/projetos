@@ -13,6 +13,36 @@ function usuarioPublico(usuario) {
   };
 }
 
+// Cria o PRIMEIRO usuario do sistema. So funciona enquanto a tabela usuarios
+// estiver vazia (se desabilita sozinha depois disso), e exige a senha de Admin
+// como uma camada extra de protecao contra qualquer um chegar primeiro.
+router.post('/bootstrap', async (req, res) => {
+  const { nome, email, senha, adminPassword } = req.body;
+  if (!process.env.ADMIN_PASSWORD || adminPassword !== process.env.ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'senha de admin inválida' });
+  }
+  const { rows: existentes } = await pool.query('SELECT COUNT(*)::int AS n FROM usuarios');
+  if (existentes[0].n > 0) {
+    return res.status(400).json({ error: 'já existe usuário cadastrado - peça para um administrador te cadastrar dentro do Admin' });
+  }
+  if (!nome || !nome.trim() || !email || !email.trim() || !senha || senha.length < 6) {
+    return res.status(400).json({ error: 'preencha nome, e-mail e uma senha de pelo menos 6 caracteres' });
+  }
+  const hash = await hashSenha(senha);
+  let usuario;
+  try {
+    const { rows } = await pool.query(
+      'INSERT INTO usuarios (nome, email, senha_hash, pode_projetos, pode_implantacao) VALUES ($1, $2, $3, TRUE, TRUE) RETURNING *',
+      [nome.trim(), email.toLowerCase().trim(), hash]
+    );
+    usuario = rows[0];
+  } catch (e) {
+    return res.status(400).json({ error: 'já existe um usuário com esse e-mail' });
+  }
+  const token = gerarSessao(usuario);
+  res.json({ token, usuario: usuarioPublico(usuario) });
+});
+
 router.post('/login', async (req, res) => {
   const { email, senha } = req.body;
   if (!email || !senha) return res.status(400).json({ error: 'informe e-mail e senha' });
