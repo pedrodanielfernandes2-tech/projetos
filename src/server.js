@@ -17,6 +17,7 @@ app.use('/api/cron', require('./routes/cron')); // protegido por token proprio (
 
 // ---------- gerenciamento de usuarios (protegido pela senha de Admin) ----------
 app.use('/api/usuarios', require('./routes/usuarios'));
+app.use('/api/implantacao', require('./routes/implantacao'));
 
 // ---------- modulo Chamados (mantem seu proprio gate por senha unica, por enquanto) ----------
 app.use('/api/chamados', require('./routes/chamados'));
