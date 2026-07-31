@@ -2067,6 +2067,9 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
 state.implantacaoProjetos = []; // lista completa, pra busca no "Incluir"
 state.implantacaoProjetoAlvo = null; // project_id escolhido no fluxo de "Incluir"
 
+state.implantacaoDados = [];
+state.implantacaoFiltro = null;
+
 async function refreshImplantacao() {
   const host = document.getElementById('implantacao-lista');
   let projetos;
@@ -2076,12 +2079,82 @@ async function refreshImplantacao() {
     host.innerHTML = `<p class="muted">${err.message}</p>`;
     return;
   }
-  if (projetos.length === 0) {
+  state.implantacaoDados = projetos;
+  renderImplantacaoStats();
+  renderImplantacaoFiltros();
+  renderImplantacaoListaFiltrada();
+}
+
+function todosItensImplantacao() {
+  return state.implantacaoDados.flatMap(p => p.itens);
+}
+
+function renderImplantacaoStats() {
+  const todos = todosItensImplantacao();
+  const contagem = {};
+  let atrasados = 0;
+  todos.forEach(item => {
+    contagem[item.status] = (contagem[item.status] || 0) + 1;
+    if (wbsPrazoStatus(item) === 'atrasado') atrasados++;
+  });
+  const host = document.getElementById('implantacao-stats');
+  host.innerHTML = `
+    <div class="stat-card"><p class="stat-label">Total de itens</p><p class="stat-value">${todos.length}</p></div>
+    <div class="stat-card"><p class="stat-label">Pendentes</p><p class="stat-value" style="color:var(--danger)">${contagem['Pendente'] || 0}</p></div>
+    <div class="stat-card"><p class="stat-label">Em andamento</p><p class="stat-value" style="color:var(--accent)">${contagem['Em Andamento'] || 0}</p></div>
+    <div class="stat-card"><p class="stat-label">Suspensos</p><p class="stat-value">${contagem['Suspensa'] || 0}</p></div>
+    <div class="stat-card"><p class="stat-label">Atrasados</p><p class="stat-value" style="color:var(--danger)">${atrasados}</p></div>
+  `;
+}
+
+function renderImplantacaoFiltros() {
+  const host = document.getElementById('implantacao-filtros');
+  const opcoes = [
+    { valor: null, label: 'Todos' },
+    { valor: 'Pendente', label: 'Pendente' },
+    { valor: 'Em Andamento', label: 'Em Andamento' },
+    { valor: 'Suspensa', label: 'Suspensa' },
+    { valor: 'Concluído', label: 'Concluído' },
+    { valor: 'atrasado', label: '⚠️ Atrasados' },
+  ];
+  host.innerHTML = '';
+  opcoes.forEach(op => {
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (state.implantacaoFiltro === op.valor ? ' selected' : '');
+    chip.textContent = op.label;
+    chip.onclick = () => {
+      state.implantacaoFiltro = op.valor;
+      renderImplantacaoFiltros();
+      renderImplantacaoListaFiltrada();
+    };
+    host.appendChild(chip);
+  });
+}
+
+function renderImplantacaoListaFiltrada() {
+  const host = document.getElementById('implantacao-lista');
+  if (state.implantacaoDados.length === 0) {
     host.innerHTML = '<p class="muted">Nenhum checklist seu ainda. Clique em "+ Incluir projeto" pra começar.</p>';
     return;
   }
+  const filtro = state.implantacaoFiltro;
+  const projetosFiltrados = state.implantacaoDados
+    .map(p => ({
+      ...p,
+      itens: p.itens.filter(item => {
+        if (!filtro) return true;
+        if (filtro === 'atrasado') return wbsPrazoStatus(item) === 'atrasado';
+        return item.status === filtro;
+      }),
+    }))
+    .filter(p => p.itens.length > 0);
+
+  if (projetosFiltrados.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum item encontrado para esse filtro.</p>';
+    return;
+  }
   host.innerHTML = '';
-  projetos.forEach(p => {
+  projetosFiltrados.forEach(p => {
     const card = document.createElement('div');
     card.className = 'card';
     card.innerHTML = `
@@ -2104,8 +2177,13 @@ async function refreshImplantacao() {
 function buildImplantacaoItemRow(item) {
   const row = document.createElement('div');
   row.className = 'detail-row';
+  const prazoStatus = wbsPrazoStatus(item);
+  const prazoIcone = prazoStatus === 'atrasado' ? '⚠️ ' : prazoStatus === 'risco' ? '⏳ ' : '';
+  const prazoTexto = (item.data_inicio || item.data_fim)
+    ? ` <span style="color:var(--text-muted);font-size:11.5px;">(${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'})</span>`
+    : '';
   row.innerHTML = `
-    <span style="flex:1;">${item.titulo}</span>
+    <span style="flex:1;">${prazoIcone}${item.titulo}${prazoTexto}</span>
     <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
     <div style="display:flex;gap:4px;flex-wrap:wrap;">
       <button class="btn" data-status="Em Andamento" style="font-size:11px;padding:4px 8px;">▶ Iniciar</button>
