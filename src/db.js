@@ -240,6 +240,8 @@ async function init() {
       senha_hash TEXT,
       pode_projetos BOOLEAN DEFAULT FALSE,
       pode_implantacao BOOLEAN DEFAULT FALSE,
+      pode_chamados BOOLEAN DEFAULT TRUE,
+      pode_admin BOOLEAN DEFAULT TRUE,
       ativo BOOLEAN DEFAULT TRUE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
@@ -329,6 +331,11 @@ async function init() {
   // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas
   // tem numeros de chamado legitimamente repetidos entre si.
   await pool.query('ALTER TABLE chamados DROP CONSTRAINT IF EXISTS chamados_numero_key;');
+  // Novas permissoes de menu (Chamados/Admin). Default TRUE aqui pra nao tirar
+  // acesso de quem ja usava o sistema sem querer - o Admin desmarca manualmente
+  // pra quem precisar ficar restrito (ex: um implantador).
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_chamados BOOLEAN DEFAULT TRUE;');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_admin BOOLEAN DEFAULT TRUE;');
 }
 
 const ready = (async () => {
