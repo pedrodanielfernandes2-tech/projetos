@@ -15,6 +15,34 @@ async function getProjectName(id) {
   return rows[0] ? rows[0].nome : '';
 }
 
+function calcularSaudeImplantacao(wbsRows) {
+  if (wbsRows.length === 0) return null;
+  const hojeStr = new Date().toISOString().slice(0, 10);
+  const agora = new Date();
+  let temAtrasado = false;
+  let temRisco = false;
+  wbsRows.forEach(item => {
+    if (item.status === 'Concluído') return;
+    if (item.status === 'Suspensa') { temRisco = true; return; }
+    if (!item.data_fim) return;
+    if (hojeStr > item.data_fim) { temAtrasado = true; return; }
+    if (item.data_inicio) {
+      const inicio = new Date(item.data_inicio + 'T00:00:00');
+      const fim = new Date(item.data_fim + 'T00:00:00');
+      if (agora > inicio && fim > inicio) {
+        const elapsed = ((agora - inicio) / (fim - inicio)) * 100;
+        if (elapsed >= 80) temRisco = true;
+      }
+    } else {
+      const diasRestantes = (new Date(item.data_fim + 'T00:00:00') - agora) / (1000 * 60 * 60 * 24);
+      if (diasRestantes <= 3) temRisco = true;
+    }
+  });
+  if (temAtrasado) return 'critico';
+  if (temRisco) return 'atencao';
+  return 'saudavel';
+}
+
 async function loadProject(id) {
   const { rows } = await pool.query(`
     SELECT p.*, g.nome AS gerente_nome, g.email AS gerente_email, c.nome AS cliente_nome
@@ -28,11 +56,12 @@ async function loadProject(id) {
   const tarefas = await pool.query('SELECT * FROM area_tasks WHERE project_id = $1 ORDER BY inicio', [id]);
   const historico = await pool.query('SELECT * FROM historico WHERE project_id = $1 ORDER BY data DESC, id DESC', [id]);
   const links = await pool.query('SELECT * FROM project_links WHERE project_id = $1 ORDER BY id DESC', [id]);
-  const wbsCount = await pool.query('SELECT COUNT(*)::int AS total FROM wbs_items WHERE project_id = $1', [id]);
+  const wbsItems = await pool.query('SELECT status, data_inicio, data_fim FROM wbs_items WHERE project_id = $1', [id]);
   project.tarefas = tarefas.rows.map(t => ({ ...t, status: calcularStatusTarefa(t) }));
   project.historico = historico.rows;
   project.links = links.rows;
-  project.wbs_total_itens = wbsCount.rows[0].total;
+  project.wbs_total_itens = wbsItems.rows.length;
+  project.saude_implantacao = calcularSaudeImplantacao(wbsItems.rows);
   project.status_prazo = calcularStatusPrazo(project);
   return project;
 }
