@@ -172,6 +172,16 @@ function mostrarSemAcessoProjetos() {
   if (stats) stats.innerHTML = '';
 }
 
+function resetarTodasAsViews() {
+  // Garante um estado limpo de telas visiveis/escondidas, independente do que
+  // uma sessao anterior (de outra pessoa, na mesma aba) tenha deixado configurado.
+  document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+  document.getElementById('view-projetos').classList.remove('hidden');
+  document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
+  const btnProjetos = document.querySelector('[data-tab="projetos"]');
+  if (btnProjetos) btnProjetos.classList.add('active');
+}
+
 function logout() {
   localStorage.removeItem('usuarioToken');
   localStorage.removeItem('usuarioInfo');
@@ -185,15 +195,19 @@ function logout() {
   state.isChamados = false;
   state.chamadosPassword = null;
   sessionStorage.removeItem('chamadosPassword');
+  resetarTodasAsViews();
   mostrarPortaoLogin();
 }
 document.getElementById('btn-logout').addEventListener('click', logout);
 
 async function aposLogin() {
+  resetarTodasAsViews();
   esconderPortaoLogin();
   aplicarPermissoesMenu();
   if (state.usuario.pode_projetos) {
     await loadAll();
+  } else if (state.usuario.pode_implantacao) {
+    activateTab(document.querySelector('[data-tab="implantacao"]'));
   } else {
     mostrarSemAcessoProjetos();
   }
