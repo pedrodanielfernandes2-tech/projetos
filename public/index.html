@@ -50,8 +50,8 @@
         <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
         <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
         <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao"><span class="sidebar-nav-icon">&#128295;</span>Implantação</button>
-        <button class="sidebar-nav-btn" data-tab="chamados"><span class="sidebar-nav-icon">&#128179;</span>Chamados</button>
-        <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
+        <button class="sidebar-nav-btn" data-tab="chamados" data-requer="pode_chamados"><span class="sidebar-nav-icon">&#128179;</span>Chamados</button>
+        <button class="sidebar-nav-btn" data-tab="admin" data-requer="pode_admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
       </nav>
       <p class="sidebar-footer">
         <span id="sidebar-usuario-nome"></span> ·
@@ -355,6 +355,8 @@
             <div class="checkbox-row">
               <label><input type="checkbox" id="usuario-pode-projetos" /> Acessa Projetos/Dashboard</label>
               <label><input type="checkbox" id="usuario-pode-implantacao" /> Acessa Implantação</label>
+              <label><input type="checkbox" id="usuario-pode-chamados" /> Acessa Chamados</label>
+              <label><input type="checkbox" id="usuario-pode-admin" /> Acessa Admin</label>
             </div>
             <div class="form-actions">
               <button type="submit" class="btn btn-primary">Cadastrar usuário</button>

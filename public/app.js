@@ -1213,11 +1213,16 @@ async function refreshUsuarios() {
   usuarios.forEach(u => {
     const row = document.createElement('div');
     row.className = 'list-row';
-    const menus = [u.pode_projetos ? 'Projetos' : null, u.pode_implantacao ? 'Implantação' : null].filter(Boolean).join(', ') || 'nenhum menu liberado';
     row.innerHTML = `
       <div class="list-row-main">
         <p class="list-row-name">${u.nome}${!u.ativo ? ' <span style="color:var(--danger);font-weight:400;">(inativo)</span>' : ''}</p>
-        <p class="list-row-sub">${u.email} · ${menus} · ${u.senha_definida ? 'senha definida' : '⏳ aguardando definir senha'}</p>
+        <p class="list-row-sub">${u.email} · ${u.senha_definida ? 'senha definida' : '⏳ aguardando definir senha'}</p>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--text-muted);">
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_projetos" style="width:auto;" ${u.pode_projetos ? 'checked' : ''}/> Projetos</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_implantacao" style="width:auto;" ${u.pode_implantacao ? 'checked' : ''}/> Implantação</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_chamados" style="width:auto;" ${u.pode_chamados ? 'checked' : ''}/> Chamados</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_admin" style="width:auto;" ${u.pode_admin ? 'checked' : ''}/> Admin</label>
+        </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
         ${!u.senha_definida ? '<button class="btn" data-reenviar>Reenviar convite</button>' : ''}
@@ -1226,6 +1231,16 @@ async function refreshUsuarios() {
         <button class="icon-btn" data-excluir-usuario aria-label="Excluir usuário">✕</button>
       </div>
     `;
+    row.querySelectorAll('[data-permissao]').forEach(chk => {
+      chk.onchange = async () => {
+        try {
+          await api(`/usuarios/${u.id}`, { method: 'PATCH', body: JSON.stringify({ [chk.dataset.permissao]: chk.checked }) });
+        } catch (err) {
+          alert(err.message);
+          chk.checked = !chk.checked;
+        }
+      };
+    });
     if (!u.senha_definida) {
       row.querySelector('[data-reenviar]').onclick = async () => {
         try {
@@ -1279,13 +1294,15 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
   const senha = document.getElementById('usuario-senha').value;
   const pode_projetos = document.getElementById('usuario-pode-projetos').checked;
   const pode_implantacao = document.getElementById('usuario-pode-implantacao').checked;
+  const pode_chamados = document.getElementById('usuario-pode-chamados').checked;
+  const pode_admin = document.getElementById('usuario-pode-admin').checked;
   if (!nome || !email) return;
   if (senha && senha.length < 6) {
     alert('A senha precisa ter pelo menos 6 caracteres (ou deixe em branco pra convidar por e-mail).');
     return;
   }
   try {
-    const body = { nome, email, pode_projetos, pode_implantacao };
+    const body = { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin };
     if (senha) body.senha = senha;
     const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
