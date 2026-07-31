@@ -78,7 +78,9 @@ router.post('/projetos/:projectId/itens', gate, async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
-// Edita um item - so o proprio implantador que criou (responsavel = ele) pode mexer.
+// Edita um item - so o proprio implantador que criou (responsavel = ele) pode mexer,
+// e so nos campos status (via os botoes de acao rapida) e observacao. Titulo e prazo
+// sao definidos na criacao e, depois disso, so um GP (dentro da WBS completa) altera.
 router.patch('/itens/:itemId', gate, async (req, res) => {
   const item = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!item) return res.status(404).json({ error: 'item nao encontrado' });
@@ -89,7 +91,7 @@ router.patch('/itens/:itemId', gate, async (req, res) => {
   const campos = [];
   const valores = [];
   let i = 1;
-  ['titulo', 'status', 'observacao', 'data_inicio', 'data_fim'].forEach(campo => {
+  ['status', 'observacao'].forEach(campo => {
     if (req.body[campo] !== undefined) {
       campos.push(`${campo} = $${i++}`);
       valores.push(req.body[campo] || null);
@@ -104,21 +106,6 @@ router.patch('/itens/:itemId', gate, async (req, res) => {
     acao: 'editado', autor: req.usuario.nome, detalhes: `Item "${item.titulo}" atualizado via Implantação`,
   });
 
-  res.json({ ok: true });
-});
-
-// Exclui um item - mesma regra: so o proprio dono.
-router.delete('/itens/:itemId', gate, async (req, res) => {
-  const item = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
-  if (!item) return res.status(404).json({ error: 'item nao encontrado' });
-  if (normalizar(item.responsavel) !== normalizar(req.usuario.nome)) {
-    return res.status(403).json({ error: 'você só pode excluir os itens que você mesmo criou' });
-  }
-  await pool.query('DELETE FROM wbs_items WHERE id = $1', [req.params.itemId]);
-  await registrarAuditoria({
-    entidade: 'wbs_item', projeto_id: item.project_id,
-    acao: 'excluido', autor: req.usuario.nome, detalhes: `Item "${item.titulo}" excluído via Implantação`,
-  });
   res.json({ ok: true });
 });
 
