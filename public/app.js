@@ -1,8 +1,12 @@
-const SAUDE_IMPLANTACAO_EMOJI = { saudavel: '🟢', atencao: '🟡', critico: '🔴' };
 const SAUDE_IMPLANTACAO_LABEL = {
-  saudavel: 'tudo em dia',
-  atencao: 'tem item em risco ou suspenso',
-  critico: 'tem item atrasado',
+  saudavel: 'em dia',
+  atencao: 'atenção',
+  critico: 'crítico',
+};
+const SAUDE_IMPLANTACAO_DESCRICAO = {
+  saudavel: 'Nenhum item do checklist de implantação está atrasado ou suspenso.',
+  atencao: 'O checklist de implantação tem item em risco (prazo perto do fim) ou suspenso por impeditivo.',
+  critico: 'O checklist de implantação tem pelo menos um item com o prazo vencido.',
 };
 
 const state = {
@@ -733,12 +737,12 @@ function renderProjectList() {
           <p class="card-sub">GP: ${p.gerente_nome || '-'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''} · ${p.tipo} · fase: ${p.fase}</p>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-          ${p.saude_implantacao ? `<span title="Saúde do checklist de implantação: ${SAUDE_IMPLANTACAO_LABEL[p.saude_implantacao]}" style="font-size:15px;cursor:default;">${SAUDE_IMPLANTACAO_EMOJI[p.saude_implantacao]}</span>` : ''}
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
           ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} de atraso</span>` : ''}
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
           <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>
+          ${p.saude_implantacao ? `<span class="badge badge-saude-${p.saude_implantacao}" title="${SAUDE_IMPLANTACAO_DESCRICAO[p.saude_implantacao]}">Checklist: ${SAUDE_IMPLANTACAO_LABEL[p.saude_implantacao]}</span>` : ''}
           <button class="btn${p.wbs_total_itens > 0 ? ' wbs-btn-has-items' : ''}" data-open-wbs style="font-size:12px;padding:6px 10px;" title="${p.wbs_total_itens > 0 ? p.wbs_total_itens + ' item(ns) cadastrados na WBS' : 'Nenhum item de WBS ainda'}">WBS</button>
         </div>
       </div>
@@ -2799,27 +2803,32 @@ function populateWbsStatusSelect() {
   const sel = document.getElementById('wbs-item-status');
   sel.innerHTML = state.wbsStatusList.map(s => `<option>${s}</option>`).join('');
 }
-async function populateImplantadoresDatalist() {
+async function populateWbsResponsavelSelect(valorAtual) {
+  const sel = document.getElementById('wbs-item-responsavel');
+  let nomes = [];
   try {
-    const nomes = await api('/usuarios/implantadores');
-    document.getElementById('lista-implantadores').innerHTML = nomes.map(n => `<option value="${n}">`).join('');
+    nomes = await api('/usuarios/implantadores');
   } catch (e) {
-    // silencioso - se falhar, o campo continua funcionando como texto livre normal
+    // silencioso - segue so com a opcao em branco (e o valor atual, se houver)
   }
+  // Se o item ja tinha um responsavel que nao esta mais na lista de implantadores
+  // ativos (ex: pessoa desativada), mantem essa opcao pra nao perder o dado ao editar.
+  if (valorAtual && !nomes.includes(valorAtual)) nomes = [valorAtual, ...nomes];
+  sel.innerHTML = '<option value="">Sem responsável definido</option>' + nomes.map(n => `<option value="${n}">${n}</option>`).join('');
+  sel.value = valorAtual || '';
 }
 
-function openWbsItemModal(parentId, itemToEdit) {
+async function openWbsItemModal(parentId, itemToEdit) {
   populateWbsAreaSelect();
   populateWbsAcaoSelect();
   populateWbsStatusSelect();
-  populateImplantadoresDatalist();
   document.getElementById('wbs-modal-titulo').textContent = itemToEdit ? 'Editar item' : (parentId ? 'Novo sub-item' : 'Novo item');
   document.getElementById('wbs-item-id').value = itemToEdit ? itemToEdit.id : '';
   document.getElementById('wbs-item-parent-id').value = parentId || '';
   document.getElementById('wbs-item-titulo').value = itemToEdit ? itemToEdit.titulo : '';
   document.getElementById('wbs-item-area').value = itemToEdit ? (itemToEdit.area || '') : '';
   document.getElementById('wbs-item-acao').value = itemToEdit ? (itemToEdit.acao || '') : '';
-  document.getElementById('wbs-item-responsavel').value = itemToEdit ? (itemToEdit.responsavel || '') : '';
+  await populateWbsResponsavelSelect(itemToEdit ? (itemToEdit.responsavel || '') : '');
   document.getElementById('wbs-item-status').value = itemToEdit ? itemToEdit.status : 'Pendente';
   document.getElementById('wbs-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
   document.getElementById('wbs-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
