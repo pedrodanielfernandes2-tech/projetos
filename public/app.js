@@ -2799,11 +2799,20 @@ function populateWbsStatusSelect() {
   const sel = document.getElementById('wbs-item-status');
   sel.innerHTML = state.wbsStatusList.map(s => `<option>${s}</option>`).join('');
 }
+async function populateImplantadoresDatalist() {
+  try {
+    const nomes = await api('/usuarios/implantadores');
+    document.getElementById('lista-implantadores').innerHTML = nomes.map(n => `<option value="${n}">`).join('');
+  } catch (e) {
+    // silencioso - se falhar, o campo continua funcionando como texto livre normal
+  }
+}
 
 function openWbsItemModal(parentId, itemToEdit) {
   populateWbsAreaSelect();
   populateWbsAcaoSelect();
   populateWbsStatusSelect();
+  populateImplantadoresDatalist();
   document.getElementById('wbs-modal-titulo').textContent = itemToEdit ? 'Editar item' : (parentId ? 'Novo sub-item' : 'Novo item');
   document.getElementById('wbs-item-id').value = itemToEdit ? itemToEdit.id : '';
   document.getElementById('wbs-item-parent-id').value = parentId || '';
