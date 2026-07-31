@@ -308,6 +308,10 @@ function activateTab(btn) {
   document.getElementById('view-dashboard').classList.toggle('hidden', btn.dataset.tab !== 'dashboard');
   document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
   document.getElementById('view-implantacao').classList.toggle('hidden', btn.dataset.tab !== 'implantacao');
+  // A tela de WBS e uma "sub-tela" a parte (aberta via botao no card do projeto, nao
+  // pelo menu lateral) - se estava aberta, precisa fechar sempre que trocar de aba
+  // pelo menu, senao ela fica "grudada" embaixo da tela nova.
+  document.getElementById('view-wbs').classList.add('hidden');
   if (btn.dataset.tab === 'dashboard') renderDashboard();
   if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
   if (btn.dataset.tab === 'implantacao') refreshImplantacao();
