@@ -10,6 +10,8 @@ function usuarioPublico(usuario) {
     email: usuario.email,
     pode_projetos: usuario.pode_projetos,
     pode_implantacao: usuario.pode_implantacao,
+    pode_chamados: usuario.pode_chamados,
+    pode_admin: usuario.pode_admin,
   };
 }
 
