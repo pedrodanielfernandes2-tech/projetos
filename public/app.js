@@ -173,13 +173,12 @@ function mostrarSemAcessoProjetos() {
 }
 
 function resetarTodasAsViews() {
-  // Garante um estado limpo de telas visiveis/escondidas, independente do que
-  // uma sessao anterior (de outra pessoa, na mesma aba) tenha deixado configurado.
+  // Esconde tudo, sem assumir nenhuma tela como padrao - quem decide qual mostrar
+  // e sempre uma chamada explicita a activateTab() logo em seguida. Isso evita
+  // o "flash" de mostrar Projetos por uma fracao de segundo antes de trocar pra
+  // outra tela, pra quem nao tem acesso a Projetos.
   document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-  document.getElementById('view-projetos').classList.remove('hidden');
   document.querySelectorAll('.sidebar-nav-btn').forEach(b => b.classList.remove('active'));
-  const btnProjetos = document.querySelector('[data-tab="projetos"]');
-  if (btnProjetos) btnProjetos.classList.add('active');
 }
 
 function logout() {
@@ -205,10 +204,12 @@ async function aposLogin() {
   esconderPortaoLogin();
   aplicarPermissoesMenu();
   if (state.usuario.pode_projetos) {
+    activateTab(document.querySelector('[data-tab="projetos"]'));
     await loadAll();
   } else if (state.usuario.pode_implantacao) {
     activateTab(document.querySelector('[data-tab="implantacao"]'));
   } else {
+    activateTab(document.querySelector('[data-tab="projetos"]'));
     mostrarSemAcessoProjetos();
   }
 }
@@ -2228,8 +2229,7 @@ function buildImplantacaoItemRow(item) {
       <button class="btn" data-status="Em Andamento" style="font-size:11px;padding:4px 8px;">▶ Iniciar</button>
       <button class="btn" data-status="Suspensa" style="font-size:11px;padding:4px 8px;">⚠ Impeditivo</button>
       <button class="btn" data-status="Concluído" style="font-size:11px;padding:4px 8px;">✓ Concluir</button>
-      <button class="icon-btn" data-editar-item aria-label="Editar item">✎</button>
-      <button class="icon-btn" data-excluir-item aria-label="Excluir item">✕</button>
+      <button class="icon-btn" data-editar-item aria-label="Adicionar/editar observação">✎</button>
     </div>
   `;
   if (item.observacao) {
@@ -2250,20 +2250,11 @@ function buildImplantacaoItemRow(item) {
     };
   });
   row.querySelector('[data-editar-item]').onclick = () => openImplantacaoItemModal(item.project_id, item);
-  row.querySelector('[data-excluir-item]').onclick = async () => {
-    if (!confirm(`Excluir o item "${item.titulo}"?`)) return;
-    try {
-      await api(`/implantacao/itens/${item.id}`, { method: 'DELETE' });
-      await refreshImplantacao();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
   return row;
 }
 
 function openImplantacaoItemModal(projectId, itemToEdit) {
-  document.getElementById('implantacao-item-modal-titulo').textContent = itemToEdit ? 'Editar item' : 'Novo item';
+  document.getElementById('implantacao-item-modal-titulo').textContent = itemToEdit ? 'Editar observação' : 'Novo item';
   document.getElementById('implantacao-item-id').value = itemToEdit ? itemToEdit.id : '';
   document.getElementById('implantacao-item-project-id').value = projectId;
   document.getElementById('implantacao-item-titulo-input').value = itemToEdit ? itemToEdit.titulo : '';
@@ -2271,6 +2262,12 @@ function openImplantacaoItemModal(projectId, itemToEdit) {
   document.getElementById('implantacao-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
   document.getElementById('implantacao-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
   document.getElementById('implantacao-item-observacao').value = itemToEdit ? (itemToEdit.observacao || '') : '';
+  // Ao editar um item ja existente, so a Observacao pode ser alterada aqui - titulo,
+  // status e prazo so mudam pelo GP dentro da WBS completa (ou pelos botoes de acao
+  // rapida, no caso do status). Ao criar um item novo, tudo fica editavel normalmente.
+  ['implantacao-item-titulo-input', 'implantacao-item-status', 'implantacao-item-inicio', 'implantacao-item-fim'].forEach(id => {
+    document.getElementById(id).disabled = !!itemToEdit;
+  });
   document.getElementById('modal-implantacao-incluir').classList.add('hidden');
   document.getElementById('modal-implantacao-item').classList.remove('hidden');
 }
@@ -2281,21 +2278,24 @@ document.getElementById('form-implantacao-item').addEventListener('submit', asyn
   e.preventDefault();
   const id = document.getElementById('implantacao-item-id').value;
   const projectId = document.getElementById('implantacao-item-project-id').value;
-  const body = {
-    titulo: document.getElementById('implantacao-item-titulo-input').value.trim(),
-    status: document.getElementById('implantacao-item-status').value,
-    data_inicio: document.getElementById('implantacao-item-inicio').value || null,
-    data_fim: document.getElementById('implantacao-item-fim').value || null,
-    observacao: document.getElementById('implantacao-item-observacao').value.trim(),
-  };
-  if (!body.titulo) {
-    alert('Preencha o que precisa ser feito.');
-    return;
-  }
+  const observacao = document.getElementById('implantacao-item-observacao').value.trim();
   try {
     if (id) {
-      await api(`/implantacao/itens/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      // Editando um item ja existente: so a observacao pode mudar por aqui.
+      await api(`/implantacao/itens/${id}`, { method: 'PATCH', body: JSON.stringify({ observacao }) });
     } else {
+      const titulo = document.getElementById('implantacao-item-titulo-input').value.trim();
+      if (!titulo) {
+        alert('Preencha o que precisa ser feito.');
+        return;
+      }
+      const body = {
+        titulo,
+        status: document.getElementById('implantacao-item-status').value,
+        data_inicio: document.getElementById('implantacao-item-inicio').value || null,
+        data_fim: document.getElementById('implantacao-item-fim').value || null,
+        observacao,
+      };
       await api(`/implantacao/projetos/${projectId}/itens`, { method: 'POST', body: JSON.stringify(body) });
     }
     document.getElementById('modal-implantacao-item').classList.add('hidden');
