@@ -24,9 +24,6 @@
             <button type="submit" class="btn btn-primary">Entrar</button>
           </div>
         </form>
-        <p style="margin-top:14px;font-size:12.5px;color:var(--text-muted);">
-          Primeiro acesso ao sistema? <button type="button" id="link-primeiro-acesso" class="btn" style="background:none;border:none;color:var(--accent);padding:0;font-size:inherit;">Criar a conta inicial</button>
-        </p>
       </div>
       <div id="esqueci-form-wrap" class="hidden">
         <h2>Redefinir senha</h2>
@@ -37,21 +34,6 @@
           <div class="form-actions" style="justify-content:space-between;">
             <button type="button" id="link-voltar-login" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Voltar</button>
             <button type="submit" class="btn btn-primary">Enviar link</button>
-          </div>
-        </form>
-      </div>
-      <div id="bootstrap-form-wrap" class="hidden">
-        <h2>Criar conta inicial</h2>
-        <p class="muted">Isso só funciona uma vez, enquanto não existir nenhum usuário cadastrado ainda. Pede a senha de Admin como confirmação.</p>
-        <form id="form-bootstrap">
-          <input type="text" id="bootstrap-nome" placeholder="Seu nome" class="full-width" required />
-          <input type="email" id="bootstrap-email" placeholder="seu-email@visualmix.com.br" class="full-width" required />
-          <input type="password" id="bootstrap-senha" placeholder="Crie uma senha (mín. 6 caracteres)" class="full-width" required minlength="6" />
-          <input type="password" id="bootstrap-admin-senha" placeholder="Senha de Admin (confirmação)" class="full-width" required />
-          <p id="bootstrap-erro" class="status-msg hidden" style="color:var(--danger);"></p>
-          <div class="form-actions" style="justify-content:space-between;">
-            <button type="button" id="link-voltar-login-2" class="btn" style="background:none;border:none;color:var(--accent);padding:0;">Voltar</button>
-            <button type="submit" class="btn btn-primary">Criar conta e entrar</button>
           </div>
         </form>
       </div>
@@ -67,6 +49,7 @@
       <nav class="sidebar-nav">
         <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
         <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
+        <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao"><span class="sidebar-nav-icon">&#128295;</span>Implantação</button>
         <button class="sidebar-nav-btn" data-tab="chamados"><span class="sidebar-nav-icon">&#128179;</span>Chamados</button>
         <button class="sidebar-nav-btn" data-tab="admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
       </nav>
@@ -391,6 +374,18 @@
       </div>
     </section>
 
+    <section id="view-implantacao" class="view hidden">
+      <div class="page-header page-header-with-action">
+        <div>
+          <h1>Implantação</h1>
+          <p class="page-subtitle">Seus checklists de implantação — marque o andamento das suas tarefas</p>
+        </div>
+        <button id="btn-implantacao-incluir" class="btn btn-primary">+ Incluir projeto</button>
+      </div>
+
+      <div id="implantacao-lista" class="stack"></div>
+    </section>
+
     <section id="view-wbs" class="view hidden">
       <button id="btn-wbs-voltar" class="btn" style="margin-bottom:16px;">← Voltar aos projetos</button>
       <div class="page-header">
@@ -629,6 +624,45 @@
       <div class="form-actions">
         <button type="button" id="btn-close-wbs-templates" class="btn">Fechar</button>
       </div>
+    </div>
+  </div>
+
+  <div id="modal-implantacao-incluir" class="modal-overlay hidden">
+    <div class="modal">
+      <h2>Incluir projeto na Implantação</h2>
+      <p class="muted">Busca o projeto e cria o primeiro item do seu checklist nele.</p>
+      <input type="text" id="implantacao-busca-projeto" placeholder="Buscar por nome, chamado ou cliente..." class="full-width" />
+      <div id="implantacao-resultados-busca" class="stack tight" style="max-height:280px;overflow-y:auto;margin:10px 0;"></div>
+      <div class="form-actions">
+        <button type="button" id="btn-fechar-implantacao-incluir" class="btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-implantacao-item" class="modal-overlay hidden">
+    <div class="modal">
+      <h2 id="implantacao-item-modal-titulo">Novo item</h2>
+      <form id="form-implantacao-item">
+        <input type="hidden" id="implantacao-item-id" />
+        <input type="hidden" id="implantacao-item-project-id" />
+        <input type="text" id="implantacao-item-titulo-input" placeholder="O que precisa ser feito" class="full-width" required />
+        <select id="implantacao-item-status" class="full-width">
+          <option>Pendente</option>
+          <option>Em Andamento</option>
+          <option>Suspensa</option>
+          <option>Concluído</option>
+        </select>
+        <p class="field-label">Prazo (opcional)</p>
+        <div class="form-row">
+          <input type="date" id="implantacao-item-inicio" />
+          <input type="date" id="implantacao-item-fim" />
+        </div>
+        <textarea id="implantacao-item-observacao" placeholder="Observação (ex: detalhe do impeditivo)" class="full-width" rows="3"></textarea>
+        <div class="form-actions">
+          <button type="button" id="btn-cancel-implantacao-item" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Salvar</button>
+        </div>
+      </form>
     </div>
   </div>
 

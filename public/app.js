@@ -1,3 +1,10 @@
+const SAUDE_IMPLANTACAO_EMOJI = { saudavel: '🟢', atencao: '🟡', critico: '🔴' };
+const SAUDE_IMPLANTACAO_LABEL = {
+  saudavel: 'tudo em dia',
+  atencao: 'tem item em risco ou suspenso',
+  critico: 'tem item atrasado',
+};
+
 const state = {
   areas: [],
   acoes: [],
@@ -166,6 +173,14 @@ function logout() {
   localStorage.removeItem('usuarioInfo');
   state.usuarioToken = null;
   state.usuario = null;
+  // Zera tambem as sessoes de Admin e Chamados - sem isso, uma permissao concedida
+  // numa sessao anterior (nessa mesma aba do navegador) vazaria pro proximo login.
+  state.isAdmin = false;
+  state.adminPassword = null;
+  sessionStorage.removeItem('adminPassword');
+  state.isChamados = false;
+  state.chamadosPassword = null;
+  sessionStorage.removeItem('chamadosPassword');
   mostrarPortaoLogin();
 }
 document.getElementById('btn-logout').addEventListener('click', logout);
@@ -231,41 +246,6 @@ document.getElementById('form-esqueci-senha').addEventListener('submit', async (
   }
 });
 
-document.getElementById('link-primeiro-acesso').addEventListener('click', () => {
-  document.getElementById('login-form-wrap').classList.add('hidden');
-  document.getElementById('bootstrap-form-wrap').classList.remove('hidden');
-});
-document.getElementById('link-voltar-login-2').addEventListener('click', () => {
-  document.getElementById('bootstrap-form-wrap').classList.add('hidden');
-  document.getElementById('login-form-wrap').classList.remove('hidden');
-});
-document.getElementById('form-bootstrap').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const nome = document.getElementById('bootstrap-nome').value.trim();
-  const email = document.getElementById('bootstrap-email').value.trim();
-  const senha = document.getElementById('bootstrap-senha').value;
-  const adminPassword = document.getElementById('bootstrap-admin-senha').value;
-  const erroEl = document.getElementById('bootstrap-erro');
-  erroEl.classList.add('hidden');
-  try {
-    const res = await fetch('/api/auth/bootstrap', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, email, senha, adminPassword }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'falha ao criar conta');
-    state.usuarioToken = data.token;
-    state.usuario = data.usuario;
-    localStorage.setItem('usuarioToken', data.token);
-    localStorage.setItem('usuarioInfo', JSON.stringify(data.usuario));
-    await aposLogin();
-  } catch (err) {
-    erroEl.textContent = err.message;
-    erroEl.classList.remove('hidden');
-  }
-});
-
 // ---------- admin login ----------
 function loadAdminSession() {
   const stored = sessionStorage.getItem('adminPassword');
@@ -323,8 +303,10 @@ function activateTab(btn) {
   document.getElementById('view-projetos').classList.toggle('hidden', btn.dataset.tab !== 'projetos');
   document.getElementById('view-dashboard').classList.toggle('hidden', btn.dataset.tab !== 'dashboard');
   document.getElementById('view-admin').classList.toggle('hidden', btn.dataset.tab !== 'admin');
+  document.getElementById('view-implantacao').classList.toggle('hidden', btn.dataset.tab !== 'implantacao');
   if (btn.dataset.tab === 'dashboard') renderDashboard();
   if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
+  if (btn.dataset.tab === 'implantacao') refreshImplantacao();
 }
 document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -751,6 +733,7 @@ function renderProjectList() {
           <p class="card-sub">GP: ${p.gerente_nome || '-'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''} · ${p.tipo} · fase: ${p.fase}</p>
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+          ${p.saude_implantacao ? `<span title="Saúde do checklist de implantação: ${SAUDE_IMPLANTACAO_LABEL[p.saude_implantacao]}" style="font-size:15px;cursor:default;">${SAUDE_IMPLANTACAO_EMOJI[p.saude_implantacao]}</span>` : ''}
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
           ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} de atraso</span>` : ''}
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
@@ -2078,6 +2061,178 @@ document.getElementById('form-edit-project').addEventListener('submit', async (e
   } catch (err) {
     alert(err.message);
   }
+});
+
+// ---------- Implantação ----------
+state.implantacaoProjetos = []; // lista completa, pra busca no "Incluir"
+state.implantacaoProjetoAlvo = null; // project_id escolhido no fluxo de "Incluir"
+
+async function refreshImplantacao() {
+  const host = document.getElementById('implantacao-lista');
+  let projetos;
+  try {
+    projetos = await api('/implantacao/meus-itens');
+  } catch (err) {
+    host.innerHTML = `<p class="muted">${err.message}</p>`;
+    return;
+  }
+  if (projetos.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum checklist seu ainda. Clique em "+ Incluir projeto" pra começar.</p>';
+    return;
+  }
+  host.innerHTML = '';
+  projetos.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-head">
+        <div>
+          <p class="card-title">${p.nome}${p.chamado ? ' <span style="color:var(--text-muted);font-weight:400;">· Chamado ' + p.chamado + '</span>' : ''}</p>
+          <p class="card-sub">${p.cliente_nome ? 'Cliente: ' + p.cliente_nome : ''}</p>
+        </div>
+        <button class="btn" data-add-item style="font-size:12px;">+ Item</button>
+      </div>
+      <div class="stack tight" data-lista-itens style="margin-top:8px;"></div>
+    `;
+    const listaItens = card.querySelector('[data-lista-itens]');
+    p.itens.forEach(item => listaItens.appendChild(buildImplantacaoItemRow(item)));
+    card.querySelector('[data-add-item]').onclick = () => openImplantacaoItemModal(p.project_id, null);
+    host.appendChild(card);
+  });
+}
+
+function buildImplantacaoItemRow(item) {
+  const row = document.createElement('div');
+  row.className = 'detail-row';
+  row.innerHTML = `
+    <span style="flex:1;">${item.titulo}</span>
+    <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;">
+      <button class="btn" data-status="Em Andamento" style="font-size:11px;padding:4px 8px;">▶ Iniciar</button>
+      <button class="btn" data-status="Suspensa" style="font-size:11px;padding:4px 8px;">⚠ Impeditivo</button>
+      <button class="btn" data-status="Concluído" style="font-size:11px;padding:4px 8px;">✓ Concluir</button>
+      <button class="icon-btn" data-editar-item aria-label="Editar item">✎</button>
+      <button class="icon-btn" data-excluir-item aria-label="Excluir item">✕</button>
+    </div>
+  `;
+  if (item.observacao) {
+    const obs = document.createElement('p');
+    obs.className = 'wbs-observacao';
+    obs.style.paddingLeft = '4px';
+    obs.textContent = '💬 ' + item.observacao;
+    row.appendChild(obs);
+  }
+  row.querySelectorAll('[data-status]').forEach(btn => {
+    btn.onclick = async () => {
+      try {
+        await api(`/implantacao/itens/${item.id}`, { method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status }) });
+        await refreshImplantacao();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+  });
+  row.querySelector('[data-editar-item]').onclick = () => openImplantacaoItemModal(item.project_id, item);
+  row.querySelector('[data-excluir-item]').onclick = async () => {
+    if (!confirm(`Excluir o item "${item.titulo}"?`)) return;
+    try {
+      await api(`/implantacao/itens/${item.id}`, { method: 'DELETE' });
+      await refreshImplantacao();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  return row;
+}
+
+function openImplantacaoItemModal(projectId, itemToEdit) {
+  document.getElementById('implantacao-item-modal-titulo').textContent = itemToEdit ? 'Editar item' : 'Novo item';
+  document.getElementById('implantacao-item-id').value = itemToEdit ? itemToEdit.id : '';
+  document.getElementById('implantacao-item-project-id').value = projectId;
+  document.getElementById('implantacao-item-titulo-input').value = itemToEdit ? itemToEdit.titulo : '';
+  document.getElementById('implantacao-item-status').value = itemToEdit ? itemToEdit.status : 'Pendente';
+  document.getElementById('implantacao-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
+  document.getElementById('implantacao-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
+  document.getElementById('implantacao-item-observacao').value = itemToEdit ? (itemToEdit.observacao || '') : '';
+  document.getElementById('modal-implantacao-incluir').classList.add('hidden');
+  document.getElementById('modal-implantacao-item').classList.remove('hidden');
+}
+document.getElementById('btn-cancel-implantacao-item').addEventListener('click', () => {
+  document.getElementById('modal-implantacao-item').classList.add('hidden');
+});
+document.getElementById('form-implantacao-item').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('implantacao-item-id').value;
+  const projectId = document.getElementById('implantacao-item-project-id').value;
+  const body = {
+    titulo: document.getElementById('implantacao-item-titulo-input').value.trim(),
+    status: document.getElementById('implantacao-item-status').value,
+    data_inicio: document.getElementById('implantacao-item-inicio').value || null,
+    data_fim: document.getElementById('implantacao-item-fim').value || null,
+    observacao: document.getElementById('implantacao-item-observacao').value.trim(),
+  };
+  if (!body.titulo) {
+    alert('Preencha o que precisa ser feito.');
+    return;
+  }
+  try {
+    if (id) {
+      await api(`/implantacao/itens/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+    } else {
+      await api(`/implantacao/projetos/${projectId}/itens`, { method: 'POST', body: JSON.stringify(body) });
+    }
+    document.getElementById('modal-implantacao-item').classList.add('hidden');
+    await refreshImplantacao();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+async function renderImplantacaoBusca(filtro) {
+  const host = document.getElementById('implantacao-resultados-busca');
+  const q = (filtro || '').toLowerCase().trim();
+  const filtrados = !q ? state.implantacaoProjetos : state.implantacaoProjetos.filter(p =>
+    (p.nome || '').toLowerCase().includes(q) ||
+    (p.chamado || '').toLowerCase().includes(q) ||
+    (p.cliente_nome || '').toLowerCase().includes(q)
+  );
+  if (filtrados.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum projeto encontrado.</p>';
+    return;
+  }
+  host.innerHTML = '';
+  filtrados.forEach(p => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'list-row';
+    row.style.width = '100%';
+    row.style.textAlign = 'left';
+    row.style.cursor = 'pointer';
+    row.innerHTML = `
+      <div class="list-row-main">
+        <p class="list-row-name">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+        <p class="list-row-sub">${p.cliente_nome ? 'Cliente: ' + p.cliente_nome : 'Sem cliente definido'}</p>
+      </div>
+    `;
+    row.onclick = () => openImplantacaoItemModal(p.id, null);
+    host.appendChild(row);
+  });
+}
+document.getElementById('btn-implantacao-incluir').addEventListener('click', async () => {
+  document.getElementById('implantacao-busca-projeto').value = '';
+  document.getElementById('modal-implantacao-incluir').classList.remove('hidden');
+  try {
+    state.implantacaoProjetos = await api('/implantacao/projetos');
+  } catch (err) {
+    state.implantacaoProjetos = [];
+  }
+  renderImplantacaoBusca('');
+});
+document.getElementById('implantacao-busca-projeto').addEventListener('input', (e) => {
+  renderImplantacaoBusca(e.target.value);
+});
+document.getElementById('btn-fechar-implantacao-incluir').addEventListener('click', () => {
+  document.getElementById('modal-implantacao-incluir').classList.add('hidden');
 });
 
 if (loadUsuarioSession()) {
