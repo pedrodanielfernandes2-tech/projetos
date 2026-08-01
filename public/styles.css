@@ -76,10 +76,12 @@ body {
   margin-left: auto; background: var(--brand-red); color: #fff;
   font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 999px;
 }
-.sidebar-footer {
+.sidebar-footer-wrap {
   margin-top: auto; font-size: 11px; color: rgba(255, 255, 255, 0.38);
   padding: 0 22px;
 }
+.sidebar-usuario-linha { margin: 0 0 4px; }
+.sidebar-tagline { margin: 0; }
 
 .content-area {
   flex: 1; min-width: 0; max-width: 1440px; margin: 0 auto;
@@ -525,9 +527,18 @@ input:focus, select:focus, textarea:focus {
 }
 @media (max-width: 780px) {
   .app-shell { flex-direction: column; }
-  .sidebar { width: 100%; height: auto; position: relative; padding: 16px; }
-  .sidebar-nav { flex-direction: row; overflow-x: auto; padding: 0; }
-  .sidebar-footer, .sidebar-subtitle { display: none; }
+  .sidebar { width: 100%; height: auto; position: relative; padding: 12px 0; }
+  .sidebar-brand-wrap { padding: 0 16px; margin-bottom: 12px; }
+  .sidebar-logo { max-width: 110px; }
+  .sidebar-nav {
+    flex-direction: row; overflow-x: auto; padding: 0 16px 4px; gap: 6px;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+  .sidebar-nav-btn { flex-shrink: 0; white-space: nowrap; padding: 9px 12px; }
+  .sidebar-tagline, .sidebar-subtitle { display: none; }
+  .sidebar-footer-wrap { padding: 8px 16px 0; }
+  .sidebar-usuario-linha { margin: 0; }
   .content-area { padding: 20px; }
 }
 @media (max-width: 640px) {
