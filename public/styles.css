@@ -563,3 +563,25 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 640px) {
   .form-row { grid-template-columns: 1fr; }
 }
+
+/* ---------- sequencia/streak da Implantacao ---------- */
+.implantacao-sequencia-banner {
+  display: flex; gap: 24px; flex-wrap: wrap; align-items: center;
+  background: linear-gradient(135deg, #fff7ed, #fef2f2);
+  border: 1px solid #fde7c7; border-radius: 12px; padding: 12px 18px; margin-bottom: 18px;
+}
+.implantacao-sequencia-item { font-size: 14px; color: var(--text); }
+.implantacao-sequencia-item strong { font-size: 17px; }
+
+/* ---------- confete de celebracao ---------- */
+.confete-container {
+  position: fixed; inset: 0; pointer-events: none; z-index: 2000; overflow: hidden;
+}
+.confete-peca {
+  position: absolute; top: -20px; width: 9px; height: 14px; opacity: 0.95;
+  animation: cair-confete 1.5s ease-in forwards;
+}
+@keyframes cair-confete {
+  0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(600deg); opacity: 0.3; }
+}

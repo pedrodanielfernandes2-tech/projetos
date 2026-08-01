@@ -2123,6 +2123,38 @@ async function refreshImplantacao() {
   renderImplantacaoStats();
   renderImplantacaoFiltros();
   renderImplantacaoListaFiltrada();
+  refreshImplantacaoSequencia();
+}
+
+async function refreshImplantacaoSequencia() {
+  const banner = document.getElementById('implantacao-sequencia-banner');
+  try {
+    const { atual, recorde } = await api('/implantacao/sequencia');
+    if (recorde === 0) {
+      banner.classList.add('hidden');
+      return;
+    }
+    document.getElementById('implantacao-sequencia-atual').textContent = atual;
+    document.getElementById('implantacao-sequencia-recorde').textContent = recorde;
+    banner.classList.remove('hidden');
+  } catch (err) {
+    banner.classList.add('hidden');
+  }
+}
+
+function celebrarConclusao() {
+  const container = document.getElementById('confete-container');
+  const cores = ['#1B63AC', '#C4211F', '#1F9D55', '#B7791F', '#8B5CF6', '#EC4899'];
+  for (let i = 0; i < 40; i++) {
+    const peca = document.createElement('div');
+    peca.className = 'confete-peca';
+    peca.style.left = Math.random() * 100 + 'vw';
+    peca.style.background = cores[Math.floor(Math.random() * cores.length)];
+    peca.style.animationDelay = (Math.random() * 0.3) + 's';
+    peca.style.animationDuration = (1.1 + Math.random() * 0.6) + 's';
+    container.appendChild(peca);
+    setTimeout(() => peca.remove(), 2200);
+  }
 }
 
 function todosItensImplantacao() {
@@ -2278,6 +2310,7 @@ function buildImplantacaoItemRow(item) {
     btn.onclick = async () => {
       try {
         await api(`/implantacao/itens/${item.id}`, { method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status }) });
+        if (btn.dataset.status === 'Concluído') celebrarConclusao();
         await refreshImplantacao();
       } catch (err) {
         alert(err.message);
