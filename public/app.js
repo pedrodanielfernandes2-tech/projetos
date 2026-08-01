@@ -2145,6 +2145,30 @@ function renderImplantacaoStats() {
     <div class="stat-card"><p class="stat-label">Suspensos</p><p class="stat-value">${contagem['Suspensa'] || 0}</p></div>
     <div class="stat-card"><p class="stat-label">Atrasados</p><p class="stat-value" style="color:var(--danger)">${atrasados}</p></div>
   `;
+
+  const grafico = document.getElementById('implantacao-grafico');
+  if (grafico) {
+    const segmentos = [
+      { label: 'Pendente', value: contagem['Pendente'] || 0, color: 'var(--danger)' },
+      { label: 'Em Andamento', value: contagem['Em Andamento'] || 0, color: 'var(--accent)' },
+      { label: 'Suspensa', value: contagem['Suspensa'] || 0, color: '#2a2a2a' },
+      { label: 'Concluído', value: contagem['Concluído'] || 0, color: 'var(--success)' },
+    ];
+    if (todos.length === 0) {
+      grafico.innerHTML = '<p class="muted" style="font-size:12px;text-align:center;">Sem itens ainda</p>';
+    } else {
+      grafico.innerHTML = buildDonutSvg(segmentos) + `
+        <div class="implantacao-grafico-legenda">
+          ${segmentos.map(s => `
+            <span class="implantacao-grafico-legenda-item">
+              <span class="implantacao-grafico-dot" style="background:${s.color};"></span>
+              ${s.label}: ${s.value}
+            </span>
+          `).join('')}
+        </div>
+      `;
+    }
+  }
 }
 
 function renderImplantacaoFiltros() {
@@ -2214,6 +2238,16 @@ function renderImplantacaoListaFiltrada() {
   });
 }
 
+function acoesImplantacaoDisponiveis(status) {
+  const acoes = {
+    'Pendente': [{ status: 'Em Andamento', label: '▶ Iniciar' }, { status: 'Suspensa', label: '⚠ Impeditivo' }],
+    'Em Andamento': [{ status: 'Suspensa', label: '⚠ Impeditivo' }, { status: 'Concluído', label: '✓ Concluir' }],
+    'Suspensa': [{ status: 'Em Andamento', label: '▶ Retomar' }, { status: 'Concluído', label: '✓ Concluir' }],
+    'Concluído': [{ status: 'Pendente', label: '↺ Reabrir' }],
+  };
+  return acoes[status] || acoes['Pendente'];
+}
+
 function buildImplantacaoItemRow(item) {
   const row = document.createElement('div');
   row.className = 'detail-row';
@@ -2222,13 +2256,14 @@ function buildImplantacaoItemRow(item) {
   const prazoTexto = (item.data_inicio || item.data_fim)
     ? ` <span style="color:var(--text-muted);font-size:11.5px;">(${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'})</span>`
     : '';
+  const botoesAcao = acoesImplantacaoDisponiveis(item.status)
+    .map(a => `<button class="btn" data-status="${a.status}" style="font-size:11px;padding:4px 8px;">${a.label}</button>`)
+    .join('');
   row.innerHTML = `
     <span style="flex:1;">${prazoIcone}${item.titulo}${prazoTexto}</span>
     <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
     <div style="display:flex;gap:4px;flex-wrap:wrap;">
-      <button class="btn" data-status="Em Andamento" style="font-size:11px;padding:4px 8px;">▶ Iniciar</button>
-      <button class="btn" data-status="Suspensa" style="font-size:11px;padding:4px 8px;">⚠ Impeditivo</button>
-      <button class="btn" data-status="Concluído" style="font-size:11px;padding:4px 8px;">✓ Concluir</button>
+      ${botoesAcao}
       <button class="icon-btn" data-editar-item aria-label="Adicionar/editar observação">✎</button>
     </div>
   `;
