@@ -65,9 +65,9 @@ router.post('/projetos/:projectId/itens', gate, async (req, res) => {
   const ordem = maxRows[0].maxordem + 1;
 
   const { rows } = await pool.query(
-    `INSERT INTO wbs_items (project_id, titulo, responsavel, status, observacao, data_inicio, data_fim, ordem)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [req.params.projectId, titulo.trim(), req.usuario.nome, status || 'Pendente', observacao || '', data_inicio || null, data_fim || null, ordem]
+    `INSERT INTO wbs_items (project_id, titulo, responsavel, status, observacao, data_inicio, data_fim, ordem, concluido_em)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+    [req.params.projectId, titulo.trim(), req.usuario.nome, status || 'Pendente', observacao || '', data_inicio || null, data_fim || null, ordem, status === 'Concluído' ? new Date() : null]
   );
 
   await registrarAuditoria({
@@ -97,6 +97,16 @@ router.patch('/itens/:itemId', gate, async (req, res) => {
       valores.push(req.body[campo] || null);
     }
   });
+  // Registra o momento exato da conclusao (usado pra calcular a sequencia/streak);
+  // se o item for reaberto depois, limpa esse registro - so conta como "concluido"
+  // enquanto o status realmente estiver Concluido.
+  if (req.body.status !== undefined) {
+    if (req.body.status === 'Concluído') {
+      campos.push('concluido_em = NOW()');
+    } else {
+      campos.push('concluido_em = NULL');
+    }
+  }
   if (campos.length === 0) return res.json({ ok: true });
   valores.push(req.params.itemId);
   await pool.query(`UPDATE wbs_items SET ${campos.join(', ')} WHERE id = $${i}`, valores);
@@ -107,6 +117,52 @@ router.patch('/itens/:itemId', gate, async (req, res) => {
   });
 
   res.json({ ok: true });
+});
+
+// Calcula a sequencia (streak) de dias consecutivos em que o implantador concluiu
+// pelo menos um item, e o recorde historico dele.
+router.get('/sequencia', gate, async (req, res) => {
+  try {
+    const meuNome = normalizar(req.usuario.nome);
+    const { rows } = await pool.query(`
+      SELECT DISTINCT (concluido_em AT TIME ZONE 'UTC' AT TIME ZONE 'America/Sao_Paulo')::date AS dia
+      FROM wbs_items
+      WHERE LOWER(TRIM(responsavel)) = $1 AND concluido_em IS NOT NULL
+      ORDER BY dia
+    `, [meuNome]);
+
+    // O driver do Postgres pode devolver a data ja como string (YYYY-MM-DD) ou como
+    // objeto Date, dependendo da configuracao - trata os dois casos com seguranca.
+    const dias = rows.map(r => (r.dia instanceof Date ? r.dia.toISOString() : String(r.dia)).slice(0, 10));
+    if (dias.length === 0) return res.json({ atual: 0, recorde: 0 });
+
+    const umDiaMs = 24 * 60 * 60 * 1000;
+    let recorde = 1;
+    let sequenciaCorrida = 1;
+    for (let idx = 1; idx < dias.length; idx++) {
+      const diff = Math.round((new Date(dias[idx]) - new Date(dias[idx - 1])) / umDiaMs);
+      sequenciaCorrida = diff === 1 ? sequenciaCorrida + 1 : 1;
+      recorde = Math.max(recorde, sequenciaCorrida);
+    }
+
+    const hojeStr = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }); // formato YYYY-MM-DD
+    const ontemStr = new Date(Date.now() - umDiaMs).toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });
+    const ultimoDia = dias[dias.length - 1];
+
+    let atual = 0;
+    if (ultimoDia === hojeStr || ultimoDia === ontemStr) {
+      atual = 1;
+      for (let idx = dias.length - 1; idx > 0; idx--) {
+        const diff = Math.round((new Date(dias[idx]) - new Date(dias[idx - 1])) / umDiaMs);
+        if (diff === 1) atual++; else break;
+      }
+    }
+
+    res.json({ atual, recorde });
+  } catch (e) {
+    console.error('[implantacao/sequencia] erro:', e.message);
+    res.status(500).json({ error: 'falha ao calcular a sequência: ' + e.message });
+  }
 });
 
 module.exports = router;
