@@ -138,7 +138,8 @@ async function init() {
       ordem INTEGER DEFAULT 0,
       criado_em TIMESTAMP DEFAULT NOW(),
       impacto NUMERIC DEFAULT 0,
-      esforco NUMERIC DEFAULT 0
+      esforco NUMERIC DEFAULT 0,
+      concluido_em TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS acoes (
@@ -269,6 +270,9 @@ async function init() {
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS priorizacao_ativa BOOLEAN DEFAULT FALSE;');
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS impacto NUMERIC DEFAULT 0;');
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS esforco NUMERIC DEFAULT 0;');
+  // Guarda o momento exato em que um item foi marcado como Concluido - usado pra
+  // calcular a sequencia (streak) de dias do implantador na tela de Implantacao.
+  await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;');
 
   // Renomeia o status "Impasse" para "Suspensa" em instalacoes ja existentes
   // (tanto no cadastro quanto nos itens de WBS que ja usavam esse status).
