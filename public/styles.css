@@ -67,6 +67,10 @@ body {
   transition: background 0.15s, color 0.15s;
 }
 .sidebar-nav-btn:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.sidebar-nav-btn-sair {
+  margin-top: 10px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.sidebar-nav-btn-sair:hover { background: rgba(220, 60, 60, 0.15); color: #fff; }
 .sidebar-nav-btn.active {
   background: rgba(255, 255, 255, 0.13); color: #fff; font-weight: 600;
   border-left-color: var(--brand-red);

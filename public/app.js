@@ -331,7 +331,7 @@ function activateTab(btn) {
   if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
   if (btn.dataset.tab === 'implantacao') refreshImplantacao();
 }
-document.querySelectorAll('.sidebar-nav-btn').forEach(btn => {
+document.querySelectorAll('.sidebar-nav-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.tab === 'admin' && !state.isAdmin) {
       requestAdminLogin(() => activateTab(btn));
