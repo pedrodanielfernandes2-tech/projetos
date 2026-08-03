@@ -71,7 +71,7 @@
 const { useState, useEffect, useMemo } = React;
 const {
   ResponsiveContainer, BarChart, Bar, LineChart, Line, XAxis, YAxis,
-  CartesianGrid, Tooltip, PieChart, Pie, Cell, LabelList,
+  CartesianGrid, Tooltip, PieChart, Pie, Cell, LabelList, Legend,
 } = Recharts;
 
 // -----------------------------------------------------------------------
@@ -2346,13 +2346,15 @@ function ChamadosDashboard() {
   }, [chamadosFiltrados]);
 
   const analistasCarga = useMemo(() => {
+    const nomesAtivos = new Set(analistas.filter((a) => a.ativo !== false).map((a) => a.nome));
     const contagem = {};
     chamadosFiltrados.forEach((c) => {
       const nome = c.analista_nome || "Sem analista";
+      if (!nomesAtivos.has(nome)) return;
       contagem[nome] = (contagem[nome] || 0) + 1;
     });
     return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, chamados]) => ({ nome, chamados }));
-  }, [chamadosFiltrados]);
+  }, [chamadosFiltrados, analistas]);
 
   const topClientes = useMemo(() => {
     const anoFoco = new Date().getFullYear();
@@ -2366,6 +2368,123 @@ function ChamadosDashboard() {
   }, [chamadosVisiveis]);
 
   const totalBacklog = useMemo(() => chamadosData.filter((c) => c.status === "BackLog").length, [chamadosData]);
+
+  const anoFocoAtual = new Date().getFullYear();
+
+  // Distribuição por Analista (todos os chamados, todos os anos)
+  const distribuicaoAnalista = useMemo(() => {
+    const contagem = {};
+    chamadosData.forEach((c) => {
+      const nome = c.analista_nome || "Sem analista";
+      contagem[nome] = (contagem[nome] || 0) + 1;
+    });
+    return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, valor]) => ({ nome, valor }));
+  }, [chamadosData]);
+
+  // Top 10 Clientes x Analistas (barras empilhadas)
+  const clienteAnalistaMatrix = useMemo(() => {
+    const nomesAnalistas = [...new Set(chamadosData.map((c) => c.analista_nome).filter(Boolean))];
+    const matrix = {};
+    chamadosData.forEach((c) => {
+      const cliente = c.cliente_nome || "Sem cliente";
+      const analista = c.analista_nome || "Sem analista";
+      if (!matrix[cliente]) matrix[cliente] = {};
+      matrix[cliente][analista] = (matrix[cliente][analista] || 0) + 1;
+    });
+    const linhas = Object.entries(matrix)
+      .map(([cliente, porAnalista]) => ({ cliente, ...porAnalista, total: Object.values(porAnalista).reduce((s, v) => s + v, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+    return { linhas, analistas: nomesAnalistas };
+  }, [chamadosData]);
+
+  // Projetos Aprovados por Mês, no ano corrente
+  const aprovadosPorMes = useMemo(() => {
+    const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const contagem = Array(12).fill(0);
+    const valores = Array(12).fill(0);
+    chamadosData.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      contagem[data.getMonth()]++;
+      valores[data.getMonth()] += Number(c.valor_total_projeto || 0);
+    });
+    return mesesNomes.map((mes, i) => ({ mes, quantidade: contagem[i], valor: Math.round(valores[i] / 1000) }));
+  }, [chamadosData, anoFocoAtual]);
+
+  // Projetos Aprovados por Analista, no ano corrente
+  const aprovadosPorAnalista = useMemo(() => {
+    const dados = {};
+    chamadosData.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.analista_nome || "Não Atribuído";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [chamadosData, anoFocoAtual]);
+
+  // Top 10 Clientes - Projetos Aprovados, no ano corrente
+  const top10ClientesAprovados = useMemo(() => {
+    const dados = {};
+    chamadosData.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.cliente_nome || "Sem Cliente";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+  }, [chamadosData, anoFocoAtual]);
+
+  // Propostas Bonificadas por Cliente, no ano corrente (usa data de aprovacao ou, na falta, abertura)
+  const bonificadasPorCliente = useMemo(() => {
+    const dados = {};
+    chamadosData.forEach((c) => {
+      if (c.proposta_status !== "Bonificado") return;
+      const dataRef = c.data_aprovacao || c.data_abertura;
+      if (!dataRef) return;
+      const data = parseDataLocal(dataRef);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.cliente_nome || "Sem Cliente";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [chamadosData, anoFocoAtual]);
+
+  // % Propostas Aprovadas vs Bonificadas, no ano corrente
+  const aprovadaVsBonificada = useMemo(() => {
+    let aprovadas = 0, bonificadas = 0;
+    chamadosData.forEach((c) => {
+      const dataRef = c.data_aprovacao || c.data_abertura;
+      if (!dataRef) return;
+      const data = parseDataLocal(dataRef);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      if (c.proposta_status === "Aprovado") aprovadas++;
+      if (c.proposta_status === "Bonificado") bonificadas++;
+    });
+    return [
+      { nome: `Aprovadas (${aprovadas})`, valor: aprovadas },
+      { nome: `Bonificadas (${bonificadas})`, valor: bonificadas },
+    ];
+  }, [chamadosData, anoFocoAtual]);
+
+  const CORES_ANALISTAS = ["#3A6EA5", "#7C3AED", "#E0A526", "#EC4899", "#10B981", "#F97316", "#06B6D4"];
 
   return (
     <div className="flex h-screen w-full bg-[#F5F6F4] text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
@@ -2561,6 +2680,103 @@ function ChamadosDashboard() {
                   <TicketRow key={c.id} n={c.numero} cliente={`${c.cliente_nome} · ${c.descricao || "sem descrição"}`} status={c.status} statusColor={corStatus(c.status)} />
                 ))}
               </div>
+            </div>
+          </div>
+
+          <h2 className="text-base font-semibold text-slate-800 mt-2" style={{fontFamily:"'Poppins', sans-serif"}}>Análise Gerencial</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Distribuição por Analista</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={distribuicaoAnalista} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={90} label={(e) => `${e.nome}: ${e.valor}`}>
+                    {distribuicaoAnalista.map((_, i) => (<Cell key={i} fill={CORES_ANALISTAS[i % CORES_ANALISTAS.length]} />))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top 10 Clientes x Analistas</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={clienteAnalistaMatrix.linhas} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="cliente" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {clienteAnalistaMatrix.analistas.map((nome, i) => (
+                    <Bar key={nome} dataKey={nome} stackId="a" fill={CORES_ANALISTAS[i % CORES_ANALISTAS.length]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Projetos Aprovados {anoFocoAtual} por Mês</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={aprovadosPorMes} margin={{ left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                  <Bar dataKey="quantidade" fill="#3A6EA5" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Projetos Aprovados {anoFocoAtual} por Analista</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={aprovadosPorAnalista} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="nome" type="category" width={90} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                  <Bar dataKey="quantidade" fill="#7C3AED" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top 10 Clientes - Projetos Aprovados {anoFocoAtual}</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={top10ClientesAprovados} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="nome" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                  <Bar dataKey="valor" fill="#E0A526" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>🎁 Propostas Bonificadas por Cliente - {anoFocoAtual}</h2>
+              {bonificadasPorCliente.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-16">Nenhuma proposta bonificada encontrada para {anoFocoAtual}.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={bonificadasPorCliente} layout="vertical" margin={{ left: 10 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="nome" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                    <Bar dataKey="valor" fill="#EC4899" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>⚖️ % Propostas Aprovadas vs Bonificadas — {anoFocoAtual}</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={aprovadaVsBonificada} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={90} label={(e) => e.nome}>
+                    <Cell fill="#10B981" />
+                    <Cell fill="#F97316" />
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
           </div>
             </>
