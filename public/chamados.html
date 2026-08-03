@@ -2741,7 +2741,7 @@ function ChamadosDashboard() {
                   <Tooltip formatter={(v) => [`R$ ${v}K`, "Valor aprovado"]} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
                   {comparativoAnual.anos.map((ano, i) => (
-                    <Line key={ano} type="monotone" dataKey={ano} name={String(ano)} stroke={["#94A3B8", "#3A6EA5", "#0F8A6B"][i % 3]} strokeWidth={ano === anoFocoAtual ? 3 : 2} dot={{ r: 3 }} />
+                    <Line key={ano} type="linear" dataKey={ano} name={String(ano)} stroke={["#94A3B8", "#3A6EA5", "#0F8A6B"][i % 3]} strokeWidth={ano === anoFocoAtual ? 3 : 2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
                   ))}
                 </LineChart>
               </ResponsiveContainer>
