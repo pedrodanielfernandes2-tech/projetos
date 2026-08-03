@@ -1649,6 +1649,10 @@ function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
     chamados.forEach((c) => {
       const nome = c.analista_nome || "Sem analista";
       if (!nomesAtivos.has(nome)) return; // so mostra quem esta marcado como ativo
+      // Chamado ja Concluido so continua contando na carga se a proposta ainda estiver
+      // em aberto (vazia ou Enviado) - se ja foi Aprovado/Bonificado/Negado/etc, o
+      // trabalho comercial ja foi decidido e nao deveria pesar mais na carga do analista.
+      if (c.status === "Concluido" && c.proposta_status && c.proposta_status !== "Enviado") return;
       if (!grupos[nome]) grupos[nome] = [];
       grupos[nome].push(c);
     });
@@ -2680,7 +2684,7 @@ function ChamadosDashboard() {
           ) : ativo === "backlog" ? (
             <BacklogPorClientePage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
           ) : ativo === "analistas" ? (
-            <CargaPorAnalistaPage chamados={chamadosData} analistas={analistas} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+            <CargaPorAnalistaPage chamados={chamadosVisiveis} analistas={analistas} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
           ) : ativo === "propostas" ? (
             <PropostasEnviadasPage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
           ) : ativo === "aprovadas" ? (
