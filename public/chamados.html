@@ -2370,24 +2370,27 @@ function ChamadosDashboard() {
   const totalBacklog = useMemo(() => chamadosData.filter((c) => c.status === "BackLog").length, [chamadosData]);
 
   const anoFocoAtual = new Date().getFullYear();
+  const nomesAnalistasAtivos = useMemo(() => new Set(analistas.filter((a) => a.ativo !== false).map((a) => a.nome)), [analistas]);
 
-  // Distribuição por Analista (todos os chamados, todos os anos)
+  // Distribuição por Analista (só analistas ativos; exclui Cancelado/Encerrado via chamadosVisiveis)
   const distribuicaoAnalista = useMemo(() => {
     const contagem = {};
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       const nome = c.analista_nome || "Sem analista";
+      if (!nomesAnalistasAtivos.has(nome)) return;
       contagem[nome] = (contagem[nome] || 0) + 1;
     });
     return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, valor]) => ({ nome, valor }));
-  }, [chamadosData]);
+  }, [chamadosVisiveis, nomesAnalistasAtivos]);
 
-  // Top 10 Clientes x Analistas (barras empilhadas)
+  // Top 10 Clientes x Analistas (só analistas ativos; exclui Cancelado/Encerrado)
   const clienteAnalistaMatrix = useMemo(() => {
-    const nomesAnalistas = [...new Set(chamadosData.map((c) => c.analista_nome).filter(Boolean))];
+    const nomesAnalistas = [...nomesAnalistasAtivos];
     const matrix = {};
-    chamadosData.forEach((c) => {
-      const cliente = c.cliente_nome || "Sem cliente";
+    chamadosVisiveis.forEach((c) => {
       const analista = c.analista_nome || "Sem analista";
+      if (!nomesAnalistasAtivos.has(analista)) return;
+      const cliente = c.cliente_nome || "Sem cliente";
       if (!matrix[cliente]) matrix[cliente] = {};
       matrix[cliente][analista] = (matrix[cliente][analista] || 0) + 1;
     });
@@ -2396,14 +2399,14 @@ function ChamadosDashboard() {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
     return { linhas, analistas: nomesAnalistas };
-  }, [chamadosData]);
+  }, [chamadosVisiveis, nomesAnalistasAtivos]);
 
-  // Projetos Aprovados por Mês, no ano corrente
+  // Projetos Aprovados por Mês, no ano corrente (exclui Cancelado/Encerrado)
   const aprovadosPorMes = useMemo(() => {
     const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
     const contagem = Array(12).fill(0);
     const valores = Array(12).fill(0);
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
       const data = parseDataLocal(c.data_aprovacao);
       if (!data || data.getFullYear() !== anoFocoAtual) return;
@@ -2411,12 +2414,12 @@ function ChamadosDashboard() {
       valores[data.getMonth()] += Number(c.valor_total_projeto || 0);
     });
     return mesesNomes.map((mes, i) => ({ mes, quantidade: contagem[i], valor: Math.round(valores[i] / 1000) }));
-  }, [chamadosData, anoFocoAtual]);
+  }, [chamadosVisiveis, anoFocoAtual]);
 
-  // Projetos Aprovados por Analista, no ano corrente
+  // Projetos Aprovados por Analista, no ano corrente (exclui Cancelado/Encerrado)
   const aprovadosPorAnalista = useMemo(() => {
     const dados = {};
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
       const data = parseDataLocal(c.data_aprovacao);
       if (!data || data.getFullYear() !== anoFocoAtual) return;
@@ -2428,12 +2431,12 @@ function ChamadosDashboard() {
     return Object.entries(dados)
       .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
       .sort((a, b) => b.valor - a.valor);
-  }, [chamadosData, anoFocoAtual]);
+  }, [chamadosVisiveis, anoFocoAtual]);
 
-  // Top 10 Clientes - Projetos Aprovados, no ano corrente
+  // Top 10 Clientes - Projetos Aprovados, no ano corrente (exclui Cancelado/Encerrado)
   const top10ClientesAprovados = useMemo(() => {
     const dados = {};
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
       const data = parseDataLocal(c.data_aprovacao);
       if (!data || data.getFullYear() !== anoFocoAtual) return;
@@ -2446,12 +2449,12 @@ function ChamadosDashboard() {
       .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
       .sort((a, b) => b.valor - a.valor)
       .slice(0, 10);
-  }, [chamadosData, anoFocoAtual]);
+  }, [chamadosVisiveis, anoFocoAtual]);
 
-  // Propostas Bonificadas por Cliente, no ano corrente (usa data de aprovacao ou, na falta, abertura)
+  // Propostas Bonificadas por Cliente, no ano corrente (usa data de aprovacao ou, na falta, abertura; exclui Cancelado/Encerrado)
   const bonificadasPorCliente = useMemo(() => {
     const dados = {};
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       if (c.proposta_status !== "Bonificado") return;
       const dataRef = c.data_aprovacao || c.data_abertura;
       if (!dataRef) return;
@@ -2465,12 +2468,12 @@ function ChamadosDashboard() {
     return Object.entries(dados)
       .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
       .sort((a, b) => b.valor - a.valor);
-  }, [chamadosData, anoFocoAtual]);
+  }, [chamadosVisiveis, anoFocoAtual]);
 
-  // % Propostas Aprovadas vs Bonificadas, no ano corrente
+  // % Propostas Aprovadas vs Bonificadas, no ano corrente (exclui Cancelado/Encerrado)
   const aprovadaVsBonificada = useMemo(() => {
     let aprovadas = 0, bonificadas = 0;
-    chamadosData.forEach((c) => {
+    chamadosVisiveis.forEach((c) => {
       const dataRef = c.data_aprovacao || c.data_abertura;
       if (!dataRef) return;
       const data = parseDataLocal(dataRef);
@@ -2482,7 +2485,7 @@ function ChamadosDashboard() {
       { nome: `Aprovadas (${aprovadas})`, valor: aprovadas },
       { nome: `Bonificadas (${bonificadas})`, valor: bonificadas },
     ];
-  }, [chamadosData, anoFocoAtual]);
+  }, [chamadosVisiveis, anoFocoAtual]);
 
   const CORES_ANALISTAS = ["#3A6EA5", "#7C3AED", "#E0A526", "#EC4899", "#10B981", "#F97316", "#06B6D4"];
 
