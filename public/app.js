@@ -2468,6 +2468,20 @@ document.getElementById('btn-fechar-implantacao-incluir').addEventListener('clic
   document.getElementById('modal-implantacao-incluir').classList.add('hidden');
 });
 
+// ---------- guias internas do Admin ----------
+function ativarAdminSubtab(grupo) {
+  document.querySelectorAll('#admin-subnav .chip').forEach((chip) => {
+    chip.classList.toggle('selected', chip.dataset.adminGroup === grupo);
+  });
+  document.querySelectorAll('.panel[data-admin-group]').forEach((panel) => {
+    panel.classList.toggle('hidden', panel.dataset.adminGroup !== grupo);
+  });
+}
+document.querySelectorAll('#admin-subnav .chip').forEach((chip) => {
+  chip.addEventListener('click', () => ativarAdminSubtab(chip.dataset.adminGroup));
+});
+ativarAdminSubtab('parametrizacoes');
+
 if (loadUsuarioSession()) {
   aposLogin();
 } else {

@@ -217,9 +217,17 @@
         <p class="page-subtitle">Áreas, clientes, gerentes de projeto, e-mails e permissões</p>
       </div>
 
+      <div class="chip-row" id="admin-subnav" style="margin-bottom:18px;">
+        <button class="chip selected" data-admin-group="parametrizacoes">Parametrizações</button>
+        <button class="chip" data-admin-group="cadastros">Cadastros</button>
+        <button class="chip" data-admin-group="notificacoes">Notificações</button>
+        <button class="chip" data-admin-group="acesso">Acesso e Permissões</button>
+        <button class="chip" data-admin-group="auditoria">Auditoria</button>
+      </div>
+
       <div class="admin-grid">
 
-        <div class="panel">
+        <div class="panel" data-admin-group="parametrizacoes">
           <h2>Áreas</h2>
           <p class="muted">Cadastre as áreas da empresa. Elas alimentam os filtros, o cadastro de GP e o cadastro de projetos.</p>
           <div id="area-list" class="stack tight"></div>
@@ -229,7 +237,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="parametrizacoes">
           <h2>Ações</h2>
           <p class="muted">Cadastre os tipos de ação usados nos itens da WBS (ex: Desenvolvimento, Análise, Testes).</p>
           <div id="acao-list" class="stack tight"></div>
@@ -239,7 +247,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="parametrizacoes">
           <h2>Fases do projeto</h2>
           <p class="muted">Cadastre as etapas usadas no ciclo de vida do projeto (ex: Planejamento, Desenvolvimento). Novas fases entram no final da lista.</p>
           <div id="fase-list" class="stack tight"></div>
@@ -249,7 +257,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="parametrizacoes">
           <h2>Status da WBS</h2>
           <p class="muted">Cadastre os status usados nos itens da WBS. "Concluído" e "Suspensa" têm efeitos especiais no sistema (progresso geral e isenção do alerta de prazo) — evite excluí-los.</p>
           <div id="wbs-status-list" class="stack tight"></div>
@@ -259,7 +267,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="cadastros">
           <h2>Clientes</h2>
           <p class="muted">Cadastre os clientes. Eles ficam disponíveis para vincular na hora de criar um projeto.</p>
           <div id="cliente-list" class="stack tight"></div>
@@ -269,7 +277,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="cadastros">
           <h2>Gerentes de projeto</h2>
           <p class="muted">Cadastre o GP e o e-mail. Ele recebe o resumo dos projetos em que for o responsável.</p>
           <div id="gp-list" class="stack tight"></div>
@@ -284,7 +292,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="notificacoes">
           <h2>Destinatários admin</h2>
           <p class="muted">E-mails que recebem o resumo geral, além dos GPs.</p>
           <div id="admin-list" class="stack tight"></div>
@@ -294,7 +302,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="notificacoes">
           <h2>Envio automático de resumo</h2>
           <p class="muted">Define a periodicidade do resumo enviado a GPs, admins e/ou Microsoft Teams.</p>
           <form id="form-email-config">
@@ -327,7 +335,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="acesso">
           <h2>Permissões</h2>
           <p class="muted">Define se ações sensíveis exigem a senha de admin. O acesso a esta aba (Admin) sempre exige senha.</p>
           <form id="form-permissoes">
@@ -342,7 +350,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="acesso">
           <h2>Usuários</h2>
           <p class="muted">Cadastre quem pode acessar o sistema, com e-mail empresarial e permissão por menu. Se você já definir uma senha aqui, a pessoa já pode entrar direto (avise ela por fora). Se deixar em branco, o sistema tenta mandar um e-mail com o link pra ela mesma definir.</p>
           <div id="usuarios-list" class="stack tight"></div>
@@ -364,7 +372,7 @@
           </form>
         </div>
 
-        <div class="panel">
+        <div class="panel" data-admin-group="auditoria">
           <h2>Histórico de alterações</h2>
           <p class="muted">Quem criou, editou ou excluiu cada item — com destaque para mudanças de datas. Baseado no campo "Seu nome" preenchido na sidebar (não é uma autenticação real, então trate como um registro de boa-fé).</p>
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:12px;">
