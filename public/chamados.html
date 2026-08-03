@@ -2313,14 +2313,24 @@ function ChamadosDashboard() {
     [chamadosVisiveis, clienteFiltro]
   );
 
+  // Chamados com proposta ainda em aberto (sem status definido, ou "Enviado" aguardando
+  // decisao do cliente) - representa o trabalho ativo/pipeline, sem contar o que ja foi
+  // fechado comercialmente (Aprovado tem tela propria em "Aprovadas por Mês"; Bonificado,
+  // Negada, Recusada, Cancelado, etc. tambem ja saíram de decisão).
+  const chamadosPendentes = useMemo(
+    () => chamadosFiltrados.filter((c) => !c.proposta_status || c.proposta_status === "Enviado"),
+    [chamadosFiltrados]
+  );
+
   const kpis = useMemo(() => {
-    const total = chamadosFiltrados.length;
-    const totalHoras = chamadosFiltrados.reduce((s, c) => s + Number(c.total_horas || 0), 0);
-    const totalValor = chamadosFiltrados.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0);
-    const concluidos = chamadosFiltrados.filter((c) => c.status === "Concluido").length;
-    const encerrados = chamadosFiltrados.filter((c) => c.status === "Encerrado").length;
+    const total = chamadosPendentes.length;
+    const totalHoras = chamadosPendentes.reduce((s, c) => s + Number(c.total_horas || 0), 0);
+    const totalValor = chamadosPendentes.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0);
+    const concluidos = chamadosPendentes.filter((c) => c.status === "Concluido").length;
+    const encerrados = chamadosPendentes.filter((c) => c.status === "Encerrado").length;
     return { total, totalHoras, totalValor, concluidos, encerrados };
-  }, [chamadosFiltrados]);
+  }, [chamadosPendentes]);
+
 
   const volumeMensal = useMemo(() => {
     const nomesMes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
@@ -2372,22 +2382,22 @@ function ChamadosDashboard() {
   const anoFocoAtual = new Date().getFullYear();
   const nomesAnalistasAtivos = useMemo(() => new Set(analistas.filter((a) => a.ativo !== false).map((a) => a.nome)), [analistas]);
 
-  // Distribuição por Analista (só analistas ativos; exclui Cancelado/Encerrado via chamadosVisiveis)
+  // Distribuição por Analista (só analistas ativos; só propostas em aberto - vazia ou Enviado)
   const distribuicaoAnalista = useMemo(() => {
     const contagem = {};
-    chamadosVisiveis.forEach((c) => {
+    chamadosPendentes.forEach((c) => {
       const nome = c.analista_nome || "Sem analista";
       if (!nomesAnalistasAtivos.has(nome)) return;
       contagem[nome] = (contagem[nome] || 0) + 1;
     });
     return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, valor]) => ({ nome, valor }));
-  }, [chamadosVisiveis, nomesAnalistasAtivos]);
+  }, [chamadosPendentes, nomesAnalistasAtivos]);
 
-  // Top 10 Clientes x Analistas (só analistas ativos; exclui Cancelado/Encerrado)
+  // Top 10 Clientes x Analistas (só analistas ativos; só propostas em aberto - vazia ou Enviado)
   const clienteAnalistaMatrix = useMemo(() => {
     const nomesAnalistas = [...nomesAnalistasAtivos];
     const matrix = {};
-    chamadosVisiveis.forEach((c) => {
+    chamadosPendentes.forEach((c) => {
       const analista = c.analista_nome || "Sem analista";
       if (!nomesAnalistasAtivos.has(analista)) return;
       const cliente = c.cliente_nome || "Sem cliente";
@@ -2399,7 +2409,7 @@ function ChamadosDashboard() {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10);
     return { linhas, analistas: nomesAnalistas };
-  }, [chamadosVisiveis, nomesAnalistasAtivos]);
+  }, [chamadosPendentes, nomesAnalistasAtivos]);
 
   // Projetos Aprovados por Mês, no ano corrente (exclui Cancelado/Encerrado)
   const aprovadosPorMes = useMemo(() => {
