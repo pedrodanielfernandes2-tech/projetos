@@ -11,6 +11,13 @@ router.get('/', requireChamadosAuth, async (req, res) => {
 router.post('/', requireChamadosAuth, async (req, res) => {
   const { nome, ativo } = req.body;
   if (!nome || !nome.trim()) return res.status(400).json({ error: 'nome obrigatorio' });
+
+  const existente = (await pool.query(
+    'SELECT id FROM chamados_analistas WHERE LOWER(TRIM(nome)) = LOWER(TRIM($1))',
+    [nome]
+  )).rows[0];
+  if (existente) return res.status(400).json({ error: `já existe um analista chamado "${nome.trim()}"` });
+
   const { rows } = await pool.query(
     'INSERT INTO chamados_analistas (nome, ativo) VALUES ($1, $2) RETURNING id, nome, ativo',
     [nome.trim(), ativo !== false]
