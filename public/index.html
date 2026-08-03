@@ -698,6 +698,22 @@
   </div>
 
   <script src="app.js"></script>
+  <div id="modal-senha-generica" class="modal-overlay hidden">
+    <div class="modal" style="max-width:360px;">
+      <img src="assets/logo.png" alt="Visual Mix" style="height:28px;margin-bottom:14px;" />
+      <h2 id="senha-generica-titulo">Acesso restrito</h2>
+      <p class="muted" id="senha-generica-subtitulo" style="margin-top:-6px;font-size:13px;"></p>
+      <form id="form-senha-generica">
+        <input type="password" id="senha-generica-input" placeholder="Senha" class="full-width" autoFocus />
+        <p id="senha-generica-erro" class="status-msg hidden" style="color:var(--danger);"></p>
+        <div class="form-actions">
+          <button type="button" id="btn-cancelar-senha-generica" class="btn">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Entrar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div id="confete-container" class="confete-container"></div>
 </body>
 </html>

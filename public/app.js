@@ -274,17 +274,61 @@ function loadAdminSession() {
   }
 }
 
+// ---------- modal de senha estilizado (substitui o prompt() nativo feio) ----------
+function pedirSenhaModal(titulo, subtitulo, erroInicial) {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('modal-senha-generica');
+    const input = document.getElementById('senha-generica-input');
+    const erroEl = document.getElementById('senha-generica-erro');
+    const form = document.getElementById('form-senha-generica');
+    const btnCancelar = document.getElementById('btn-cancelar-senha-generica');
+
+    document.getElementById('senha-generica-titulo').textContent = titulo;
+    document.getElementById('senha-generica-subtitulo').textContent = subtitulo || '';
+    input.value = '';
+    if (erroInicial) {
+      erroEl.textContent = erroInicial;
+      erroEl.classList.remove('hidden');
+    } else {
+      erroEl.classList.add('hidden');
+    }
+    modal.classList.remove('hidden');
+    setTimeout(() => input.focus(), 50);
+
+    function limpar() {
+      modal.classList.add('hidden');
+      form.removeEventListener('submit', aoConfirmar);
+      btnCancelar.removeEventListener('click', aoCancelar);
+    }
+    function aoConfirmar(e) {
+      e.preventDefault();
+      limpar();
+      resolve(input.value);
+    }
+    function aoCancelar() {
+      limpar();
+      resolve(null);
+    }
+    form.addEventListener('submit', aoConfirmar);
+    btnCancelar.addEventListener('click', aoCancelar);
+  });
+}
+
 async function requestAdminLogin(onSuccess) {
-  const senha = prompt('Digite a senha de administrador:');
-  if (senha === null || senha === '') return;
-  state.adminPassword = senha;
-  try {
-    await api('/admin/login', { method: 'POST', body: JSON.stringify({ senha }) });
-    state.isAdmin = true;
-    sessionStorage.setItem('adminPassword', senha);
-    if (onSuccess) onSuccess();
-  } catch (err) {
-    alert('Senha incorreta.');
+  let erro = '';
+  while (true) {
+    const senha = await pedirSenhaModal('Acesso de Administrador', 'Digite a senha de administrador para continuar.', erro);
+    if (senha === null || senha === '') return;
+    state.adminPassword = senha;
+    try {
+      await api('/admin/login', { method: 'POST', body: JSON.stringify({ senha }) });
+      state.isAdmin = true;
+      sessionStorage.setItem('adminPassword', senha);
+      if (onSuccess) onSuccess();
+      return;
+    } catch (err) {
+      erro = 'Senha incorreta. Tente novamente.';
+    }
   }
 }
 
@@ -297,21 +341,25 @@ function loadChamadosSession() {
   }
 }
 async function requestChamadosLogin(onSuccess) {
-  const senha = prompt('Digite a senha de acesso ao Chamados:');
-  if (senha === null || senha === '') return;
-  try {
-    const res = await fetch('/api/chamados-auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ senha }),
-    });
-    if (!res.ok) throw new Error('senha incorreta');
-    state.chamadosPassword = senha;
-    state.isChamados = true;
-    sessionStorage.setItem('chamadosPassword', senha);
-    if (onSuccess) onSuccess();
-  } catch (err) {
-    alert('Senha incorreta.');
+  let erro = '';
+  while (true) {
+    const senha = await pedirSenhaModal('Acesso ao Chamados', 'Digite a senha de acesso ao módulo de Chamados.', erro);
+    if (senha === null || senha === '') return;
+    try {
+      const res = await fetch('/api/chamados-auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ senha }),
+      });
+      if (!res.ok) throw new Error('senha incorreta');
+      state.chamadosPassword = senha;
+      state.isChamados = true;
+      sessionStorage.setItem('chamadosPassword', senha);
+      if (onSuccess) onSuccess();
+      return;
+    } catch (err) {
+      erro = 'Senha incorreta. Tente novamente.';
+    }
   }
 }
 
