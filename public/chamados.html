@@ -1638,6 +1638,7 @@ function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
   const [expandido, setExpandido] = useState(null);
 
   const analistasAtivos = useMemo(() => analistas.filter((a) => a.ativo !== false), [analistas]);
+  const nomesAtivos = useMemo(() => new Set(analistasAtivos.map((a) => a.nome)), [analistasAtivos]);
 
   const STATUS_ABERTOS = ["A Iniciar", "Em Analise", "BackLog", "Aguard. Retorno do Cliente", "Aguard. Analise Desen.", "Aguard. Horas de Desen.", "Reunião Tecnica", "Enviar Proposta", "Novo Cliente"];
 
@@ -1645,6 +1646,7 @@ function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
     const grupos = {};
     chamados.forEach((c) => {
       const nome = c.analista_nome || "Sem analista";
+      if (!nomesAtivos.has(nome)) return; // so mostra quem esta marcado como ativo
       if (!grupos[nome]) grupos[nome] = [];
       grupos[nome].push(c);
     });
@@ -1667,13 +1669,11 @@ function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
       })
       .filter((g) => !busca.trim() || g.nome.toLowerCase().includes(busca.trim().toLowerCase()))
       .sort((a, b) => b.abertos - a.abertos);
-  }, [chamados, busca]);
+  }, [chamados, busca, nomesAtivos]);
 
   const chamadosAbertos = useMemo(() => chamados.filter((c) => STATUS_ABERTOS.includes(c.status)).length, [chamados]);
 
   const fmtData = (d) => (d ? parseDataLocal(d).toLocaleDateString("pt-BR") : "—");
-
-  const nomesAtivos = useMemo(() => new Set(analistasAtivos.map((a) => a.nome)), [analistasAtivos]);
 
   return (
     <div className="space-y-4">
