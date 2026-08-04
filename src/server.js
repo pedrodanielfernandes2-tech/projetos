@@ -15,6 +15,14 @@ app.use('/api/admin', require('./routes/adminAuth')); // login do Admin em si (s
 app.use('/api/chamados-auth', require('./routes/chamadosLogin')); // login do Chamados (senha unica)
 app.use('/api/cron', require('./routes/cron')); // protegido por token proprio (CRON_SECRET), nao por login
 
+// Rota leve, sem tocar no banco de dados, feita pra um servico externo (tipo
+// cron-job.org ou UptimeRobot) chamar periodicamente e manter o Render acordado
+// no plano gratuito - sem isso, o node-cron interno para de disparar quando o
+// processo "dorme" por inatividade.
+app.get('/api/ping', (req, res) => {
+  res.json({ status: 'ok', horario: new Date().toISOString() });
+});
+
 // ---------- gerenciamento de usuarios (protegido pela senha de Admin) ----------
 app.use('/api/usuarios', require('./routes/usuarios'));
 app.use('/api/implantacao', require('./routes/implantacao'));
