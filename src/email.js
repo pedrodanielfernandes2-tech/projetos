@@ -151,28 +151,38 @@ async function sendDigestNow() {
 
   let teams = null;
   if (config.enviar_teams) {
-    try {
-      const atrasados = allProjects.filter(p => p.status_prazo === 'atrasado');
-      const bloqueados = allProjects.filter(p => p.status_prazo === 'bloqueado');
+    const emojiPorStatus = {
+      atrasado: '🔴',
+      bloqueado: '🟠',
+      'em dia': '🟢',
+      pendente: '🟡',
+      'não iniciado': '⚪',
+    };
+    let enviadosTeams = 0;
+    let falhasTeams = 0;
+    for (const p of allProjects) {
+      const emoji = emojiPorStatus[p.status_prazo] || '📋';
       const linhas = [];
-      if (atrasados.length > 0) {
-        linhas.push(`**Atrasados (${atrasados.length}):** ` + atrasados.map(p => p.nome).join(', '));
+      if (p.chamado) linhas.push(`**Chamado:** ${p.chamado}`);
+      if (p.cliente_nome) linhas.push(`**Cliente:** ${p.cliente_nome}`);
+      if (p.gerente_nome) linhas.push(`**GP:** ${p.gerente_nome}`);
+      const inicioFmt = p.data_inicio ? new Date(p.data_inicio).toLocaleDateString('pt-BR') : '?';
+      const fimFmt = p.data_fim ? new Date(p.data_fim).toLocaleDateString('pt-BR') : '?';
+      if (p.data_inicio || p.data_fim) linhas.push(`**Prazo:** ${inicioFmt} → ${fimFmt}`);
+      linhas.push(`**Status:** ${p.status_prazo || 'sem status definido'}`);
+      try {
+        await postToTeams({ title: `${emoji} ${p.nome}`, text: linhas.join('\n\n') });
+        enviadosTeams++;
+      } catch (e) {
+        falhasTeams++;
+        console.error(`[teams] falha ao enviar card do projeto "${p.nome}":`, e.message);
       }
-      if (bloqueados.length > 0) {
-        linhas.push(`**Bloqueados (${bloqueados.length}):** ` + bloqueados.map(p => p.nome).join(', '));
-      }
-      if (linhas.length === 0) {
-        linhas.push('Nenhum projeto atrasado ou bloqueado hoje. ✅');
-      }
-      linhas.push(`\n_Total de projetos ativos: ${allProjects.length}_`);
-      await postToTeams({
-        title: `Resumo de projetos - ${new Date().toLocaleDateString('pt-BR')}`,
-        text: linhas.join('\n\n'),
-      });
-      teams = 'enviado';
-    } catch (e) {
-      teams = 'erro: ' + e.message;
+      // pequena pausa entre os envios pra nao sobrecarregar o webhook do Power Automate
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
+    teams = falhasTeams > 0
+      ? `${enviadosTeams} card(s) enviado(s), ${falhasTeams} falharam`
+      : `${enviadosTeams} card(s) enviado(s) (um por projeto)`;
   }
 
   return { enviados, emailErro, teams };
