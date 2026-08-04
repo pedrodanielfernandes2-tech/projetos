@@ -1160,10 +1160,22 @@ document.getElementById('form-admin').addEventListener('submit', async (e) => {
 });
 
 // ---------- Email config ----------
+function popularSelectHoras() {
+  const sel = document.getElementById('cfg-hora');
+  if (sel.options.length > 0) return; // ja populado
+  for (let h = 0; h < 24; h++) {
+    const opt = document.createElement('option');
+    opt.value = h;
+    opt.textContent = `${String(h).padStart(2, '0')}:00`;
+    sel.appendChild(opt);
+  }
+}
 function renderEmailConfig() {
+  popularSelectHoras();
   const c = state.emailConfig;
   document.getElementById('cfg-frequencia').value = c.frequencia;
   document.getElementById('cfg-dia-semana').value = c.dia_semana;
+  document.getElementById('cfg-hora').value = c.hora ?? 8;
   document.getElementById('cfg-enviar-gps').checked = !!c.enviar_gps;
   document.getElementById('cfg-enviar-admins').checked = !!c.enviar_admins;
   document.getElementById('cfg-enviar-teams').checked = !!c.enviar_teams;
@@ -1173,7 +1185,7 @@ document.getElementById('form-email-config').addEventListener('submit', async (e
   const body = {
     frequencia: document.getElementById('cfg-frequencia').value,
     dia_semana: Number(document.getElementById('cfg-dia-semana').value),
-    hora: 8,
+    hora: Number(document.getElementById('cfg-hora').value),
     enviar_gps: document.getElementById('cfg-enviar-gps').checked,
     enviar_admins: document.getElementById('cfg-enviar-admins').checked,
     enviar_teams: document.getElementById('cfg-enviar-teams').checked,
