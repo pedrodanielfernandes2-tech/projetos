@@ -11,8 +11,20 @@ function diasDesde(data) {
 }
 
 function deveEnviarHoje(config) {
-  const hoje = new Date();
-  const diaSemanaHoje = hoje.getDay(); // 0=domingo ... 6=sabado
+  const agora = new Date();
+  const diaSemanaHoje = agora.getDay(); // 0=domingo ... 6=sabado
+  const horaAtual = agora.getHours();
+
+  // So dispara na hora configurada (a checagem roda a cada 15min - aceita a primeira
+  // janela que bater com a hora escolhida no Admin).
+  const horaConfigurada = config.hora ?? 8;
+  if (horaAtual !== horaConfigurada) return false;
+
+  // Evita reenvio dentro do mesmo dia (a checagem roda varias vezes dentro da mesma hora).
+  if (config.ultimo_envio) {
+    const mesmoDia = new Date(config.ultimo_envio).toDateString() === agora.toDateString();
+    if (mesmoDia) return false;
+  }
 
   switch (config.frequencia) {
     case 'diaria':
@@ -57,8 +69,10 @@ async function checkStatusChangesAndNotify() {
 }
 
 function startScheduler() {
-  // roda todo dia as 07:00 (verifica se, segundo a config, deve disparar hoje)
-  cron.schedule('0 7 * * *', async () => {
+  // roda a cada 15 minutos, e dentro disso verifica se a hora/frequencia configurada
+  // no Admin bate com o momento atual - permite trocar o horario pela tela, sem
+  // precisar mexer no codigo (antes ficava fixo as 07:00, ignorando a configuracao).
+  cron.schedule('*/15 * * * *', async () => {
     try {
       const { rows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
       const config = rows[0];
@@ -75,7 +89,7 @@ function startScheduler() {
     checkStatusChangesAndNotify().catch(e => console.error('[scheduler] falha na checagem de status:', e.message));
   });
 
-  console.log('[scheduler] agendador iniciado - resumo diario as 07:00, checagem de status a cada 15 minutos');
+  console.log('[scheduler] agendador iniciado - resumo respeita o horario configurado no Admin, checagem de status a cada 15 minutos');
 }
 
 module.exports = { startScheduler, deveEnviarHoje, checkStatusChangesAndNotify };
