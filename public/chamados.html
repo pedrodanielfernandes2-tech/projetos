@@ -333,7 +333,7 @@ const OPCOES_PROPOSTA = [
   "Release", "Suporte", "Recusada", "Equipe Exclusiva", "Negada",
 ];
 
-function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, modelosParcelamento, tabelasRecurso, chamadoExistente }) {
+function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas = [], modelosParcelamento = [], tabelasRecurso = [], chamadoExistente }) {
   const editando = !!chamadoExistente;
 
   const [cliente, setCliente] = useState("");
@@ -827,7 +827,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   );
 }
 
-function ModelosParcelamentoSecao({ modelos, onCriar, onAtualizar, onExcluir }) {
+function ModelosParcelamentoSecao({ modelos = [], onCriar, onAtualizar, onExcluir }) {
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
   const [linhas, setLinhas] = useState([{ dias: 15, percentual: 100 }]);
@@ -965,7 +965,7 @@ function ModelosParcelamentoSecao({ modelos, onCriar, onAtualizar, onExcluir }) 
   );
 }
 
-function TabelasRecursoSecao({ tabelas, onCriar, onAtualizar, onExcluir }) {
+function TabelasRecursoSecao({ tabelas = [], onCriar, onAtualizar, onExcluir }) {
   const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState("");
@@ -1102,16 +1102,16 @@ function ConfiguracoesModal({
   config,
   onSalvar,
   salvando,
-  analistas,
+  analistas = [],
   onToggleAnalista,
   onNovoAnalista,
-  statusOcultos,
+  statusOcultos = [],
   onToggleStatus,
-  modelosParcelamento,
+  modelosParcelamento = [],
   onCriarModelo,
   onAtualizarModelo,
   onExcluirModelo,
-  tabelasRecurso,
+  tabelasRecurso = [],
   onCriarTabelaRecurso,
   onAtualizarTabelaRecurso,
   onExcluirTabelaRecurso,
