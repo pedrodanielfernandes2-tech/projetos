@@ -170,6 +170,14 @@ async function sendDigestNow() {
       const fimFmt = p.data_fim ? new Date(p.data_fim).toLocaleDateString('pt-BR') : '?';
       if (p.data_inicio || p.data_fim) linhas.push(`**Prazo:** ${inicioFmt} → ${fimFmt}`);
       linhas.push(`**Status:** ${p.status_prazo || 'sem status definido'}`);
+      if (p.historico && p.historico.length > 0) {
+        const recentes = p.historico.slice(0, 3).map((h) => {
+          const dataFmt = new Date(h.data).toLocaleDateString('pt-BR');
+          const autorTxt = h.autor ? ` (${h.autor})` : '';
+          return `• ${dataFmt}${autorTxt}: ${h.texto}`;
+        });
+        linhas.push(`**Histórico recente:**\n${recentes.join('\n')}`);
+      }
       try {
         await postToTeams({ title: `${emoji} ${p.nome}`, text: linhas.join('\n\n') });
         enviadosTeams++;
