@@ -252,9 +252,13 @@ body {
   gap: 8px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--border);
   font-size: 13px;
 }
-.hist-row { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; }
+.hist-row { border-top: 1px solid var(--border); padding: 8px 0; font-size: 13px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .hist-row.envolve-data { border-left: 3px solid var(--pending); padding-left: 10px; background: var(--pending-soft); border-radius: 0 6px 6px 0; }
 .hist-date { font-weight: 600; }
+.hist-texto { flex: 1; }
+.hist-acoes { display: flex; gap: 2px; flex-shrink: 0; }
+.hist-acoes .icon-btn { font-size: 12px; padding: 3px 6px; }
+.hist-edit-input { flex: 1; padding: 5px 8px; border: 1px solid var(--accent); border-radius: 6px; font-size: 13px; min-width: 160px; }
 .audit-detalhes { color: var(--text-muted); font-size: 12px; margin: 2px 0 0; }
 
 .hist-add { display: flex; gap: 6px; margin-top: 8px; }

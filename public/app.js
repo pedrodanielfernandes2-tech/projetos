@@ -927,11 +927,52 @@ function renderProjectList() {
 
     // ----- historico -----
     const histHost = card.querySelector('[data-detail="historico"]');
-    p.historico.forEach(h => {
+    function renderHistRow(h) {
       const row = document.createElement('div');
       row.className = 'hist-row';
-      row.innerHTML = `<span class="hist-date">${fmtDateFull(h.data)}</span> — ${h.texto}`;
-      histHost.appendChild(row);
+      row.innerHTML = `
+        <span class="hist-date">${fmtDateFull(h.data)}</span> — <span class="hist-texto">${h.texto}</span>
+        <span class="hist-acoes">
+          <button class="icon-btn" data-editar-hist aria-label="Editar registro do histórico">✎</button>
+          <button class="icon-btn" data-excluir-hist aria-label="Excluir registro do histórico">🗑</button>
+        </span>
+      `;
+      row.querySelector('[data-editar-hist]').onclick = () => {
+        row.innerHTML = `
+          <input type="text" class="hist-edit-input" value="${h.texto.replace(/"/g, '&quot;')}" />
+          <button class="btn" data-salvar-hist>Salvar</button>
+          <button class="btn" data-cancelar-hist>Cancelar</button>
+        `;
+        const inputEdit = row.querySelector('.hist-edit-input');
+        inputEdit.focus();
+        row.querySelector('[data-salvar-hist]').onclick = async () => {
+          if (!inputEdit.value.trim()) return;
+          try {
+            await api(`/projects/${p.id}/historico/${h.id}`, { method: 'PATCH', body: JSON.stringify({ texto: inputEdit.value.trim() }) });
+            state.expanded[p.id] = 'historico';
+            await refreshProjects();
+          } catch (err) {
+            alert('Não foi possível salvar: ' + err.message);
+          }
+        };
+        row.querySelector('[data-cancelar-hist]').onclick = () => {
+          row.replaceWith(renderHistRow(h));
+        };
+      };
+      row.querySelector('[data-excluir-hist]').onclick = async () => {
+        if (!confirm('Excluir esse registro de histórico?')) return;
+        try {
+          await api(`/projects/${p.id}/historico/${h.id}`, { method: 'DELETE' });
+          state.expanded[p.id] = 'historico';
+          await refreshProjects();
+        } catch (err) {
+          alert('Não foi possível excluir: ' + err.message);
+        }
+      };
+      return row;
+    }
+    p.historico.forEach(h => {
+      histHost.appendChild(renderHistRow(h));
     });
     const addRow = document.createElement('div');
     addRow.className = 'hist-add';
