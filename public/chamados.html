@@ -1,0 +1,3537 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Chamados AN · 2026 — Protótipo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
+<script src="https://unpkg.com/react-is@18/umd/react-is.production.min.js"></script>
+<script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  body { margin: 0; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div id="carregando-inicial" style="font-family: sans-serif; color: #888; padding: 40px; text-align: center;">
+    Carregando o painel...
+  </div>
+</div>
+
+<script>
+  // Diagnóstico automático: depois de alguns segundos, verifica quais
+  // bibliotecas realmente carregaram e aponta exatamente qual falhou.
+  setTimeout(function () {
+    var placeholder = document.getElementById("carregando-inicial");
+    if (!placeholder) return; // React já montou normalmente, nada a fazer
+
+    var checagens = [
+      ["React", typeof React !== "undefined"],
+      ["ReactDOM", typeof ReactDOM !== "undefined"],
+      ["PropTypes", typeof PropTypes !== "undefined"],
+      ["Recharts", typeof Recharts !== "undefined"],
+      ["Babel", typeof Babel !== "undefined"],
+    ];
+    var falhou = checagens.filter(function (c) { return !c[1]; }).map(function (c) { return c[0]; });
+
+    var linhas = checagens.map(function (c) {
+      var cor = c[1] ? "#15803d" : "#b91c1c";
+      var status = c[1] ? "OK" : "NÃO CARREGOU";
+      return '<div style="color:' + cor + '; font-family: monospace; margin: 4px 0;">' + c[0] + ": " + status + "</div>";
+    }).join("");
+
+    var mensagemFinal;
+    if (falhou.length > 0) {
+      mensagemFinal =
+        '<p><strong>Não carregou:</strong> ' + falhou.join(", ") + '.</p>' +
+        '<p>Isso costuma ser a internet/firewall bloqueando o domínio unpkg.com (de onde essas bibliotecas vêm). ' +
+        'Tente em outra rede (ex: dados do celular) ou peça para o time de TI liberar unpkg.com.</p>';
+    } else {
+      mensagemFinal =
+        '<p>Todas as bibliotecas carregaram, então o problema está em outro lugar (provavelmente a conexão com o Supabase). ' +
+        'Abra o Console (F12 → aba Console) e procure uma linha vermelha — ela deve mencionar "supabase" ou "fetch".</p>';
+    }
+
+    document.getElementById("root").innerHTML =
+      '<div style="font-family: sans-serif; color: #1e293b; padding: 40px; max-width: 700px; margin: 0 auto;">' +
+      '<h2 style="color:#b91c1c;">O painel não terminou de carregar</h2>' +
+      '<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:16px; margin: 16px 0;">' + linhas + '</div>' +
+      mensagemFinal +
+      '</div>';
+  }, 4000);
+</script>
+
+<script type="text/babel-source" id="app-source">
+const { useState, useEffect, useMemo } = React;
+const {
+  ResponsiveContainer, ComposedChart, BarChart, Bar, LineChart, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip, PieChart, Pie, Cell, LabelList, Legend,
+} = Recharts;
+
+// -----------------------------------------------------------------------
+// Ícones simples em SVG (substituem o pacote lucide-react para rodar sem
+// depender de módulos externos incompatíveis com este visualizador local)
+// -----------------------------------------------------------------------
+const Icon = ({ path, size = 16, ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    {path}
+  </svg>
+);
+const LayoutGrid = (p) => <Icon {...p} path={<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>} />;
+const Ticket = (p) => <Icon {...p} path={<><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z"/></>} />;
+const Users = (p) => <Icon {...p} path={<><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15 14c2.8.4 5 2.6 5 6"/></>} />;
+const FileText = (p) => <Icon {...p} path={<><path d="M6 2h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M9 12h6M9 16h6M14 2v5h5"/></>} />;
+const Wallet = (p) => <Icon {...p} path={<><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H5"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="16" cy="14" r="1.4"/></>} />;
+const ClipboardList = (p) => <Icon {...p} path={<><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2h6v4H9z"/><path d="M8 11h8M8 14h8M8 17h5"/></>} />;
+const ChevronRight = (p) => <Icon {...p} path={<path d="M9 6l6 6-6 6"/>} />;
+const Search = (p) => <Icon {...p} path={<><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></>} />;
+const Plus = (p) => <Icon {...p} path={<path d="M12 5v14M5 12h14"/>} />;
+const X = (p) => <Icon {...p} path={<path d="M18 6 6 18M6 6l12 12"/>} />;
+const Settings = (p) => <Icon {...p} path={<><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"/></>} />;
+const CircleDot = ({ fill, size = 7 }) => <svg width={size} height={size} viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill={fill} /></svg>;
+
+// -----------------------------------------------------------------------
+// Conexão com o backend do painel de Projetos (rotas /api/chamados-*),
+// protegidas pela senha única do Chamados (igual ao Admin). A senha vem do
+// sessionStorage, guardada na hora que a pessoa clicou em "Chamados" no menu.
+// -----------------------------------------------------------------------
+const CHAMADOS_PASSWORD = sessionStorage.getItem("chamadosPassword");
+
+if (!CHAMADOS_PASSWORD) {
+  // ninguém deveria chegar aqui sem passar pelo menu do painel de Projetos
+  window.location.href = "/";
+}
+
+// Traduz as chamadas no formato antigo (estilo Supabase/PostgREST) para as
+// rotas novas do Express. Mantém a mesma assinatura de função (sbFetch) pra
+// não precisar mexer em cada chamada espalhada pelo código abaixo.
+async function sbFetch(caminhoAntigo, options = {}) {
+  const [base, query] = caminhoAntigo.split("?");
+  const method = (options.method || "GET").toUpperCase();
+
+  let url;
+  if (base === "/chamados_calculado") {
+    url = "/api/chamados";
+  } else if (base === "/clientes") {
+    url = "/api/chamados-clientes";
+  } else if (base === "/analistas") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-analistas/${idMatch[1]}` : "/api/chamados-analistas";
+  } else if (base === "/config_calculo") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-config/${idMatch[1]}` : "/api/chamados-config";
+  } else if (base === "/status_ocultos") {
+    if (method === "DELETE") {
+      const statusMatch = (query || "").match(/status=eq\.(.+)/);
+      url = `/api/chamados-status-ocultos?status=${statusMatch ? statusMatch[1] : ""}`;
+    } else {
+      url = "/api/chamados-status-ocultos";
+    }
+  } else if (base === "/modelos_parcelamento") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-modelos-parcelamento/${idMatch[1]}` : "/api/chamados-modelos-parcelamento";
+  } else if (base === "/tabelas_recurso") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-tabelas-recurso/${idMatch[1]}` : "/api/chamados-tabelas-recurso";
+  } else if (base === "/chamados") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados/${idMatch[1]}` : "/api/chamados";
+  } else {
+    url = "/api" + base;
+  }
+
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      "x-chamados-password": CHAMADOS_PASSWORD,
+      ...(options.headers || {}),
+    },
+  });
+
+  if (res.status === 401) {
+    sessionStorage.removeItem("chamadosPassword");
+    alert("Sessão do Chamados expirou ou senha inválida. Você será redirecionado.");
+    window.location.href = "/";
+    throw new Error("nao autorizado");
+  }
+
+  if (!res.ok) {
+    const texto = await res.text().catch(() => "");
+    throw new Error(`Erro ${res.status}: ${texto || res.statusText}`);
+  }
+  const tipo = res.headers.get("content-type") || "";
+  return tipo.includes("application/json") ? res.json() : null;
+}
+
+const CORES_STATUS = {
+  Concluido: "#0F8A6B",
+  Encerrado: "#7C8AA0",
+  "Em Analise": "#E0A526",
+  BackLog: "#C4573D",
+  "A Iniciar": "#3A6EA5",
+};
+function corStatus(status) {
+  return CORES_STATUS[status] || "#C7CCD6";
+}
+
+// O Supabase devolve datas "puras" como texto "AAAA-MM-DD". Se passarmos isso
+// direto pro `parseDataLocal(...)`, o JS interpreta como meia-noite em UTC — e como
+// o Brasil está em UTC-3, a data exibida/agrupada acaba caindo no dia (ou mês)
+// anterior. Esta função monta a data em horário local, evitando esse desvio.
+function parseDataLocal(valor) {
+  if (!valor) return null;
+  if (valor instanceof Date) return valor;
+  const partes = String(valor).slice(0, 10).split("-");
+  if (partes.length === 3) {
+    const [ano, mes, dia] = partes.map(Number);
+    return new Date(ano, mes - 1, dia);
+  }
+  return new Date(valor);
+}
+
+// -----------------------------------------------------------------------
+// Regra de cálculo (confirmada a partir dos dados reais da planilha)
+// -----------------------------------------------------------------------
+const CONFIG_PADRAO = { pctQA: 0.6, pctGerencial: 0.2, valorHora: 162.94 };
+
+// Arredondamento ABNT NBR 5891: quando o algarismo a descartar é exatamente 5
+// (sem mais nada depois), arredonda para o número par mais próximo; senão,
+// segue a regra comum (< 5 mantém, > 5 sobe).
+function arredondarABNT(valor, casas = 1) {
+  if (valor === null || valor === undefined || isNaN(valor)) return valor;
+  const fator = Math.pow(10, casas);
+  const numero = valor * fator;
+  const piso = Math.floor(numero);
+  const diferenca = numero - piso;
+  const EPS = 1e-9;
+  let resultado;
+  if (diferenca > 0.5 + EPS) {
+    resultado = piso + 1;
+  } else if (diferenca < 0.5 - EPS) {
+    resultado = piso;
+  } else {
+    resultado = piso % 2 === 0 ? piso : piso + 1;
+  }
+  return resultado / fator;
+}
+
+function calcularChamado({ horasDev, pctMargem, pctNegociado, config }) {
+  const cfg = config || CONFIG_PADRAO;
+  const dev = Number(horasDev) || 0;
+  const qa = arredondarABNT(dev * cfg.pctQA, 0);
+  const gerencial = arredondarABNT(dev * cfg.pctGerencial, 0);
+  const totalHoras = arredondarABNT(dev + qa + gerencial, 0);
+  const horasMargem = arredondarABNT(totalHoras * (Number(pctMargem) || 0), 0);
+  const totalGeral = arredondarABNT(totalHoras + horasMargem, 0);
+  const valorProjeto = totalGeral * cfg.valorHora;
+  const descontoNegociado = valorProjeto * (Number(pctNegociado) || 0);
+  const valorTotalProjeto = valorProjeto - descontoNegociado;
+  return { qa, gerencial, totalHoras, horasMargem, totalGeral, valorProjeto, descontoNegociado, valorTotalProjeto };
+}
+
+function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
+  const valorBase = (recursosHoras || []).reduce((s, r) => s + (Number(r.horas) || 0) * (Number(r.valor_hora) || 0), 0);
+  const valorProjeto = arredondarABNT(valorBase * (1 + (Number(pctMargem) || 0)), 2);
+  const descontoNegociado = arredondarABNT(valorProjeto * (Number(pctNegociado) || 0), 2);
+  const valorTotalProjeto = arredondarABNT(valorProjeto - descontoNegociado, 2);
+  return { valorBase, valorProjeto, descontoNegociado, valorTotalProjeto };
+}
+
+function navSecoes(totalChamados, totalBacklog) {
+  return [
+    { titulo: "GERAL", itens: [{ id: "visao-geral", label: "Visão Geral", icon: LayoutGrid }] },
+    { titulo: "OPERAÇÃO", itens: [
+      { id: "chamados", label: "Chamados", icon: Ticket, badge: totalChamados },
+      { id: "backlog", label: "Backlog por Cliente", icon: ClipboardList, badge: totalBacklog },
+      { id: "analistas", label: "Carga por Analista", icon: Users },
+    ]},
+    { titulo: "COMERCIAL", itens: [
+      { id: "propostas", label: "Propostas Enviadas", icon: FileText },
+      { id: "aprovadas", label: "Aprovadas por Mês", icon: FileText },
+    ]},
+    { titulo: "FINANCEIRO", itens: [{ id: "financeiro", label: "Valores & Margem", icon: Wallet }] },
+    { titulo: "SISTEMA", itens: [{ id: "config", label: "Configurações", icon: Settings }] },
+  ];
+}
+
+const BRAND_BLUE = "#3B82D6";
+const BRAND_RED = "#E2001A";
+
+function Wordmark({ size = 22, variant = "dark" }) {
+  const corTexto = variant === "light" ? "#FFFFFF" : BRAND_BLUE;
+  const corTagline = variant === "light" ? "#A9B6CC" : "#8A9099";
+  return (
+    <div className="leading-none select-none">
+      <div style={{ fontFamily: "'Poppins', sans-serif", fontWeight: 800, fontSize: size, color: corTexto }} className="tracking-tight">
+        Visual&nbsp;M
+        <span className="relative inline-block">
+          i
+          <span className="absolute rounded-full" style={{ backgroundColor: BRAND_RED, width: size * 0.16, height: size * 0.16, top: -size * 0.32, left: "50%", transform: "translateX(-50%)" }} />
+        </span>
+        x
+      </div>
+      <div style={{ fontFamily: "'Inter', sans-serif", color: corTagline, fontSize: size * 0.28 }} className="tracking-[0.18em] font-medium uppercase mt-0.5">
+        Tecnologia para o varejo
+      </div>
+    </div>
+  );
+}
+
+function formatMoeda(v) {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+}
+
+function KpiCard({ label, value, sub, accent }) {
+  return (
+    <div className="flex-1 min-w-[200px] bg-white rounded-xl px-6 py-5 shadow-sm">
+      <div className="text-sm text-slate-500 mb-2">{label}</div>
+      <div className="text-3xl font-extrabold tabular-nums" style={{ color: accent, fontFamily: "'Poppins', sans-serif" }}>{value}</div>
+      {sub && <div className="text-xs text-slate-400 mt-1">{sub}</div>}
+    </div>
+  );
+}
+
+function TicketRow({ n, cliente, status, statusColor }) {
+  return (
+    <div className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0">
+      <div className="flex items-center gap-3">
+        <span className="font-mono text-xs text-slate-400 bg-slate-50 border border-slate-200 rounded px-1.5 py-0.5">#{n}</span>
+        <span className="text-sm text-slate-700">{cliente}</span>
+      </div>
+      <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: statusColor + "1a", color: statusColor }}>{status}</span>
+    </div>
+  );
+}
+
+function LinhaCalculada({ label, value, destaque }) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <span className="text-xs text-slate-400">{label}</span>
+      <span className={`text-sm tabular-nums ${destaque ? "font-semibold" : "text-slate-600"}`} style={{ fontFamily: "'IBM Plex Mono', monospace", color: destaque ? BRAND_BLUE : undefined }}>{value}</span>
+    </div>
+  );
+}
+
+const OPCOES_STATUS = [
+  "A Iniciar", "Em Analise", "BackLog", "Concluido", "Encerrado", "Cancelado",
+  "Enviar Proposta", "Aguard. Retorno do Cliente", "Aguard. Analise Desen.",
+  "Aguard. Horas de Desen.", "Reunião Tecnica", "Novo Cliente",
+];
+
+const OPCOES_PROPOSTA = [
+  "", "Aprovado", "Enviado", "Bonificado", "Cancelado", "Encerrado",
+  "Release", "Suporte", "Recusada", "Equipe Exclusiva", "Negada",
+];
+
+function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas = [], modelosParcelamento = [], tabelasRecurso = [], chamadoExistente }) {
+  const editando = !!chamadoExistente;
+
+  const [cliente, setCliente] = useState("");
+  const [numero, setNumero] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [analista, setAnalista] = useState("");
+  const [status, setStatus] = useState("A Iniciar");
+  const [grupoTrabalho, setGrupoTrabalho] = useState("");
+  const [complexidade, setComplexidade] = useState("");
+  const [propostaStatus, setPropostaStatus] = useState("");
+  const [dataEnvioProposta, setDataEnvioProposta] = useState("");
+  const [dataAprovacao, setDataAprovacao] = useState("");
+  const [horasDev, setHorasDev] = useState("");
+  const [pctMargem, setPctMargem] = useState("10");
+  const [pctNegociado, setPctNegociado] = useState("0");
+  const [modeloParcelamentoId, setModeloParcelamentoId] = useState("");
+  const [modoPrecificacao, setModoPrecificacao] = useState("unico");
+  const [tabelaRecursoId, setTabelaRecursoId] = useState("");
+  const [horasPorPapel, setHorasPorPapel] = useState({}); // { "Nome do Papel": "10" }
+  const [projetoFechado, setProjetoFechado] = useState(false);
+  const [usarReguaVigente, setUsarReguaVigente] = useState(false);
+
+  useEffect(() => {
+    if (!aberto) return;
+    if (chamadoExistente) {
+      setCliente(chamadoExistente.cliente_nome || "");
+      setNumero(String(chamadoExistente.numero ?? ""));
+      setDescricao(chamadoExistente.descricao || "");
+      setAnalista(chamadoExistente.analista_nome || "");
+      setStatus(chamadoExistente.status || "A Iniciar");
+      setGrupoTrabalho(chamadoExistente.grupo_trabalho || "");
+      setComplexidade(chamadoExistente.complexidade || "");
+      setPropostaStatus(chamadoExistente.proposta_status || "");
+      setDataEnvioProposta(chamadoExistente.data_envio_proposta || "");
+      setDataAprovacao(chamadoExistente.data_aprovacao || "");
+      setHorasDev(String(chamadoExistente.horas_dev ?? ""));
+      setPctMargem(String(Number(chamadoExistente.pct_margem || 0) * 100));
+      setPctNegociado(String(Number(chamadoExistente.pct_negociado || 0) * 100));
+      setModeloParcelamentoId(chamadoExistente.modelo_parcelamento_id ? String(chamadoExistente.modelo_parcelamento_id) : "");
+      setModoPrecificacao(chamadoExistente.modo_precificacao || "unico");
+      setTabelaRecursoId(chamadoExistente.tabela_recurso_id ? String(chamadoExistente.tabela_recurso_id) : "");
+      if (Array.isArray(chamadoExistente.recursos_horas)) {
+        const mapa = {};
+        chamadoExistente.recursos_horas.forEach((r) => { mapa[r.papel] = String(r.horas); });
+        setHorasPorPapel(mapa);
+      } else {
+        setHorasPorPapel({});
+      }
+      setProjetoFechado(
+        Number(chamadoExistente.pct_qa_aplicado || 0) === 0 && Number(chamadoExistente.pct_gerencial_aplicado || 0) === 0
+      );
+      setUsarReguaVigente(false);
+    } else {
+      setCliente("");
+      setNumero("");
+      setDescricao("");
+      setAnalista(analistas[0]?.nome || "");
+      setStatus("A Iniciar");
+      setGrupoTrabalho("");
+      setComplexidade("");
+      setPropostaStatus("");
+      setDataEnvioProposta("");
+      setDataAprovacao("");
+      setHorasDev("");
+      setPctMargem("10");
+      setPctNegociado("0");
+      setModeloParcelamentoId(modelosParcelamento.find((m) => m.nome.includes("Padrão"))?.id ? String(modelosParcelamento.find((m) => m.nome.includes("Padrão")).id) : "");
+      setModoPrecificacao("unico");
+      setTabelaRecursoId("");
+      setHorasPorPapel({});
+      setProjetoFechado(false);
+      setUsarReguaVigente(false);
+    }
+  }, [aberto, chamadoExistente]);
+
+  if (!aberto) return null;
+
+  // no modo edição, usa a régua que estava salva NAQUELE chamado (não a atual) --
+  // a menos que a pessoa clique em "usar valor de hora vigente", nesse caso usa a config atual
+  const cfgCalculoBase = editando && !usarReguaVigente
+    ? {
+        pctQA: Number(chamadoExistente.pct_qa_aplicado),
+        pctGerencial: Number(chamadoExistente.pct_gerencial_aplicado),
+        valorHora: Number(chamadoExistente.valor_hora_aplicado),
+      }
+    : config;
+
+  // "projeto fechado" = horas já vêm prontas (ex: alocação de recursos), sem QA/Gerencial
+  const cfgCalculo = projetoFechado ? { ...cfgCalculoBase, pctQA: 0, pctGerencial: 0 } : cfgCalculoBase;
+
+  const calc = calcularChamado({
+    horasDev,
+    pctMargem: Number(pctMargem) / 100,
+    pctNegociado: Number(pctNegociado) / 100,
+    config: cfgCalculo,
+  });
+
+  const tabelaRecursoSelecionada = tabelasRecurso.find((t) => String(t.id) === tabelaRecursoId);
+  const recursosHorasArray = tabelaRecursoSelecionada
+    ? tabelaRecursoSelecionada.papeis.map((p) => ({ papel: p.papel, valor_hora: p.valor_hora, horas: Number(horasPorPapel[p.papel] || 0) }))
+    : [];
+  const calcPorRecurso = calcularChamadoPorRecurso({
+    recursosHoras: recursosHorasArray,
+    pctMargem: Number(pctMargem) / 100,
+    pctNegociado: Number(pctNegociado) / 100,
+  });
+  const calcFinal = modoPrecificacao === "por_recurso" ? calcPorRecurso : calc;
+
+  const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const fmtMoeda = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const podeSalvar =
+    cliente.trim() &&
+    numero &&
+    Number(numero) > 0 &&
+    (modoPrecificacao === "por_recurso" ? recursosHorasArray.some((r) => r.horas > 0) : Number(horasDev) >= 0);
+
+  function handleSalvar() {
+    onSalvar({
+      id: chamadoExistente?.id,
+      numero: Number(numero),
+      cliente,
+      descricao,
+      analista,
+      status,
+      grupoTrabalho,
+      complexidade,
+      propostaStatus,
+      dataEnvioProposta: dataEnvioProposta || null,
+      dataAprovacao: dataAprovacao || null,
+      horasDev: Number(horasDev),
+      pctMargem: Number(pctMargem) / 100,
+      pctNegociado: Number(pctNegociado) / 100,
+      modeloParcelamentoId: modeloParcelamentoId || null,
+      pctQaAplicado: cfgCalculo.pctQA,
+      pctGerencialAplicado: cfgCalculo.pctGerencial,
+      valorHoraAplicado: cfgCalculo.valorHora,
+      modoPrecificacao,
+      tabelaRecursoId: modoPrecificacao === "por_recurso" ? (tabelaRecursoId || null) : null,
+      recursosHoras: modoPrecificacao === "por_recurso" ? recursosHorasArray.filter((r) => r.horas > 0) : null,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900" style={{ fontFamily: "'Poppins', sans-serif" }}>
+            {editando ? `Editar Chamado #${chamadoExistente.numero}` : "Novo Chamado"}
+          </h2>
+          <button onClick={onFechar} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Campos manuais */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Nº do chamado</label>
+                <input
+                  type="number"
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value)}
+                  placeholder="Ex: 90125"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Cliente</label>
+                <input
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                  disabled={editando}
+                  placeholder="Ex: Boa Jundiaí"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6] disabled:bg-slate-50 disabled:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Status</label>
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                >
+                  {OPCOES_STATUS.map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-500 block mb-1">Descrição</label>
+              <input
+                value={descricao}
+                onChange={(e) => setDescricao(e.target.value)}
+                placeholder="Ex: Integração PDV"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Analista</label>
+                <select
+                  value={analista}
+                  onChange={(e) => setAnalista(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                >
+                  <option value="">—</option>
+                  {analistas
+                    .filter((a) => a.ativo !== false || a.nome === analista)
+                    .map((a) => (
+                      <option key={a.id} value={a.nome}>
+                        {a.nome}
+                        {a.ativo === false ? " (inativo)" : ""}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Grupo de Trabalho</label>
+                <input
+                  value={grupoTrabalho}
+                  onChange={(e) => setGrupoTrabalho(e.target.value)}
+                  placeholder="Ex: PDV / Integração"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Complexidade</label>
+                <input
+                  value={complexidade}
+                  onChange={(e) => setComplexidade(e.target.value)}
+                  placeholder="Ex: 2 ou Médio"
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Proposta</label>
+                <select
+                  value={propostaStatus}
+                  onChange={(e) => setPropostaStatus(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                >
+                  {OPCOES_PROPOSTA.map((s) => (
+                    <option key={s || "vazio"} value={s}>
+                      {s || "—"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Data Envio Proposta</label>
+                <input
+                  type="date"
+                  value={dataEnvioProposta || ""}
+                  onChange={(e) => setDataEnvioProposta(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Data Aprovação</label>
+                <input
+                  type="date"
+                  value={dataAprovacao || ""}
+                  onChange={(e) => setDataAprovacao(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+            </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-xs font-medium text-slate-500 block mb-1">Modo de precificação</label>
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setModoPrecificacao("unico")}
+                  className={
+                    "flex-1 text-xs font-medium px-3 py-2 rounded-md border " +
+                    (modoPrecificacao === "unico" ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white")
+                  }
+                  style={modoPrecificacao === "unico" ? { backgroundColor: BRAND_BLUE } : {}}
+                >
+                  Valor único de hora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoPrecificacao("por_recurso")}
+                  className={
+                    "flex-1 text-xs font-medium px-3 py-2 rounded-md border " +
+                    (modoPrecificacao === "por_recurso" ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white")
+                  }
+                  style={modoPrecificacao === "por_recurso" ? { backgroundColor: BRAND_BLUE } : {}}
+                >
+                  Por recurso (papel)
+                </button>
+              </div>
+            </div>
+
+            {modoPrecificacao === "unico" ? (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="flex items-center gap-2 mb-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={projetoFechado}
+                  onChange={(e) => setProjetoFechado(e.target.checked)}
+                  className="w-4 h-4"
+                />
+                <span className="text-xs font-medium text-slate-600">
+                  Projeto fechado (sem QA/Gerencial) — ex: alocação de recursos
+                </span>
+              </label>
+              <label className="text-xs font-medium text-slate-500 block mb-1">Horas Dev</label>
+              <input
+                type="number"
+                min="0"
+                value={horasDev}
+                onChange={(e) => setHorasDev(e.target.value)}
+                placeholder="Ex: 40"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                {projetoFechado
+                  ? "Horas fechadas do projeto — QA e Gerencial não entram no cálculo."
+                  : `QA (${Math.round(cfgCalculo.pctQA * 100)}%) e Gerencial (${Math.round(
+                      cfgCalculo.pctGerencial * 100
+                    )}%) são calculados automaticamente.`}
+              </p>
+            </div>
+            ) : (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-xs font-medium text-slate-500 block mb-1">Tabela de recursos</label>
+              <select
+                value={tabelaRecursoId}
+                onChange={(e) => setTabelaRecursoId(e.target.value)}
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6] mb-3"
+              >
+                <option value="">Selecione uma tabela...</option>
+                {tabelasRecurso.filter((t) => t.ativo !== false).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nome}</option>
+                ))}
+              </select>
+              {tabelaRecursoSelecionada ? (
+                <div className="space-y-1.5">
+                  {tabelaRecursoSelecionada.papeis.map((p) => (
+                    <div key={p.papel} className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 flex-1">
+                        {p.papel} <span className="text-slate-400">(R$ {p.valor_hora.toFixed(2).replace(".", ",")}/h)</span>
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={horasPorPapel[p.papel] || ""}
+                        onChange={(e) => setHorasPorPapel((prev) => ({ ...prev, [p.papel]: e.target.value }))}
+                        placeholder="0"
+                        className="w-20 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none focus:border-[#3B82D6]"
+                      />
+                      <span className="text-xs text-slate-400">h</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">Escolha uma tabela de recursos pra informar as horas de cada papel.</p>
+              )}
+            </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">% Margem</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={pctMargem}
+                  onChange={(e) => setPctMargem(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">% Negociado (desconto)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={pctNegociado}
+                  onChange={(e) => setPctNegociado(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Modelo de parcelamento</label>
+                <select
+                  value={modeloParcelamentoId}
+                  onChange={(e) => setModeloParcelamentoId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+                >
+                  <option value="">Sem modelo (à vista)</option>
+                  {modelosParcelamento.filter((m) => m.ativo !== false).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome} ({m.parcelas.map((p) => `${p.dias}d ${Math.round(p.percentual * 100)}%`).join(" / ")})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Painel calculado */}
+          <div className="bg-slate-50 rounded-lg p-4 h-fit">
+            <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+              Calculado automaticamente
+            </div>
+            {modoPrecificacao === "unico" ? (
+              <>
+                <LinhaCalculada label="Horas QA" value={`${fmt(calc.qa)}h`} />
+                <LinhaCalculada label="Horas Gerencial" value={`${fmt(calc.gerencial)}h`} />
+                <LinhaCalculada label="Total Horas" value={`${fmt(calc.totalHoras)}h`} />
+                <div className="h-px bg-slate-200 my-2" />
+                <LinhaCalculada label="Horas Margem" value={`${fmt(calc.horasMargem)}h`} />
+                <LinhaCalculada label="Total Geral (h)" value={`${fmt(calc.totalGeral)}h`} />
+                <div className="h-px bg-slate-200 my-2" />
+              </>
+            ) : (
+              <>
+                <LinhaCalculada label="Valor Base (soma por papel)" value={fmtMoeda(calcFinal.valorBase)} />
+                <div className="h-px bg-slate-200 my-2" />
+              </>
+            )}
+            <LinhaCalculada label="Valor do Projeto" value={fmtMoeda(calcFinal.valorProjeto)} />
+            <LinhaCalculada label="Desconto Negociado" value={`- ${fmtMoeda(calcFinal.descontoNegociado)}`} />
+            <div className="h-px bg-slate-200 my-2" />
+            <LinhaCalculada label="Valor Total do Projeto" value={fmtMoeda(calcFinal.valorTotalProjeto)} destaque />
+            <div className="text-[10px] text-slate-400 mt-3">
+              {modoPrecificacao === "unico"
+                ? `${editando ? (usarReguaVigente ? "Usando o valor de hora vigente" : "Régua aplicada neste chamado") : "Parâmetros vigentes"}: QA ${Math.round(cfgCalculo.pctQA * 100)}% · Gerencial ${Math.round(cfgCalculo.pctGerencial * 100)}% · R$ ${cfgCalculo.valorHora.toFixed(2).replace(".", ",")}/h`
+                : tabelaRecursoSelecionada
+                ? `Tabela: ${tabelaRecursoSelecionada.nome}`
+                : "Escolha uma tabela de recursos"}
+            </div>
+            {editando && modoPrecificacao === "unico" && !usarReguaVigente && (
+              <button
+                type="button"
+                onClick={() => setUsarReguaVigente(true)}
+                className="text-[11px] mt-1.5 underline"
+                style={{ color: BRAND_BLUE }}
+              >
+                Usar valor de hora vigente (R$ {config.valorHora.toFixed(2).replace(".", ",")}/h) em vez do salvo neste chamado
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+          <div>
+            {editando && (
+              <button
+                type="button"
+                disabled={excluindo || salvando}
+                onClick={() => onExcluir && onExcluir(chamadoExistente.id)}
+                className="text-sm text-red-600 px-4 py-2 hover:text-red-700 disabled:opacity-40"
+              >
+                {excluindo ? "Excluindo..." : "Excluir chamado"}
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={onFechar} className="text-sm text-slate-500 px-4 py-2 hover:text-slate-700">
+              Cancelar
+            </button>
+            <button
+              disabled={!podeSalvar || salvando}
+              onClick={handleSalvar}
+              className="text-sm text-white px-4 py-2 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvando ? "Salvando..." : editando ? "Salvar Alterações" : "Salvar Chamado"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ModelosParcelamentoSecao({ modelos = [], onCriar, onAtualizar, onExcluir }) {
+  const [criando, setCriando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [linhas, setLinhas] = useState([{ dias: 15, percentual: 100 }]);
+  const [salvandoModelo, setSalvandoModelo] = useState(false);
+
+  const somaPercentual = linhas.reduce((s, l) => s + Number(l.percentual || 0), 0);
+
+  function atualizarLinha(i, campo, valor) {
+    setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
+  }
+  function adicionarLinha() {
+    setLinhas((prev) => [...prev, { dias: 30, percentual: 0 }]);
+  }
+  function removerLinha(i) {
+    setLinhas((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function resetarForm() {
+    setNome("");
+    setLinhas([{ dias: 15, percentual: 100 }]);
+    setCriando(false);
+  }
+
+  async function salvarNovoModelo() {
+    if (!nome.trim()) {
+      alert("Dê um nome ao modelo.");
+      return;
+    }
+    if (Math.abs(somaPercentual - 100) > 0.5) {
+      alert(`Os percentuais precisam somar 100% (hoje soma ${somaPercentual}%).`);
+      return;
+    }
+    setSalvandoModelo(true);
+    const ok = await onCriar(
+      nome.trim(),
+      linhas.map((l) => ({ dias: Number(l.dias), percentual: Number(l.percentual) / 100 }))
+    );
+    setSalvandoModelo(false);
+    if (ok) resetarForm();
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Modelos de Parcelamento</p>
+      <p className="text-xs text-slate-400 mb-3">
+        Defina os prazos de cobrança (em dias após a aprovação) e o percentual de cada parcela. Escolha o modelo
+        na hora de criar ou editar o chamado.
+      </p>
+      <div className="space-y-2">
+        {modelos.map((m) => (
+          <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-md border border-slate-100">
+            <div>
+              <p className={"text-sm " + (m.ativo === false ? "text-slate-400" : "text-slate-700")}>
+                {m.nome}
+                {m.ativo === false ? " (inativo)" : ""}
+              </p>
+              <p className="text-xs text-slate-400">
+                {m.parcelas.map((p) => `${p.dias}d ${Math.round(p.percentual * 100)}%`).join(" · ")}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => onAtualizar(m.id, { ativo: m.ativo === false })} className="text-xs text-slate-500 hover:text-slate-700">
+                {m.ativo === false ? "Reativar" : "Desativar"}
+              </button>
+              <button onClick={() => onExcluir(m.id)} className="text-xs text-red-500 hover:text-red-700">
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+        {modelos.length === 0 && <p className="text-xs text-slate-400">Nenhum modelo cadastrado ainda.</p>}
+      </div>
+
+      {!criando ? (
+        <button onClick={() => setCriando(true)} className="text-sm mt-3" style={{ color: BRAND_BLUE }}>
+          + Novo modelo
+        </button>
+      ) : (
+        <div className="mt-3 border border-slate-200 rounded-md p-3 space-y-2">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome do modelo (ex: Cliente X - Entrega Escalonada)"
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+          />
+          {linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                value={l.dias}
+                onChange={(e) => atualizarLinha(i, "dias", e.target.value)}
+                placeholder="Dias"
+                className="w-24 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">dias após aprovação ·</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={l.percentual}
+                onChange={(e) => atualizarLinha(i, "percentual", e.target.value)}
+                placeholder="%"
+                className="w-20 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">%</span>
+              {linhas.length > 1 && (
+                <button onClick={() => removerLinha(i)} className="text-xs text-red-500 ml-auto">
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={adicionarLinha} className="text-xs" style={{ color: BRAND_BLUE }}>
+            + Adicionar parcela
+          </button>
+          <p className={"text-xs " + (Math.abs(somaPercentual - 100) > 0.5 ? "text-red-500" : "text-emerald-600")}>
+            Soma: {somaPercentual}% {Math.abs(somaPercentual - 100) > 0.5 ? "(precisa somar 100%)" : "✓"}
+          </p>
+          <div className="flex items-center gap-2 justify-end pt-1">
+            <button onClick={resetarForm} className="text-sm text-slate-500 px-3 py-1.5">
+              Cancelar
+            </button>
+            <button
+              disabled={salvandoModelo}
+              onClick={salvarNovoModelo}
+              className="text-sm text-white px-3 py-1.5 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvandoModelo ? "Salvando..." : "Salvar modelo"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TabelasRecursoSecao({ tabelas = [], onCriar, onAtualizar, onExcluir }) {
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const [criando, setCriando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [linhas, setLinhas] = useState([{ papel: "", valor_hora: "" }]);
+  const [salvandoTabela, setSalvandoTabela] = useState(false);
+
+  function atualizarLinha(i, campo, valor) {
+    setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
+  }
+  function adicionarLinha() {
+    setLinhas((prev) => [...prev, { papel: "", valor_hora: "" }]);
+  }
+  function removerLinha(i) {
+    setLinhas((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function resetarForm() {
+    setNome("");
+    setLinhas([{ papel: "", valor_hora: "" }]);
+    setCriando(false);
+  }
+
+  async function salvarNovaTabela() {
+    if (!nome.trim()) {
+      alert("Dê um nome à tabela.");
+      return;
+    }
+    if (linhas.some((l) => !l.papel.trim() || !l.valor_hora)) {
+      alert("Preencha o nome e o valor de hora de todos os papéis (ou remova as linhas vazias).");
+      return;
+    }
+    setSalvandoTabela(true);
+    const ok = await onCriar(
+      nome.trim(),
+      linhas.map((l) => ({ papel: l.papel.trim(), valor_hora: Number(l.valor_hora) }))
+    );
+    setSalvandoTabela(false);
+    if (ok) resetarForm();
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Tabelas de Recurso</p>
+      <p className="text-xs text-slate-400 mb-3">
+        Pra clientes cuja negociação é por papel/recurso (cada função com seu próprio valor de hora), em vez
+        de um valor de hora único. Escolha a tabela na hora de criar ou editar o chamado.
+      </p>
+      <div className="space-y-2">
+        {tabelas.map((t) => (
+          <div key={t.id} className="flex items-center justify-between px-3 py-2 rounded-md border border-slate-100">
+            <div>
+              <p className={"text-sm " + (t.ativo === false ? "text-slate-400" : "text-slate-700")}>
+                {t.nome}
+                {t.ativo === false ? " (inativo)" : ""}
+              </p>
+              <p className="text-xs text-slate-400">
+                {t.papeis.map((p) => `${p.papel}: ${fmtMoeda(p.valor_hora)}`).join(" · ")}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 ml-3">
+              <button onClick={() => onAtualizar(t.id, { ativo: t.ativo === false })} className="text-xs text-slate-500 hover:text-slate-700">
+                {t.ativo === false ? "Reativar" : "Desativar"}
+              </button>
+              <button onClick={() => onExcluir(t.id)} className="text-xs text-red-500 hover:text-red-700">
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+        {tabelas.length === 0 && <p className="text-xs text-slate-400">Nenhuma tabela cadastrada ainda.</p>}
+      </div>
+
+      {!criando ? (
+        <button onClick={() => setCriando(true)} className="text-sm mt-3" style={{ color: BRAND_BLUE }}>
+          + Nova tabela de recursos
+        </button>
+      ) : (
+        <div className="mt-3 border border-slate-200 rounded-md p-3 space-y-2">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome da tabela (ex: Tabela Padrão de Recursos)"
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+          />
+          {linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={l.papel}
+                onChange={(e) => atualizarLinha(i, "papel", e.target.value)}
+                placeholder="Nome do papel (ex: Desenvolvedor Pleno)"
+                className="flex-1 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">R$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={l.valor_hora}
+                onChange={(e) => atualizarLinha(i, "valor_hora", e.target.value)}
+                placeholder="Valor/hora"
+                className="w-28 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              {linhas.length > 1 && (
+                <button onClick={() => removerLinha(i)} className="text-xs text-red-500">
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={adicionarLinha} className="text-xs" style={{ color: BRAND_BLUE }}>
+            + Adicionar papel
+          </button>
+          <div className="flex items-center gap-2 justify-end pt-1">
+            <button onClick={resetarForm} className="text-sm text-slate-500 px-3 py-1.5">
+              Cancelar
+            </button>
+            <button
+              disabled={salvandoTabela}
+              onClick={salvarNovaTabela}
+              className="text-sm text-white px-3 py-1.5 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvandoTabela ? "Salvando..." : "Salvar tabela"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ConfiguracoesModal({
+  aberto,
+  onFechar,
+  config,
+  onSalvar,
+  salvando,
+  analistas = [],
+  onToggleAnalista,
+  onNovoAnalista,
+  statusOcultos = [],
+  onToggleStatus,
+  modelosParcelamento = [],
+  onCriarModelo,
+  onAtualizarModelo,
+  onExcluirModelo,
+  tabelasRecurso = [],
+  onCriarTabelaRecurso,
+  onAtualizarTabelaRecurso,
+  onExcluirTabelaRecurso,
+}) {
+  const [novoAnalistaNome, setNovoAnalistaNome] = useState("");
+  const [salvandoAnalista, setSalvandoAnalista] = useState(false);
+  const [pctQA, setPctQA] = useState(String(config.pctQA * 100));
+  const [pctGerencial, setPctGerencial] = useState(String(config.pctGerencial * 100));
+  const [valorHora, setValorHora] = useState(String(config.valorHora));
+
+  useEffect(() => {
+    setPctQA(String(config.pctQA * 100));
+    setPctGerencial(String(config.pctGerencial * 100));
+    setValorHora(String(config.valorHora));
+  }, [config, aberto]);
+
+  if (!aberto) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900" style={{ fontFamily: "'Poppins', sans-serif" }}>
+            Configurações de Cálculo
+          </h2>
+          <button onClick={onFechar} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-4">
+          <p className="text-xs text-slate-400 -mt-1">
+            Esses parâmetros valem para todos os novos chamados e são visíveis para toda a equipe.
+          </p>
+          <div>
+            <label className="text-xs font-medium text-slate-500 block mb-1">% Horas QA (sobre Dev)</label>
+            <input
+              type="number"
+              min="0"
+              value={pctQA}
+              onChange={(e) => setPctQA(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 block mb-1">% Horas Gerencial (sobre Dev)</label>
+            <input
+              type="number"
+              min="0"
+              value={pctGerencial}
+              onChange={(e) => setPctGerencial(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-slate-500 block mb-1">Valor da Hora (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={valorHora}
+              onChange={(e) => setValorHora(e.target.value)}
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+            />
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Analistas Ativos</p>
+          <p className="text-xs text-slate-400 mb-3">
+            Só analistas ativos entram na média e nos KPIs de "Carga por Analista". Desligar aqui não apaga o
+            histórico de chamados já atribuídos.
+          </p>
+          <div className="space-y-1">
+            {analistas.map((a) => (
+              <label
+                key={a.id}
+                className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-50 cursor-pointer"
+              >
+                <span className="text-sm text-slate-700">{a.nome}</span>
+                <input
+                  type="checkbox"
+                  checked={a.ativo !== false}
+                  onChange={() => onToggleAnalista(a)}
+                  className="w-4 h-4"
+                />
+              </label>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 mt-3">
+            <input
+              value={novoAnalistaNome}
+              onChange={(e) => setNovoAnalistaNome(e.target.value)}
+              placeholder="Nome do novo analista"
+              className="flex-1 border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+            />
+            <button
+              disabled={!novoAnalistaNome.trim() || salvandoAnalista}
+              onClick={async () => {
+                setSalvandoAnalista(true);
+                await onNovoAnalista(novoAnalistaNome.trim());
+                setNovoAnalistaNome("");
+                setSalvandoAnalista(false);
+              }}
+              className="text-sm text-white px-3 py-2 rounded-md disabled:opacity-40 whitespace-nowrap"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              + Adicionar
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Status Visíveis na Visão Geral</p>
+          <p className="text-xs text-slate-400 mb-3">
+            Desmarcar um status tira ele dos KPIs e gráficos da Visão Geral. As telas de Chamados, Backlog e Carga
+            por Analista continuam mostrando tudo.
+          </p>
+          <div className="space-y-1">
+            {OPCOES_STATUS.map((s) => (
+              <label
+                key={s}
+                className="flex items-center justify-between px-3 py-2 rounded-md hover:bg-slate-50 cursor-pointer"
+              >
+                <span className="text-sm text-slate-700">{s}</span>
+                <input
+                  type="checkbox"
+                  checked={!statusOcultos.includes(s)}
+                  onChange={() => onToggleStatus(s)}
+                  className="w-4 h-4"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <ModelosParcelamentoSecao
+            modelos={modelosParcelamento}
+            onCriar={onCriarModelo}
+            onAtualizar={onAtualizarModelo}
+            onExcluir={onExcluirModelo}
+          />
+        </div>
+
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <TabelasRecursoSecao
+            tabelas={tabelasRecurso}
+            onCriar={onCriarTabelaRecurso}
+            onAtualizar={onAtualizarTabelaRecurso}
+            onExcluir={onExcluirTabelaRecurso}
+          />
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
+          <button onClick={onFechar} className="text-sm text-slate-500 px-4 py-2 hover:text-slate-700">
+            Cancelar
+          </button>
+          <button
+            disabled={salvando}
+            onClick={() =>
+              onSalvar({
+                pctQA: Number(pctQA) / 100,
+                pctGerencial: Number(pctGerencial) / 100,
+                valorHora: Number(valorHora),
+              })
+            }
+            className="text-sm text-white px-4 py-2 rounded-md disabled:opacity-40"
+            style={{ backgroundColor: BRAND_BLUE }}
+          >
+            {salvando ? "Salvando..." : "Salvar Configuração"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MultiSelectFiltro({ label, opcoes, selecionados, onChange }) {
+  const [aberto, setAberto] = useState(false);
+  const ref = React.useRef(null);
+
+  useEffect(() => {
+    function fecharFora(e) {
+      if (ref.current && !ref.current.contains(e.target)) setAberto(false);
+    }
+    document.addEventListener("mousedown", fecharFora);
+    return () => document.removeEventListener("mousedown", fecharFora);
+  }, []);
+
+  function toggle(opcao) {
+    if (selecionados.includes(opcao)) {
+      onChange(selecionados.filter((o) => o !== opcao));
+    } else {
+      onChange([...selecionados, opcao]);
+    }
+  }
+
+  const texto = selecionados.length === 0 ? label : `${label} (${selecionados.length})`;
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setAberto((v) => !v)}
+        className="text-sm border border-slate-200 rounded-md px-3 py-2 text-slate-600 flex items-center gap-2 bg-white"
+      >
+        {texto}
+        <ChevronRight size={12} className={`transition-transform ${aberto ? "rotate-90" : "rotate-0"} text-slate-400`} />
+      </button>
+      {aberto && (
+        <div className="absolute z-20 mt-1 w-56 max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg py-1">
+          {selecionados.length > 0 && (
+            <button
+              onClick={() => onChange([])}
+              className="w-full text-left px-3 py-1.5 text-xs text-slate-400 hover:bg-slate-50"
+            >
+              Limpar seleção
+            </button>
+          )}
+          {opcoes.map((op) => (
+            <label
+              key={op}
+              className="flex items-center gap-2 px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 cursor-pointer"
+            >
+              <input type="checkbox" checked={selecionados.includes(op)} onChange={() => toggle(op)} />
+              {op}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AprovadasPorMesPage({ chamados, onEditar }) {
+  const [busca, setBusca] = useState("");
+  const [mesSelecionado, setMesSelecionado] = useState(null);
+
+  const NOMES_MES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtPct = (v) => `${(Number(v || 0) * 100).toFixed(2)}%`;
+  const fmtData = (d) => (d ? parseDataLocal(d).toLocaleDateString("pt-BR") : "—");
+
+  const PRAZOS_PARCELA = [15, 30, 60, 90];
+  function parcelasDe(c) {
+    const valorTotal = Number(c.valor_total_projeto || 0);
+    if (Array.isArray(c.modelo_parcelamento_parcelas) && c.modelo_parcelamento_parcelas.length > 0) {
+      return c.modelo_parcelamento_parcelas.map((p) => ({ dias: p.dias, valor: valorTotal * p.percentual }));
+    }
+    // fallback pro comportamento antigo, pra chamados que nao tem um modelo definido
+    const qtd = Math.min(Math.max(Number(c.qtd_parcelas) || 1, 1), 4);
+    const valorParcela = valorTotal / qtd;
+    return PRAZOS_PARCELA.slice(0, qtd).map((dias) => ({ dias, valor: valorParcela }));
+  }
+
+  // "relevantes" = tudo que é Aprovado ou Bonificado (aparece nas tabelas mensais);
+  // só o Aprovado entra nos totais e nos KPIs (Bonificado é registrado mas não conta valor).
+  const relevantes = useMemo(() => {
+    const alvo = chamados.filter((c) => c.proposta_status === "Aprovado" || c.proposta_status === "Bonificado");
+    if (!busca.trim()) return alvo;
+    const termo = busca.trim().toLowerCase();
+    return alvo.filter((c) => `${c.numero} ${c.cliente_nome} ${c.descricao || ""}`.toLowerCase().includes(termo));
+  }, [chamados, busca]);
+
+  const aprovadas = useMemo(() => relevantes.filter((c) => c.proposta_status === "Aprovado"), [relevantes]);
+
+  const valorTotal = useMemo(
+    () => aprovadas.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0),
+    [aprovadas]
+  );
+  const ticketMedio = aprovadas.length ? valorTotal / aprovadas.length : 0;
+
+  const porMesGrafico = useMemo(() => {
+    const anoFoco = new Date().getFullYear();
+    const contagem = Array(12).fill(0);
+    const valores = Array(12).fill(0);
+    aprovadas.forEach((c) => {
+      const dataRef = c.data_aprovacao || c.data_abertura;
+      if (!dataRef) return;
+      const d = parseDataLocal(dataRef);
+      if (d.getFullYear() === anoFoco) {
+        contagem[d.getMonth()]++;
+        valores[d.getMonth()] += Number(c.valor_total_projeto || 0);
+      }
+    });
+    let ultimoMes = 0;
+    contagem.forEach((v, i) => {
+      if (v > 0) ultimoMes = i;
+    });
+    return NOMES_MES.slice(0, ultimoMes + 1).map((mes, i) => ({
+      mes,
+      aprovadas: contagem[i],
+      valor: Math.round(valores[i]),
+    }));
+  }, [aprovadas]);
+
+  // agrupa Aprovado + Bonificado por mês/ano de aprovação (com fallback pra envio/abertura)
+  const gruposPorMes = useMemo(() => {
+    const mapa = {};
+    relevantes.forEach((c) => {
+      const dataRef = c.data_aprovacao || c.data_envio_proposta || c.data_abertura;
+      if (!dataRef) return;
+      const d = parseDataLocal(dataRef);
+      const chave = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!mapa[chave]) mapa[chave] = [];
+      mapa[chave].push(c);
+    });
+    return Object.entries(mapa)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .map(([chave, itens]) => {
+        const [ano, mes] = chave.split("-");
+        const soAprovados = itens.filter((i) => i.proposta_status === "Aprovado");
+        return {
+          chave,
+          ano,
+          mes,
+          itens: itens.sort(
+            (a, b) =>
+              parseDataLocal(a.data_aprovacao || a.data_abertura) - parseDataLocal(b.data_aprovacao || b.data_abertura)
+          ),
+          totalProjeto: soAprovados.reduce((s, i) => s + Number(i.valor_projeto || 0), 0),
+          totalDesconto: soAprovados.reduce((s, i) => s + Number(i.desconto_negociado || 0), 0),
+          totalValorTotal: soAprovados.reduce((s, i) => s + Number(i.valor_total_projeto || 0), 0),
+        };
+      });
+  }, [relevantes]);
+
+  // Controle Anual de Vendas: usa a MESMA base das tabelas "Aprovadas por Mês" —
+  // só chamados com proposta Aprovado, somados pela data de aprovação (com
+  // fallback pra envio/abertura) — pra bater com o total de cada mês lá em baixo.
+  // Usa "chamados" direto (não "aprovadas"), pra não encolher quando alguém
+  // usa a busca da página — o Controle Anual é sempre a visão geral, sem filtro.
+  // (a partir de 2023, pra caber na tela sem precisar arrastar demais)
+  const controleAnual = useMemo(() => {
+    const ANO_MINIMO = 2023;
+    const porAno = {};
+    chamados
+      .filter((c) => c.proposta_status === "Aprovado")
+      .forEach((c) => {
+        const dataRef = c.data_aprovacao || c.data_envio_proposta || c.data_abertura;
+        if (!dataRef) return;
+        const d = parseDataLocal(dataRef);
+        const ano = d.getFullYear();
+        if (ano < ANO_MINIMO) return;
+        if (!porAno[ano]) porAno[ano] = Array(12).fill(0);
+        porAno[ano][d.getMonth()] += Number(c.valor_total_projeto || 0);
+      });
+    const anos = Object.keys(porAno)
+      .map(Number)
+      .sort((a, b) => a - b);
+    return { anos, porAno };
+  }, [chamados]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        <KpiCard label="Propostas Aprovadas" value={aprovadas.length} sub="Todos os períodos" accent="#0F172A" />
+        <KpiCard label="Valor Total Aprovado" value={fmtMoeda(valorTotal)} sub="Todos os períodos" accent="#0F8A6B" />
+        <KpiCard label="Ticket Médio" value={fmtMoeda(ticketMedio)} sub="Todos os períodos" accent="#7C3AED" />
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-lg p-5">
+        <h2 className="text-sm font-semibold text-slate-800 mb-4">Aprovadas por Mês · {new Date().getFullYear()}</h2>
+        <ResponsiveContainer width="100%" height={220}>
+          <BarChart data={porMesGrafico} margin={{ top: 24 }}>
+            <CartesianGrid stroke="#EEF0EC" vertical={false} />
+            <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+            <Tooltip formatter={(v, nome) => (nome === "aprovadas" ? [v, "Aprovadas"] : [fmtMoeda(v), "Valor"])} />
+            <Bar dataKey="aprovadas" fill="#0F8A6B" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="valor" position="top" formatter={(v) => (v > 0 ? `R$ ${(v / 1000).toFixed(1)}k` : "")} style={{ fontSize: 11, fill: "#475569" }} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Controle Anual de Vendas */}
+      {controleAnual.anos.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-lg p-5 overflow-x-auto">
+          <h2 className="text-sm font-semibold text-slate-800 mb-1">Controle Anual de Vendas</h2>
+          <p className="text-xs text-slate-400 mb-4">
+            Valores mensais, acumulados e variação % em relação ao ano anterior
+          </p>
+          <table className="text-sm border-collapse min-w-full">
+            <thead>
+              <tr>
+                <th className="px-3 py-2 text-left text-xs text-slate-400 border-b border-slate-100 sticky left-0 bg-white">
+                  Mês
+                </th>
+                {controleAnual.anos.map((ano) => (
+                  <th
+                    key={ano}
+                    colSpan={3}
+                    className="px-3 py-2 text-center text-xs font-semibold text-slate-600 border-b border-l border-slate-100"
+                  >
+                    {ano}
+                  </th>
+                ))}
+              </tr>
+              <tr>
+                <th className="border-b border-slate-100 sticky left-0 bg-white" />
+                {controleAnual.anos.map((ano) => (
+                  <React.Fragment key={ano}>
+                    <th className="px-2 py-1 text-right text-[11px] font-normal text-slate-400 border-b border-l border-slate-100 whitespace-nowrap">
+                      Mensal
+                    </th>
+                    <th className="px-2 py-1 text-right text-[11px] font-normal text-slate-400 border-b border-slate-100 whitespace-nowrap">
+                      Acumulado
+                    </th>
+                    <th className="px-2 py-1 text-right text-[11px] font-normal text-slate-400 border-b border-slate-100 whitespace-nowrap">
+                      % vs Ant.
+                    </th>
+                  </React.Fragment>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {NOMES_MES.map((mes, i) => (
+                <tr key={mes} className="border-b border-slate-50">
+                  <td className="px-3 py-1.5 text-slate-600 whitespace-nowrap sticky left-0 bg-white">{mes}</td>
+                  {controleAnual.anos.map((ano, ai) => {
+                    const mensal = controleAnual.porAno[ano][i];
+                    const acumulado = controleAnual.porAno[ano].slice(0, i + 1).reduce((a, b) => a + b, 0);
+                    const anoAnterior = controleAnual.anos[ai - 1];
+                    let variacao = null;
+                    if (anoAnterior !== undefined) {
+                      const mensalAnterior = controleAnual.porAno[anoAnterior][i];
+                      if (mensalAnterior > 0) variacao = ((mensal - mensalAnterior) / mensalAnterior) * 100;
+                    }
+                    return (
+                      <React.Fragment key={ano}>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-slate-600 border-l border-slate-50 whitespace-nowrap">
+                          {mensal > 0 ? fmtMoeda(mensal) : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right tabular-nums text-slate-400 whitespace-nowrap">
+                          {acumulado > 0 ? fmtMoeda(acumulado) : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                          {variacao !== null ? (
+                            <span
+                              className="text-xs font-medium"
+                              style={{ color: variacao >= 0 ? "#0F8A6B" : "#C4573D" }}
+                            >
+                              {variacao >= 0 ? "▲" : "▼"} {Math.abs(variacao).toFixed(1)}%
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                      </React.Fragment>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="font-semibold bg-slate-50">
+                <td className="px-3 py-2 text-slate-700 sticky left-0 bg-slate-50">TOTAL</td>
+                {controleAnual.anos.map((ano, ai) => {
+                  const totalAno = controleAnual.porAno[ano].reduce((a, b) => a + b, 0);
+                  const anoAnterior = controleAnual.anos[ai - 1];
+                  let variacao = null;
+                  if (anoAnterior !== undefined) {
+                    const totalAnterior = controleAnual.porAno[anoAnterior].reduce((a, b) => a + b, 0);
+                    if (totalAnterior > 0) variacao = ((totalAno - totalAnterior) / totalAnterior) * 100;
+                  }
+                  return (
+                    <React.Fragment key={ano}>
+                      <td className="px-2 py-2 text-right border-l border-slate-100 whitespace-nowrap">
+                        {fmtMoeda(totalAno)}
+                      </td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">{fmtMoeda(totalAno)}</td>
+                      <td className="px-2 py-2 text-right whitespace-nowrap">
+                        {variacao !== null ? (
+                          <span style={{ color: variacao >= 0 ? "#0F8A6B" : "#C4573D" }}>
+                            {variacao >= 0 ? "▲" : "▼"} {Math.abs(variacao).toFixed(1)}%
+                          </span>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </React.Fragment>
+                  );
+                })}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 max-w-md shadow-sm">
+        <Search size={14} className="text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nº, cliente ou descrição"
+          className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+        />
+      </div>
+
+      {/* Seletor de mês, e tabela detalhada só do mês escolhido */}
+      {gruposPorMes.length === 0 && (
+        <div className="bg-white rounded-xl shadow-sm p-8 text-center text-slate-400 text-sm">
+          Nenhuma proposta aprovada ou bonificada encontrada.
+        </div>
+      )}
+      {gruposPorMes.length > 0 &&
+        (() => {
+          const g = gruposPorMes.find((x) => x.chave === mesSelecionado) || gruposPorMes[0];
+          return (
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wide">
+                    Propostas Aprovadas Mês {g.mes}/{g.ano.slice(2)}
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-400">
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="px-2 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: "#0F8A6B1a", color: "#0F8A6B" }}
+                      >
+                        Aprovado
+                      </span>
+                      Proposta aprovada — valores contabilizados no total
+                    </span>
+                    <span className="inline-flex items-center gap-1.5">
+                      <span
+                        className="px-2 py-0.5 rounded-full font-medium"
+                        style={{ backgroundColor: "#7C3AED1a", color: "#7C3AED" }}
+                      >
+                        Bonificado
+                      </span>
+                      Proposta bonificada — valores não contabilizados no total
+                    </span>
+                  </div>
+                </div>
+                <select
+                  value={g.chave}
+                  onChange={(e) => setMesSelecionado(e.target.value)}
+                  className="text-sm border border-slate-200 rounded-md px-3 py-2 text-slate-600 shrink-0"
+                >
+                  {gruposPorMes.map((opt) => (
+                    <option key={opt.chave} value={opt.chave}>
+                      Mês {opt.mes}/{opt.ano.slice(2)} ({opt.itens.length})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                      <th className="px-3 py-2 font-medium">Nº</th>
+                      <th className="px-3 py-2 font-medium">Cliente</th>
+                      <th className="px-3 py-2 font-medium">Descrição</th>
+                      <th className="px-3 py-2 font-medium">Analista</th>
+                      <th className="px-3 py-2 font-medium">Proposta</th>
+                      <th className="px-3 py-2 font-medium">Envio</th>
+                      <th className="px-3 py-2 font-medium">Aprovação</th>
+                      <th className="px-3 py-2 font-medium text-right">Valor do Projeto</th>
+                      <th className="px-3 py-2 font-medium text-right">% Negociada</th>
+                      <th className="px-3 py-2 font-medium text-right">Desconto</th>
+                      <th className="px-3 py-2 font-medium text-right">Valor Total</th>
+                      <th className="px-3 py-2 font-medium">Pagamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {g.itens.map((c) => {
+                      const bonificado = c.proposta_status === "Bonificado";
+                      return (
+                        <tr
+                          key={c.id}
+                          onClick={() => onEditar && onEditar(c)}
+                          className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                        >
+                          <td className="px-3 py-2 font-mono text-xs text-slate-400">#{c.numero}</td>
+                          <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
+                          <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{c.descricao || "—"}</td>
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
+                          <td className="px-3 py-2">
+                            <span
+                              className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                              style={{
+                                backgroundColor: (bonificado ? "#7C3AED" : "#0F8A6B") + "1a",
+                                color: bonificado ? "#7C3AED" : "#0F8A6B",
+                              }}
+                            >
+                              {c.proposta_status}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
+                            {fmtData(c.data_envio_proposta)}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{fmtData(c.data_aprovacao)}</td>
+                          <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                            {bonificado ? (
+                              <span className="text-xs" style={{ color: "#7C3AED" }}>
+                                Bonificado
+                              </span>
+                            ) : (
+                              fmtMoeda(c.valor_projeto)
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums text-slate-500 whitespace-nowrap">
+                            {fmtPct(c.pct_negociado)}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap">
+                            {bonificado ? (
+                              <span className="text-xs" style={{ color: "#7C3AED" }}>
+                                Bonificado
+                              </span>
+                            ) : (
+                              <span style={{ color: "#C4573D" }}>{fmtMoeda(c.desconto_negociado)}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums font-semibold whitespace-nowrap">
+                            {bonificado ? (
+                              <span className="text-xs font-normal" style={{ color: "#7C3AED" }}>
+                                Bonificado
+                              </span>
+                            ) : (
+                              <div className="space-y-0.5">
+                                {parcelasDe(c).map((p, i) => (
+                                  <div key={i}>{fmtMoeda(p.valor)}</div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-slate-500 whitespace-nowrap">
+                            {bonificado ? (
+                              "—"
+                            ) : (
+                              <div className="space-y-0.5">
+                                {parcelasDe(c).map((p, i) => (
+                                  <div key={i}>{p.dias} Dias</div>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-slate-50 font-semibold">
+                      <td colSpan={7} className="px-3 py-2 text-right text-slate-600">
+                        TOTAL
+                      </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">{fmtMoeda(g.totalProjeto)}</td>
+                      <td />
+                      <td className="px-3 py-2 text-right whitespace-nowrap" style={{ color: "#C4573D" }}>
+                        {fmtMoeda(g.totalDesconto)}
+                      </td>
+                      <td className="px-3 py-2 text-right whitespace-nowrap">{fmtMoeda(g.totalValorTotal)}</td>
+                      <td />
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
+    </div>
+  );
+}
+
+function ValoresMargemPage({ chamados, onEditar }) {
+  const [busca, setBusca] = useState("");
+
+  const valorProjetoTotal = useMemo(
+    () => chamados.reduce((s, c) => s + Number(c.valor_projeto || 0), 0),
+    [chamados]
+  );
+  const descontoTotal = useMemo(
+    () => chamados.reduce((s, c) => s + Number(c.desconto_negociado || 0), 0),
+    [chamados]
+  );
+  const valorRecebido = useMemo(
+    () => chamados.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0),
+    [chamados]
+  );
+  const margemMedia = useMemo(() => {
+    const comHoras = chamados.filter((c) => Number(c.horas_dev) > 0);
+    if (!comHoras.length) return 0;
+    return comHoras.reduce((s, c) => s + Number(c.pct_margem || 0), 0) / comHoras.length;
+  }, [chamados]);
+
+  const valorPorMes = useMemo(() => {
+    const nomesMes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const anoFoco = new Date().getFullYear();
+    const valores = Array(12).fill(0);
+    chamados.forEach((c) => {
+      if (!c.data_abertura) return;
+      const d = parseDataLocal(c.data_abertura);
+      if (d.getFullYear() === anoFoco) valores[d.getMonth()] += Number(c.valor_total_projeto || 0);
+    });
+    let ultimoMes = 0;
+    valores.forEach((v, i) => {
+      if (v > 0) ultimoMes = i;
+    });
+    return nomesMes.slice(0, ultimoMes + 1).map((mes, i) => ({ mes, valor: Math.round(valores[i]) }));
+  }, [chamados]);
+
+  const topClientesValor = useMemo(() => {
+    const contagem = {};
+    chamados.forEach((c) => {
+      contagem[c.cliente_nome] = (contagem[c.cliente_nome] || 0) + Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(contagem)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8)
+      .map(([nome, valor]) => ({ nome, valor: Math.round(valor) }));
+  }, [chamados]);
+
+  const filtrados = useMemo(() => {
+    return chamados
+      .filter(
+        (c) =>
+          !busca.trim() ||
+          `${c.numero} ${c.cliente_nome} ${c.descricao || ""}`.toLowerCase().includes(busca.trim().toLowerCase())
+      )
+      .sort((a, b) => Number(b.valor_total_projeto || 0) - Number(a.valor_total_projeto || 0))
+      .slice(0, 100);
+  }, [chamados, busca]);
+
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtPct = (v) => `${Math.round(Number(v || 0) * 100)}%`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        <KpiCard label="Valor Total dos Projetos" value={fmtMoeda(valorProjetoTotal)} accent="#0F172A" />
+        <KpiCard label="Desconto Negociado" value={fmtMoeda(descontoTotal)} accent="#C4573D" />
+        <KpiCard label="Valor Recebido" value={fmtMoeda(valorRecebido)} accent="#0F8A6B" />
+        <KpiCard label="Margem Média" value={fmtPct(margemMedia)} accent="#7C3AED" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <h2 className="text-sm font-semibold text-slate-800 mb-4">
+            Valor Recebido por Mês · {new Date().getFullYear()}
+          </h2>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={valorPorMes}>
+              <CartesianGrid stroke="#EEF0EC" vertical={false} />
+              <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#94a3b8" }}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+              />
+              <Tooltip formatter={(v) => fmtMoeda(v)} />
+              <Line type="monotone" dataKey="valor" stroke={BRAND_BLUE} strokeWidth={2.5} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-lg p-5">
+          <h2 className="text-sm font-semibold text-slate-800 mb-4">Top Clientes por Valor</h2>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={topClientesValor} layout="vertical" margin={{ left: 10 }}>
+              <XAxis type="number" hide />
+              <YAxis
+                dataKey="nome"
+                type="category"
+                width={90}
+                tick={{ fontSize: 11, fill: "#475569" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <Tooltip formatter={(v) => fmtMoeda(v)} />
+              <Bar dataKey="valor" fill="#E0A526" radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 max-w-md shadow-sm">
+        <Search size={14} className="text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nº, cliente ou descrição"
+          className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <th className="px-4 py-3 font-medium">Nº</th>
+                <th className="px-4 py-3 font-medium">Cliente</th>
+                <th className="px-4 py-3 font-medium text-right">% Margem</th>
+                <th className="px-4 py-3 font-medium text-right">Valor do Projeto</th>
+                <th className="px-4 py-3 font-medium text-right">Desconto</th>
+                <th className="px-4 py-3 font-medium text-right">Valor Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtrados.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => onEditar && onEditar(c)}
+                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                >
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-400">#{c.numero}</td>
+                  <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 whitespace-nowrap">
+                    {fmtPct(c.pct_margem)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 whitespace-nowrap">
+                    {fmtMoeda(c.valor_projeto)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-[#C4573D] whitespace-nowrap">
+                    -{fmtMoeda(c.desconto_negociado)}
+                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-800 whitespace-nowrap">
+                    {fmtMoeda(c.valor_total_projeto)}
+                  </td>
+                </tr>
+              ))}
+              {filtrados.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    Nenhum chamado encontrado.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3 border-t border-slate-100 text-xs text-slate-400">
+          Mostrando os {filtrados.length} chamados de maior valor
+          {busca.trim() ? " que batem com a busca" : ""}.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PropostasEnviadasPage({ chamados, onEditar }) {
+  const [busca, setBusca] = useState("");
+
+  const propostas = useMemo(
+    () => chamados.filter((c) => c.status === "Concluido" && c.proposta_status === "Enviado"),
+    [chamados]
+  );
+
+  const diasAguardando = (data) => {
+    if (!data) return null;
+    return Math.floor((Date.now() - parseDataLocal(data).getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const filtradas = useMemo(() => {
+    return propostas
+      .filter(
+        (c) =>
+          !busca.trim() ||
+          `${c.numero} ${c.cliente_nome} ${c.descricao || ""}`.toLowerCase().includes(busca.trim().toLowerCase())
+      )
+      .sort((a, b) => parseDataLocal(a.data_envio_proposta || a.data_abertura) - parseDataLocal(b.data_envio_proposta || b.data_abertura));
+  }, [propostas, busca]);
+
+  const valorTotal = useMemo(() => propostas.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0), [propostas]);
+
+  const diasMaximo = useMemo(() => {
+    const dias = propostas.map((c) => diasAguardando(c.data_envio_proposta)).filter((d) => d !== null);
+    return dias.length ? Math.max(...dias) : 0;
+  }, [propostas]);
+
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtData = (d) => (d ? parseDataLocal(d).toLocaleDateString("pt-BR") : "—");
+
+  const corDias = (dias) => {
+    if (dias === null) return "#94a3b8";
+    if (dias > 30) return "#C4573D";
+    if (dias > 15) return "#E0A526";
+    return "#3A6EA5";
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        <KpiCard label="Propostas Enviadas" value={propostas.length} accent="#0F172A" />
+        <KpiCard label="Valor Total em Aberto" value={fmtMoeda(valorTotal)} accent="#0F8A6B" />
+        <KpiCard label="Mais Antiga (dias)" value={diasMaximo} accent="#E0A526" />
+      </div>
+
+      <p className="text-xs text-slate-400 -mt-2">
+        Chamados já <strong>concluídos</strong> cuja proposta foi <strong>enviada</strong> mas ainda não voltou como
+        aprovada, recusada ou cancelada.
+      </p>
+
+      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 max-w-md shadow-sm">
+        <Search size={14} className="text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar por nº, cliente ou descrição"
+          className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+        />
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <th className="px-4 py-3 font-medium">Nº</th>
+                <th className="px-4 py-3 font-medium">Cliente</th>
+                <th className="px-4 py-3 font-medium">Descrição</th>
+                <th className="px-4 py-3 font-medium">Analista</th>
+                <th className="px-4 py-3 font-medium">Envio Proposta</th>
+                <th className="px-4 py-3 font-medium text-right">Dias Aguardando</th>
+                <th className="px-4 py-3 font-medium text-right">Valor do Projeto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtradas.map((c) => {
+                const dias = diasAguardando(c.data_envio_proposta);
+                return (
+                  <tr
+                    key={c.id}
+                    onClick={() => onEditar && onEditar(c)}
+                    className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                  >
+                    <td className="px-4 py-2.5 font-mono text-xs text-slate-400">#{c.numero}</td>
+                    <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
+                    <td className="px-4 py-2.5 text-slate-500 max-w-[240px] truncate">{c.descricao || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtData(c.data_envio_proposta)}</td>
+                    <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                      {dias !== null ? (
+                        <span className="text-xs font-medium" style={{ color: corDias(dias) }}>
+                          {dias}d
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-right tabular-nums font-semibold text-slate-800 whitespace-nowrap">
+                      {fmtMoeda(c.valor_total_projeto)}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtradas.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    Nenhum chamado concluído com proposta enviada pendente.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
+  const [busca, setBusca] = useState("");
+  const [expandido, setExpandido] = useState(null);
+
+  const analistasAtivos = useMemo(() => analistas.filter((a) => a.ativo !== false), [analistas]);
+  const nomesAtivos = useMemo(() => new Set(analistasAtivos.map((a) => a.nome)), [analistasAtivos]);
+
+  const STATUS_ABERTOS = ["A Iniciar", "Em Analise", "BackLog", "Aguard. Retorno do Cliente", "Aguard. Analise Desen.", "Aguard. Horas de Desen.", "Reunião Tecnica", "Enviar Proposta", "Novo Cliente"];
+
+  const porAnalista = useMemo(() => {
+    const grupos = {};
+    chamados.forEach((c) => {
+      const nome = c.analista_nome || "Sem analista";
+      if (!nomesAtivos.has(nome)) return; // so mostra quem esta marcado como ativo
+      // Chamado ja Concluido so continua contando na carga se a proposta ainda estiver
+      // em aberto (vazia ou Enviado) - se ja foi Aprovado/Bonificado/Negado/etc, o
+      // trabalho comercial ja foi decidido e nao deveria pesar mais na carga do analista.
+      if (c.status === "Concluido" && c.proposta_status && c.proposta_status !== "Enviado") return;
+      if (!grupos[nome]) grupos[nome] = [];
+      grupos[nome].push(c);
+    });
+    return Object.entries(grupos)
+      .map(([nome, itens]) => {
+        const statusCount = {};
+        itens.forEach((i) => {
+          statusCount[i.status] = (statusCount[i.status] || 0) + 1;
+        });
+        const abertos = itens.filter((i) => STATUS_ABERTOS.includes(i.status)).length;
+        const totalHoras = itens.reduce((s, i) => s + Number(i.total_horas || 0), 0);
+        return {
+          nome,
+          itens: itens.sort((a, b) => parseDataLocal(b.data_abertura) - parseDataLocal(a.data_abertura)),
+          total: itens.length,
+          abertos,
+          totalHoras,
+          statusCount,
+        };
+      })
+      .filter((g) => !busca.trim() || g.nome.toLowerCase().includes(busca.trim().toLowerCase()))
+      .sort((a, b) => b.abertos - a.abertos);
+  }, [chamados, busca, nomesAtivos]);
+
+  const chamadosAbertos = useMemo(() => chamados.filter((c) => STATUS_ABERTOS.includes(c.status)).length, [chamados]);
+
+  const fmtData = (d) => (d ? parseDataLocal(d).toLocaleDateString("pt-BR") : "—");
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        <KpiCard label="Analistas Ativos" value={analistasAtivos.length} accent="#0F172A" />
+        <KpiCard label="Chamados em Aberto" value={chamadosAbertos} accent="#3A6EA5" />
+        <KpiCard
+          label="Média por Analista"
+          value={analistasAtivos.length ? Math.round(chamadosAbertos / analistasAtivos.length) : 0}
+          accent="#7C3AED"
+        />
+      </div>
+
+      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 max-w-md shadow-sm">
+        <Search size={14} className="text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar analista"
+          className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+        />
+      </div>
+
+      <div className="space-y-2">
+        {porAnalista.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-slate-400 text-sm">
+            Nenhum analista encontrado.
+          </div>
+        )}
+        {porAnalista.map((g) => {
+          const aberto = expandido === g.nome;
+          return (
+            <div key={g.nome} className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <button
+                onClick={() => setExpandido(aberto ? null : g.nome)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/60"
+              >
+                <div className="flex items-center gap-3">
+                  <ChevronRight
+                    size={16}
+                    className={`text-slate-400 transition-transform ${aberto ? "rotate-90" : "rotate-0"}`}
+                  />
+                  <span className="font-semibold text-slate-800">{g.nome}</span>
+                  {!nomesAtivos.has(g.nome) && (
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-400">
+                      inativo
+                    </span>
+                  )}
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: BRAND_BLUE + "1a", color: BRAND_BLUE }}
+                  >
+                    {g.abertos} em aberto
+                  </span>
+                  <span className="text-xs text-slate-400">{g.total} no total</span>
+                </div>
+                <span className="text-xs text-slate-500 tabular-nums">{Math.round(g.totalHoras)}h somadas</span>
+              </button>
+
+              <div className="px-5 pb-3 flex flex-wrap gap-1.5">
+                {Object.entries(g.statusCount).map(([status, qtd]) => (
+                  <span
+                    key={status}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: corStatus(status) + "1a", color: corStatus(status) }}
+                  >
+                    {status} · {qtd}
+                  </span>
+                ))}
+              </div>
+
+              {aberto && (
+                <div className="border-t border-slate-100">
+                  {g.itens.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => onEditar && onEditar(c)}
+                      className="flex items-center justify-between px-5 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="font-mono text-xs text-slate-400 shrink-0">#{c.numero}</span>
+                        <span className="text-sm text-slate-700 font-medium shrink-0">{c.cliente_nome}</span>
+                        <span className="text-sm text-slate-500 truncate">{c.descricao || "—"}</span>
+                      </div>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <span className="text-xs text-slate-400">{fmtData(c.data_abertura)}</span>
+                        <span
+                          className="text-xs font-medium px-2 py-0.5 rounded-full"
+                          style={{ backgroundColor: corStatus(c.status) + "1a", color: corStatus(c.status) }}
+                        >
+                          {c.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BacklogPorClientePage({ chamados, onEditar }) {
+  const [busca, setBusca] = useState("");
+  const [expandido, setExpandido] = useState(null);
+
+  const backlog = useMemo(() => chamados.filter((c) => c.status === "BackLog"), [chamados]);
+
+  const diasAberto = (data) => {
+    if (!data) return null;
+    return Math.floor((Date.now() - parseDataLocal(data).getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  const porCliente = useMemo(() => {
+    const grupos = {};
+    backlog.forEach((c) => {
+      const nome = c.cliente_nome || "Sem cliente";
+      if (!grupos[nome]) grupos[nome] = [];
+      grupos[nome].push(c);
+    });
+    return Object.entries(grupos)
+      .map(([cliente, itens]) => {
+        const dias = itens.map((i) => diasAberto(i.data_abertura)).filter((d) => d !== null);
+        return {
+          cliente,
+          itens: itens.sort((a, b) => parseDataLocal(a.data_abertura) - parseDataLocal(b.data_abertura)),
+          qtd: itens.length,
+          diasMaisAntigo: dias.length ? Math.max(...dias) : null,
+        };
+      })
+      .filter((g) => !busca.trim() || g.cliente.toLowerCase().includes(busca.trim().toLowerCase()))
+      .sort((a, b) => b.qtd - a.qtd);
+  }, [backlog, busca]);
+
+  const diasMaximoGeral = useMemo(() => {
+    const dias = backlog.map((c) => diasAberto(c.data_abertura)).filter((d) => d !== null);
+    return dias.length ? Math.max(...dias) : 0;
+  }, [backlog]);
+
+  const corDias = (dias) => {
+    if (dias === null) return "#94a3b8";
+    if (dias > 60) return "#C4573D";
+    if (dias > 30) return "#E0A526";
+    return "#3A6EA5";
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-4">
+        <KpiCard label="Chamados em Backlog" value={backlog.length} accent="#C4573D" />
+        <KpiCard label="Clientes Afetados" value={porCliente.length} accent="#0F172A" />
+        <KpiCard label="Mais Antigo (dias)" value={diasMaximoGeral} accent="#E0A526" />
+      </div>
+
+      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md px-3 py-2 max-w-md shadow-sm">
+        <Search size={14} className="text-slate-400" />
+        <input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar cliente"
+          className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+        />
+      </div>
+
+      <div className="space-y-2">
+        {porCliente.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-slate-400 text-sm">
+            Nenhum chamado em backlog encontrado.
+          </div>
+        )}
+        {porCliente.map((g) => {
+          const aberto = expandido === g.cliente;
+          return (
+            <div key={g.cliente} className="bg-white rounded-xl shadow-sm overflow-hidden">
+              <button
+                onClick={() => setExpandido(aberto ? null : g.cliente)}
+                className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50/60"
+              >
+                <div className="flex items-center gap-3">
+                  <ChevronRight
+                    size={16}
+                    className={`text-slate-400 transition-transform ${aberto ? "rotate-90" : "rotate-0"}`}
+                  />
+                  <span className="font-semibold text-slate-800">{g.cliente}</span>
+                  <span
+                    className="text-xs font-medium px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: "#C4573D1a", color: "#C4573D" }}
+                  >
+                    {g.qtd} {g.qtd === 1 ? "chamado" : "chamados"}
+                  </span>
+                </div>
+                {g.diasMaisAntigo !== null && (
+                  <span className="text-xs" style={{ color: corDias(g.diasMaisAntigo) }}>
+                    até {g.diasMaisAntigo} dias em aberto
+                  </span>
+                )}
+              </button>
+              {aberto && (
+                <div className="border-t border-slate-100">
+                  {g.itens.map((c) => {
+                    const dias = diasAberto(c.data_abertura);
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => onEditar && onEditar(c)}
+                        className="flex items-center justify-between px-5 py-2.5 border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="font-mono text-xs text-slate-400 shrink-0">#{c.numero}</span>
+                          <span className="text-sm text-slate-600 truncate">{c.descricao || "—"}</span>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <span className="text-xs text-slate-400">{c.analista_nome || "—"}</span>
+                          {dias !== null && (
+                            <span className="text-xs font-medium" style={{ color: corDias(dias) }}>
+                              {dias}d
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ChamadosListaPage({ chamados, analistas, onEditar }) {
+  const VAZIA = "(Vazia)";
+  const [busca, setBusca] = useState("");
+  const [statusFiltro, setStatusFiltro] = useState([]);
+  const [analistaFiltro, setAnalistaFiltro] = useState(["Pedro", "Luciane", "Evandro", "Débora"]);
+  const [propostaFiltro, setPropostaFiltro] = useState(["Enviado", VAZIA]);
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 25;
+
+  const statusDisponiveis = useMemo(
+    () => [...new Set(chamados.map((c) => c.status).filter(Boolean))],
+    [chamados]
+  );
+
+  const propostaDisponiveis = useMemo(
+    () => [...new Set(chamados.map((c) => c.proposta_status || VAZIA))],
+    [chamados]
+  );
+
+  const analistasDisponiveis = useMemo(() => analistas.map((a) => a.nome), [analistas]);
+
+  const contagemPorStatus = useMemo(() => {
+    const c = {};
+    chamados.forEach((ch) => {
+      c[ch.status] = (c[ch.status] || 0) + 1;
+    });
+    return c;
+  }, [chamados]);
+
+  const STATUS_OCULTOS_PADRAO = ["Encerrado", "Cancelado"];
+
+  const filtrados = useMemo(() => {
+    return chamados.filter((c) => {
+      if (statusFiltro.length > 0) {
+        if (!statusFiltro.includes(c.status)) return false;
+      } else if (STATUS_OCULTOS_PADRAO.includes(c.status)) {
+        // sem nenhum status escolhido manualmente, esconde Encerrado/Cancelado
+        // por padrão (quem quiser vê-los, seleciona o chip do status direto)
+        return false;
+      }
+      if (analistaFiltro.length > 0 && !analistaFiltro.includes(c.analista_nome)) return false;
+      if (propostaFiltro.length > 0 && !propostaFiltro.includes(c.proposta_status || VAZIA)) return false;
+      if (busca.trim()) {
+        const alvo = `${c.numero} ${c.cliente_nome} ${c.descricao || ""}`.toLowerCase();
+        if (!alvo.includes(busca.trim().toLowerCase())) return false;
+      }
+      return true;
+    });
+  }, [chamados, statusFiltro, analistaFiltro, propostaFiltro, busca]);
+
+  useEffect(() => {
+    setPagina(1);
+  }, [busca, statusFiltro, analistaFiltro, propostaFiltro]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / porPagina));
+  const itensPagina = filtrados.slice((pagina - 1) * porPagina, pagina * porPagina);
+
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const fmtData = (d) => (d ? parseDataLocal(d).toLocaleDateString("pt-BR") : "—");
+
+  function toggleStatusChip(s) {
+    setStatusFiltro((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Chips rápidos por status (multi-seleção) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setStatusFiltro([])}
+          className="text-sm px-3.5 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
+          style={
+            statusFiltro.length === 0
+              ? { backgroundColor: BRAND_BLUE, color: "#fff", fontWeight: 600 }
+              : { backgroundColor: "#fff", color: "#475569" }
+          }
+        >
+          Todos
+          <span className="text-xs opacity-70">{chamados.length}</span>
+        </button>
+        {statusDisponiveis.map((s) => {
+          const selecionado = statusFiltro.includes(s);
+          return (
+            <button
+              key={s}
+              onClick={() => toggleStatusChip(s)}
+              className="text-sm px-3.5 py-1.5 rounded-full transition-colors flex items-center gap-1.5"
+              style={
+                selecionado
+                  ? { backgroundColor: BRAND_BLUE, color: "#fff", fontWeight: 600 }
+                  : { backgroundColor: "#fff", color: "#475569" }
+              }
+            >
+              {s}
+              <span className="text-xs opacity-70">{contagemPorStatus[s] || 0}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 bg-white rounded-xl p-4 shadow-sm">
+        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-md px-3 py-2 flex-1 min-w-[220px]">
+          <Search size={14} className="text-slate-400" />
+          <input
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar por nº, cliente ou descrição"
+            className="bg-transparent text-sm outline-none w-full placeholder:text-slate-400"
+          />
+        </div>
+        <MultiSelectFiltro
+          label="Proposta"
+          opcoes={propostaDisponiveis}
+          selecionados={propostaFiltro}
+          onChange={setPropostaFiltro}
+        />
+        <MultiSelectFiltro
+          label="Analista"
+          opcoes={analistasDisponiveis}
+          selecionados={analistaFiltro}
+          onChange={setAnalistaFiltro}
+        />
+        <span className="text-xs text-slate-400 ml-auto">
+          {filtrados.length} chamados encontrados
+          {statusFiltro.length === 0 && " · Encerrado e Cancelado ocultos por padrão"}
+        </span>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-slate-400 border-b border-slate-100">
+                <th className="px-4 py-3 font-medium">Nº</th>
+                <th className="px-4 py-3 font-medium">Cliente</th>
+                <th className="px-4 py-3 font-medium">Descrição</th>
+                <th className="px-4 py-3 font-medium">Analista</th>
+                <th className="px-4 py-3 font-medium">Abertura</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Proposta</th>
+                <th className="px-4 py-3 font-medium text-right">Total Horas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itensPagina.map((c) => (
+                <tr
+                  key={c.id}
+                  onClick={() => onEditar && onEditar(c)}
+                  className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                >
+                  <td className="px-4 py-2.5 font-mono text-xs text-slate-400">#{c.numero}</td>
+                  <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[240px] truncate">{c.descricao || "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtData(c.data_abertura)}</td>
+                  <td className="px-4 py-2.5">
+                    <span
+                      className="text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap"
+                      style={{ backgroundColor: corStatus(c.status) + "1a", color: corStatus(c.status) }}
+                    >
+                      {c.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.proposta_status || "—"}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 whitespace-nowrap">
+                    {Number(c.total_horas || 0).toLocaleString("pt-BR")}h
+                  </td>
+                </tr>
+              ))}
+              {itensPagina.length === 0 && (
+                <tr>
+                  <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    Nenhum chamado encontrado com esses filtros.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100 text-sm text-slate-500">
+          <span>
+            Página {pagina} de {totalPaginas}
+          </span>
+          <div className="flex gap-2">
+            <button
+              disabled={pagina <= 1}
+              onClick={() => setPagina((p) => Math.max(1, p - 1))}
+              className="px-3 py-1.5 rounded-md border border-slate-200 disabled:opacity-40"
+            >
+              Anterior
+            </button>
+            <button
+              disabled={pagina >= totalPaginas}
+              onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+              className="px-3 py-1.5 rounded-md border border-slate-200 disabled:opacity-40"
+            >
+              Próxima
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChamadosDashboard() {
+  const [ativo, setAtivo] = useState("visao-geral");
+  const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  const [modalAberto, setModalAberto] = useState(false);
+  const [exportandoPdf, setExportandoPdf] = useState(false);
+  const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
+  const [configAberto, setConfigAberto] = useState(false);
+  const [salvando, setSalvando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  const [salvandoConfig, setSalvandoConfig] = useState(false);
+  const [config, setConfig] = useState(CONFIG_PADRAO);
+  const [configId, setConfigId] = useState(null);
+  const [clienteFiltro, setClienteFiltro] = useState("Todos");
+  const [chamadosData, setChamadosData] = useState([]);
+  const [clientes, setClientes] = useState([]);
+  const [analistas, setAnalistas] = useState([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState(null);
+  const [statusOcultos, setStatusOcultos] = useState([]);
+  const [modelosParcelamento, setModelosParcelamento] = useState([]);
+  const [tabelasRecurso, setTabelasRecurso] = useState([]);
+
+  async function carregarTudo() {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const [chamadosRes, clientesRes, analistasRes, configRes, statusOcultosRes, modelosRes, tabelasRecursoRes] = await Promise.all([
+        sbFetch("/chamados_calculado?select=*&order=criado_em.desc&limit=1000"),
+        sbFetch("/clientes?select=id,nome&order=nome.asc"),
+        sbFetch("/analistas?select=id,nome,ativo&order=nome.asc"),
+        sbFetch("/config_calculo?select=*&vigente_ate=is.null&limit=1"),
+        sbFetch("/status_ocultos?select=status"),
+        sbFetch("/modelos_parcelamento"),
+        sbFetch("/tabelas_recurso"),
+      ]);
+      setChamadosData(chamadosRes || []);
+      setClientes(clientesRes || []);
+      setAnalistas(analistasRes || []);
+      setStatusOcultos((statusOcultosRes || []).map((s) => s.status));
+      setModelosParcelamento(modelosRes || []);
+      setTabelasRecurso(tabelasRecursoRes || []);
+      if (configRes && configRes[0]) {
+        setConfig({
+          pctQA: Number(configRes[0].pct_qa),
+          pctGerencial: Number(configRes[0].pct_gerencial),
+          valorHora: Number(configRes[0].valor_hora),
+        });
+        setConfigId(configRes[0].id);
+      }
+    } catch (e) {
+      setErro(e.message);
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  useEffect(() => { carregarTudo(); }, []);
+
+  async function exportarVisaoGeralPdf() {
+    const elemento = document.getElementById("visao-geral-export-area");
+    if (!elemento) return;
+    setExportandoPdf(true);
+    try {
+      const canvas = await html2canvas(elemento, { scale: 2, backgroundColor: "#f8fafc", useCORS: true });
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const larguraPagina = pdf.internal.pageSize.getWidth();
+      const alturaPagina = pdf.internal.pageSize.getHeight();
+      const margem = 10;
+      const larguraUtil = larguraPagina - margem * 2;
+      const escalaPxParaMm = larguraUtil / canvas.width;
+      const alturaPaginaEmPx = (alturaPagina - margem * 2) / escalaPxParaMm;
+
+      // Fatia o canvas inteiro (que pode ser bem alto) em pedacos do tamanho de uma
+      // pagina A4, adicionando cada pedaco como uma pagina nova do PDF.
+      let offsetY = 0;
+      let pagina = 0;
+      while (offsetY < canvas.height) {
+        const alturaFatia = Math.min(alturaPaginaEmPx, canvas.height - offsetY);
+        const canvasFatia = document.createElement("canvas");
+        canvasFatia.width = canvas.width;
+        canvasFatia.height = alturaFatia;
+        const ctx = canvasFatia.getContext("2d");
+        ctx.drawImage(canvas, 0, offsetY, canvas.width, alturaFatia, 0, 0, canvas.width, alturaFatia);
+        const imgData = canvasFatia.toDataURL("image/png");
+        if (pagina > 0) pdf.addPage();
+        pdf.addImage(imgData, "PNG", margem, margem, larguraUtil, alturaFatia * escalaPxParaMm);
+        offsetY += alturaFatia;
+        pagina++;
+      }
+
+      pdf.save(`visao-geral-chamados-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      alert("Não foi possível gerar o PDF: " + e.message);
+    } finally {
+      setExportandoPdf(false);
+    }
+  }
+
+  async function salvarChamado(registro) {
+    setSalvando(true);
+    try {
+      const editando = !!registro.id;
+      let cliente = clientes.find((c) => c.nome.toLowerCase() === registro.cliente.trim().toLowerCase());
+      if (!cliente && !editando) {
+        const criado = await sbFetch("/clientes", {
+          method: "POST",
+          body: JSON.stringify({ nome: registro.cliente.trim() }),
+        });
+        cliente = criado[0];
+      }
+      const analista = analistas.find((a) => a.nome === registro.analista);
+
+      const payload = {
+        numero: registro.numero,
+        descricao: registro.descricao,
+        status: registro.status,
+        analista_id: analista ? analista.id : null,
+        grupo_trabalho: registro.grupoTrabalho || null,
+        complexidade: registro.complexidade || null,
+        proposta_status: registro.propostaStatus || null,
+        data_envio_proposta: registro.dataEnvioProposta,
+        data_aprovacao: registro.dataAprovacao,
+        horas_dev: registro.horasDev,
+        pct_margem: registro.pctMargem,
+        pct_negociado: registro.pctNegociado,
+        modelo_parcelamento_id: registro.modeloParcelamentoId || null,
+        pct_qa_aplicado: registro.pctQaAplicado,
+        pct_gerencial_aplicado: registro.pctGerencialAplicado,
+        valor_hora_aplicado: registro.valorHoraAplicado,
+        modo_precificacao: registro.modoPrecificacao || "unico",
+        tabela_recurso_id: registro.tabelaRecursoId || null,
+        recursos_horas: registro.recursosHoras || null,
+      };
+
+      if (editando) {
+        await sbFetch(`/chamados?id=eq.${registro.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await sbFetch("/chamados", {
+          method: "POST",
+          body: JSON.stringify({ ...payload, cliente_id: cliente.id }),
+        });
+      }
+      setModalAberto(false);
+      setChamadoEmEdicao(null);
+      await carregarTudo();
+    } catch (e) {
+      alert("Não foi possível salvar o chamado: " + e.message);
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function excluirChamado(id) {
+    if (!confirm("Excluir este chamado? Essa ação não pode ser desfeita.")) return;
+    setExcluindo(true);
+    try {
+      await sbFetch(`/chamados?id=eq.${id}`, { method: "DELETE" });
+      setModalAberto(false);
+      setChamadoEmEdicao(null);
+      await carregarTudo();
+    } catch (e) {
+      alert("Não foi possível excluir o chamado: " + e.message);
+    } finally {
+      setExcluindo(false);
+    }
+  }
+
+  async function salvarConfig(novaConfig) {
+    setSalvandoConfig(true);
+    try {
+      const body = JSON.stringify({
+        pct_qa: novaConfig.pctQA,
+        pct_gerencial: novaConfig.pctGerencial,
+        valor_hora: novaConfig.valorHora,
+      });
+      if (configId) {
+        await sbFetch(`/config_calculo?id=eq.${configId}`, { method: "PATCH", body });
+      } else {
+        await sbFetch("/config_calculo", { method: "POST", body });
+      }
+      setConfigAberto(false);
+      await carregarTudo();
+    } catch (e) {
+      alert("Não foi possível salvar a configuração: " + e.message);
+    } finally {
+      setSalvandoConfig(false);
+    }
+  }
+
+  async function alternarAnalistaAtivo(analista) {
+    const novoValor = !(analista.ativo !== false);
+    setAnalistas((prev) => prev.map((a) => (a.id === analista.id ? { ...a, ativo: novoValor } : a)));
+    try {
+      await sbFetch(`/analistas?id=eq.${analista.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ ativo: novoValor }),
+      });
+    } catch (e) {
+      setAnalistas((prev) => prev.map((a) => (a.id === analista.id ? { ...a, ativo: !novoValor } : a)));
+      alert("Não foi possível atualizar o analista: " + e.message);
+    }
+  }
+
+  async function criarAnalista(nome) {
+    if (!nome) return;
+    if (analistas.some((a) => a.nome.toLowerCase() === nome.toLowerCase())) {
+      alert("Já existe um analista com esse nome.");
+      return;
+    }
+    try {
+      const criado = await sbFetch("/analistas", {
+        method: "POST",
+        body: JSON.stringify({ nome, ativo: true }),
+      });
+      if (criado && criado[0]) setAnalistas((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
+    } catch (e) {
+      alert("Não foi possível cadastrar o analista: " + e.message);
+    }
+  }
+
+  async function criarModeloParcelamento(nome, parcelas) {
+    try {
+      const criado = await sbFetch("/modelos_parcelamento", {
+        method: "POST",
+        body: JSON.stringify({ nome, parcelas }),
+      });
+      if (criado && criado[0]) setModelosParcelamento((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
+      return true;
+    } catch (e) {
+      alert("Não foi possível criar o modelo: " + e.message);
+      return false;
+    }
+  }
+  async function atualizarModeloParcelamento(id, dados) {
+    try {
+      await sbFetch(`/modelos_parcelamento?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(dados) });
+      await carregarTudo();
+      return true;
+    } catch (e) {
+      alert("Não foi possível atualizar o modelo: " + e.message);
+      return false;
+    }
+  }
+  async function excluirModeloParcelamento(id) {
+    if (!confirm("Excluir esse modelo de parcelamento?")) return;
+    try {
+      await sbFetch(`/modelos_parcelamento?id=eq.${id}`, { method: "DELETE" });
+      setModelosParcelamento((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      alert("Não foi possível excluir o modelo: " + e.message);
+    }
+  }
+
+  async function criarTabelaRecurso(nome, papeis) {
+    try {
+      const criado = await sbFetch("/tabelas_recurso", {
+        method: "POST",
+        body: JSON.stringify({ nome, papeis }),
+      });
+      if (criado && criado[0]) setTabelasRecurso((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
+      return true;
+    } catch (e) {
+      alert("Não foi possível criar a tabela de recursos: " + e.message);
+      return false;
+    }
+  }
+  async function atualizarTabelaRecurso(id, dados) {
+    try {
+      await sbFetch(`/tabelas_recurso?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(dados) });
+      await carregarTudo();
+      return true;
+    } catch (e) {
+      alert("Não foi possível atualizar a tabela de recursos: " + e.message);
+      return false;
+    }
+  }
+  async function excluirTabelaRecurso(id) {
+    if (!confirm("Excluir essa tabela de recursos?")) return;
+    try {
+      await sbFetch(`/tabelas_recurso?id=eq.${id}`, { method: "DELETE" });
+      setTabelasRecurso((prev) => prev.filter((t) => t.id !== id));
+    } catch (e) {
+      alert("Não foi possível excluir a tabela de recursos: " + e.message);
+    }
+  }
+
+  async function alternarStatusOculto(status) {
+    const estaOculto = statusOcultos.includes(status);
+    setStatusOcultos((prev) => (estaOculto ? prev.filter((s) => s !== status) : [...prev, status]));
+    try {
+      if (estaOculto) {
+        await sbFetch(`/status_ocultos?status=eq.${encodeURIComponent(status)}`, { method: "DELETE" });
+      } else {
+        await sbFetch("/status_ocultos", { method: "POST", body: JSON.stringify({ status }) });
+      }
+    } catch (e) {
+      setStatusOcultos((prev) => (estaOculto ? [...prev, status] : prev.filter((s) => s !== status)));
+      alert("Não foi possível atualizar a visibilidade do status: " + e.message);
+    }
+  }
+
+  const chamadosVisiveis = useMemo(
+    () => chamadosData.filter((c) => !statusOcultos.includes(c.status)),
+    [chamadosData, statusOcultos]
+  );
+
+  const chamadosFiltrados = useMemo(
+    () =>
+      clienteFiltro === "Todos"
+        ? chamadosVisiveis
+        : chamadosVisiveis.filter((c) => c.cliente_nome === clienteFiltro),
+    [chamadosVisiveis, clienteFiltro]
+  );
+
+  // Chamados com proposta ainda em aberto (sem status definido, ou "Enviado" aguardando
+  // decisao do cliente) - representa o trabalho ativo/pipeline, sem contar o que ja foi
+  // fechado comercialmente (Aprovado tem tela propria em "Aprovadas por Mês"; Bonificado,
+  // Negada, Recusada, Cancelado, etc. tambem ja saíram de decisão).
+  const chamadosPendentes = useMemo(
+    () => chamadosFiltrados.filter((c) => !c.proposta_status || c.proposta_status === "Enviado"),
+    [chamadosFiltrados]
+  );
+
+  const kpis = useMemo(() => {
+    const total = chamadosPendentes.length;
+    const totalHoras = chamadosPendentes.reduce((s, c) => s + Number(c.total_horas || 0), 0);
+    const totalValor = chamadosPendentes.reduce((s, c) => s + Number(c.valor_total_projeto || 0), 0);
+    const concluidos = chamadosPendentes.filter((c) => c.status === "Concluido").length;
+    const encerrados = chamadosPendentes.filter((c) => c.status === "Encerrado").length;
+    return { total, totalHoras, totalValor, concluidos, encerrados };
+  }, [chamadosPendentes]);
+
+
+  const volumeMensal = useMemo(() => {
+    const nomesMes = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+    const anoFoco = new Date().getFullYear();
+    const contagem = Array(12).fill(0);
+    chamadosFiltrados.forEach((c) => {
+      if (!c.data_abertura) return;
+      const d = parseDataLocal(c.data_abertura);
+      if (d.getFullYear() === anoFoco) contagem[d.getMonth()]++;
+    });
+    let ultimoMes = 0;
+    contagem.forEach((v, i) => { if (v > 0) ultimoMes = i; });
+    return nomesMes.slice(0, ultimoMes + 1).map((mes, i) => ({ mes, chamados: contagem[i] }));
+  }, [chamadosFiltrados]);
+
+  const statusDistribuicao = useMemo(() => {
+    const contagem = {};
+    chamadosFiltrados.forEach((c) => {
+      const s = c.status || "Sem status";
+      contagem[s] = (contagem[s] || 0) + 1;
+    });
+    return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, valor]) => ({ nome, valor, cor: corStatus(nome) }));
+  }, [chamadosFiltrados]);
+
+  const analistasCarga = useMemo(() => {
+    const nomesAtivos = new Set(analistas.filter((a) => a.ativo !== false).map((a) => a.nome));
+    const contagem = {};
+    chamadosFiltrados.forEach((c) => {
+      const nome = c.analista_nome || "Sem analista";
+      if (!nomesAtivos.has(nome)) return;
+      contagem[nome] = (contagem[nome] || 0) + 1;
+    });
+    return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, chamados]) => ({ nome, chamados }));
+  }, [chamadosFiltrados, analistas]);
+
+  const topClientes = useMemo(() => {
+    const anoFoco = new Date().getFullYear();
+    const contagem = {};
+    chamadosVisiveis.forEach((c) => {
+      if (!c.data_abertura) return;
+      if (parseDataLocal(c.data_abertura).getFullYear() !== anoFoco) return;
+      contagem[c.cliente_nome] = (contagem[c.cliente_nome] || 0) + 1;
+    });
+    return Object.entries(contagem).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([nome, chamados]) => ({ nome, chamados }));
+  }, [chamadosVisiveis]);
+
+  const totalBacklog = useMemo(() => chamadosData.filter((c) => c.status === "BackLog").length, [chamadosData]);
+
+  const anoFocoAtual = new Date().getFullYear();
+  const nomesAnalistasAtivos = useMemo(() => new Set(analistas.filter((a) => a.ativo !== false).map((a) => a.nome)), [analistas]);
+
+  // Distribuição por Analista (só analistas ativos; só propostas em aberto - vazia ou Enviado)
+  const distribuicaoAnalista = useMemo(() => {
+    const contagem = {};
+    chamadosPendentes.forEach((c) => {
+      const nome = c.analista_nome || "Sem analista";
+      if (!nomesAnalistasAtivos.has(nome)) return;
+      contagem[nome] = (contagem[nome] || 0) + 1;
+    });
+    return Object.entries(contagem).sort((a, b) => b[1] - a[1]).map(([nome, valor]) => ({ nome, valor }));
+  }, [chamadosPendentes, nomesAnalistasAtivos]);
+
+  // Top 10 Clientes x Analistas (só analistas ativos; só propostas em aberto - vazia ou Enviado)
+  const clienteAnalistaMatrix = useMemo(() => {
+    const nomesAnalistas = [...nomesAnalistasAtivos];
+    const matrix = {};
+    chamadosPendentes.forEach((c) => {
+      const analista = c.analista_nome || "Sem analista";
+      if (!nomesAnalistasAtivos.has(analista)) return;
+      const cliente = c.cliente_nome || "Sem cliente";
+      if (!matrix[cliente]) matrix[cliente] = {};
+      matrix[cliente][analista] = (matrix[cliente][analista] || 0) + 1;
+    });
+    const linhas = Object.entries(matrix)
+      .map(([cliente, porAnalista]) => ({ cliente, ...porAnalista, total: Object.values(porAnalista).reduce((s, v) => s + v, 0) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+    return { linhas, analistas: nomesAnalistas };
+  }, [chamadosPendentes, nomesAnalistasAtivos]);
+
+  // Projetos Aprovados por Mês, no ano corrente (exclui Cancelado/Encerrado)
+  const aprovadosPorMes = useMemo(() => {
+    const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const contagem = Array(12).fill(0);
+    const valores = Array(12).fill(0);
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      contagem[data.getMonth()]++;
+      valores[data.getMonth()] += Number(c.valor_total_projeto || 0);
+    });
+    let acumulado = 0;
+    return mesesNomes.map((mes, i) => {
+      acumulado += valores[i];
+      return { mes, quantidade: contagem[i], valor: Math.round(valores[i] / 1000), acumulado: Math.round(acumulado / 1000) };
+    });
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  const totalAprovadoAno = useMemo(() => ({
+    quantidade: aprovadosPorMes.reduce((s, m) => s + m.quantidade, 0),
+    valorK: aprovadosPorMes.reduce((s, m) => s + m.valor, 0),
+  }), [aprovadosPorMes]);
+
+  // Comparativo Ano a Ano - projetos Aprovados por mês, últimos 3 anos (calculado direto
+  // dos chamados reais, sem depender de nenhuma planilha mantida à parte)
+  const comparativoAnual = useMemo(() => {
+    const mesesNomes = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+    const anosAlvo = [anoFocoAtual - 2, anoFocoAtual - 1, anoFocoAtual];
+    const dadosPorAno = {};
+    anosAlvo.forEach((ano) => { dadosPorAno[ano] = Array(12).fill(0); });
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || !anosAlvo.includes(data.getFullYear())) return;
+      dadosPorAno[data.getFullYear()][data.getMonth()] += Number(c.valor_total_projeto || 0);
+    });
+    const anosComDados = anosAlvo.filter((ano) => dadosPorAno[ano].some((v) => v > 0));
+    const linhas = mesesNomes.map((mes, i) => {
+      const linha = { mes };
+      anosComDados.forEach((ano) => { linha[ano] = Math.round(dadosPorAno[ano][i] / 1000); });
+      return linha;
+    });
+    return { linhas, anos: anosComDados };
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  // Projetos Aprovados por Analista, no ano corrente (exclui Cancelado/Encerrado)
+  const aprovadosPorAnalista = useMemo(() => {
+    const dados = {};
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.analista_nome || "Não Atribuído";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  // Top 10 Clientes - Projetos Aprovados, no ano corrente (exclui Cancelado/Encerrado)
+  const top10ClientesAprovados = useMemo(() => {
+    const dados = {};
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.cliente_nome || "Sem Cliente";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 10);
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  // Propostas Bonificadas por Cliente, no ano corrente (usa data de aprovacao ou, na falta, abertura; exclui Cancelado/Encerrado)
+  const bonificadasPorCliente = useMemo(() => {
+    const dados = {};
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Bonificado") return;
+      const dataRef = c.data_aprovacao || c.data_abertura;
+      if (!dataRef) return;
+      const data = parseDataLocal(dataRef);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.cliente_nome || "Sem Cliente";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: Math.round(d.valor / 1000) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  // % Propostas Aprovadas vs Bonificadas, no ano corrente (exclui Cancelado/Encerrado)
+  const aprovadaVsBonificada = useMemo(() => {
+    let aprovadas = 0, bonificadas = 0;
+    chamadosVisiveis.forEach((c) => {
+      const dataRef = c.data_aprovacao || c.data_abertura;
+      if (!dataRef) return;
+      const data = parseDataLocal(dataRef);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      if (c.proposta_status === "Aprovado") aprovadas++;
+      if (c.proposta_status === "Bonificado") bonificadas++;
+    });
+    return [
+      { nome: `Aprovadas (${aprovadas})`, valor: aprovadas },
+      { nome: `Bonificadas (${bonificadas})`, valor: bonificadas },
+    ];
+  }, [chamadosVisiveis, anoFocoAtual]);
+
+  const CORES_ANALISTAS = ["#3A6EA5", "#7C3AED", "#E0A526", "#EC4899", "#10B981", "#F97316", "#06B6D4"];
+
+  return (
+    <div className="flex h-screen w-full bg-[#F5F6F4] text-slate-800 overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {menuMobileAberto && (
+        <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMenuMobileAberto(false)} />
+      )}
+      <aside
+        className={`w-64 shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-transform duration-200 ${
+          menuMobileAberto ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0`}
+      >
+        <div className="px-5 py-4 border-b border-white/10">
+          <a href="/" className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-3 transition-colors">
+            <ChevronRight size={12} className="rotate-180" />
+            Voltar para Projetos
+          </a>
+          <Wordmark size={20} variant="light" />
+          <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-3">Painel de Chamados</div>
+        </div>
+        <nav className="flex-1 overflow-y-auto py-3 px-3">
+          {navSecoes(kpis.total, totalBacklog).map((secao) => (
+            <div key={secao.titulo} className="mb-4">
+              <div className="text-[10px] font-mono tracking-widest text-slate-500 px-2 mb-1.5">{secao.titulo}</div>
+              {secao.itens.map((item) => {
+                const IconComp = item.icon;
+                const selecionado = ativo === item.id;
+                return (
+                  <button key={item.id} onClick={() => { if (item.id === "config") setConfigAberto(true); else setAtivo(item.id); setMenuMobileAberto(false); }}
+                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm mb-0.5 font-medium transition-colors"
+                    style={selecionado ? { backgroundColor: "rgba(226,0,26,0.14)", color: "#FF9FAE" } : { color: "#94a3b8" }}>
+                    <span className="flex items-center gap-2.5"><IconComp size={15} />{item.label}</span>
+                    {item.badge && (
+                      <span className="text-[10px] font-mono min-w-[20px] text-center rounded-full px-1.5 py-0.5"
+                        style={selecionado ? { backgroundColor: BRAND_RED, color: "#fff", fontWeight: 700 } : { color: "#64748b" }}>
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+        <div className="px-5 py-2.5 border-t border-white/10 text-[11px] text-slate-500">Dados migrados de 34 abas → 1 base única</div>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto w-full min-w-0">
+        <header className="flex items-center justify-between gap-3 px-4 md:px-8 py-5 md:py-7 bg-[#F5F6F4]">
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              onClick={() => setMenuMobileAberto(true)}
+              className="md:hidden shrink-0 text-slate-600 p-1.5 -ml-1.5 rounded-md hover:bg-slate-200"
+              aria-label="Abrir menu"
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <div className="min-w-0">
+              <h1
+                className="text-xl md:text-[28px] font-extrabold text-slate-900 leading-tight truncate"
+                style={{ fontFamily: "'Poppins', sans-serif" }}
+              >
+                {ativo === "chamados" ? "Chamados" : ativo === "backlog" ? "Backlog por Cliente" : ativo === "analistas" ? "Carga por Analista" : ativo === "propostas" ? "Propostas Enviadas" : ativo === "aprovadas" ? "Aprovadas por Mês" : ativo === "financeiro" ? "Valores & Margem" : "Visão Geral"}
+              </h1>
+              <p className="text-xs md:text-sm text-slate-500 mt-1 hidden sm:block truncate">
+                {ativo === "chamados" ? "Lista completa de chamados, com busca e filtros" : ativo === "backlog" ? "Chamados parados em BackLog, agrupados por cliente" : ativo === "analistas" ? "Distribuição de chamados por analista responsável" : ativo === "propostas" ? "Chamados concluídos com proposta enviada aguardando retorno" : ativo === "aprovadas" ? "Propostas aprovadas, mês a mês" : ativo === "financeiro" ? "Valores de projeto, descontos e margem" : "Visão consolidada dos chamados, prazos e status por cliente"}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {ativo === "visao-geral" && (
+              <button
+                onClick={exportarVisaoGeralPdf}
+                disabled={exportandoPdf}
+                className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 px-3 md:px-4 py-2 md:py-2.5 rounded-lg disabled:opacity-50"
+              >
+                <FileText size={15} />
+                <span className="hidden sm:inline">{exportandoPdf ? "Gerando PDF..." : "Exportar PDF"}</span>
+              </button>
+            )}
+            <button
+              onClick={() => { setChamadoEmEdicao(null); setModalAberto(true); }}
+              className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-white px-3 md:px-4 py-2 md:py-2.5 rounded-lg"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              <Plus size={15} />
+              <span className="hidden sm:inline">Novo Chamado</span>
+            </button>
+          </div>
+        </header>
+
+        {erro && (
+          <div className="mx-8 mt-4 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-lg">
+            Não foi possível carregar os dados do Supabase: {erro}
+          </div>
+        )}
+        {carregando && !erro && (
+          <div className="mx-8 mt-4 text-sm text-slate-400">Carregando dados do banco...</div>
+        )}
+
+        <div className="p-4 md:p-8 space-y-6">
+          {ativo === "chamados" ? (
+            <ChamadosListaPage chamados={chamadosData} analistas={analistas} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : ativo === "backlog" ? (
+            <BacklogPorClientePage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : ativo === "analistas" ? (
+            <CargaPorAnalistaPage chamados={chamadosVisiveis} analistas={analistas} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : ativo === "propostas" ? (
+            <PropostasEnviadasPage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : ativo === "aprovadas" ? (
+            <AprovadasPorMesPage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : ativo === "financeiro" ? (
+            <ValoresMargemPage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
+          ) : (
+            <div id="visao-geral-export-area">
+          <div className="flex flex-wrap gap-4">
+            <KpiCard label="Total de Chamados" value={kpis.total} accent="#0F172A" />
+            <KpiCard label="Horas Totais" value={`${Math.round(kpis.totalHoras).toLocaleString("pt-BR")}h`} accent="#3A6EA5" />
+            <KpiCard label="Valor Total" value={formatMoeda(kpis.totalValor)} accent="#0F8A6B" />
+            <KpiCard label="Taxa de Conclusão" value={kpis.total ? `${Math.round(((kpis.concluidos + kpis.encerrados) / kpis.total) * 100)}%` : "—"} sub={`${kpis.concluidos + kpis.encerrados} de ${kpis.total}`} accent="#7C3AED" />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm text-slate-500 mr-1">Cliente:</span>
+            {["Todos", ...topClientes.map((c) => c.nome)].map((nome) => {
+              const selecionado = clienteFiltro === nome;
+              return (
+                <button key={nome} onClick={() => setClienteFiltro(nome)} className="text-sm px-3.5 py-1.5 rounded-full transition-colors"
+                  style={selecionado ? { backgroundColor: BRAND_BLUE, color: "#fff", fontWeight: 600 } : { backgroundColor: "#fff", color: "#475569" }}>
+                  {nome}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-lg p-5">
+            <h2 className="text-sm font-semibold text-slate-800" style={{fontFamily:"'Poppins', sans-serif"}}>📈 Panorama do Ano — Projetos Aprovados {anoFocoAtual}</h2>
+            <p className="text-2xl font-bold text-slate-800 mb-3 mt-1" style={{fontFamily:"'Poppins', sans-serif"}}>
+              {formatMoeda(totalAprovadoAno.valorK * 1000)} <span className="text-sm font-normal text-slate-500">· {totalAprovadoAno.quantidade} projeto(s) no ano</span>
+            </p>
+            <ResponsiveContainer width="100%" height={260}>
+              <ComposedChart data={aprovadosPorMes}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip formatter={(v, n) => (n === "acumulado" ? [`R$ ${v}K`, "Acumulado no ano"] : n === "valor" ? [`R$ ${v}K`, "Aprovado no mês"] : [v, "Quantidade"])} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Bar yAxisId="left" dataKey="valor" name="Aprovado no mês (R$ mil)" fill="#3A6EA5" radius={[4, 4, 0, 0]} />
+                <Line yAxisId="right" type="monotone" dataKey="acumulado" name="Acumulado no ano (R$ mil)" stroke="#0F8A6B" strokeWidth={2} dot={{ r: 3 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-lg p-5">
+            <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>📊 Comparativo Ano a Ano — Aprovados por Mês</h2>
+            {comparativoAnual.anos.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-16">Ainda não há dados de anos anteriores para comparar.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={comparativoAnual.linhas}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v) => [`R$ ${v}K`, "Valor aprovado"]} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {comparativoAnual.anos.map((ano, i) => (
+                    <Line key={ano} type="linear" dataKey={ano} name={String(ano)} stroke={["#94A3B8", "#3A6EA5", "#0F8A6B"][i % 3]} strokeWidth={ano === anoFocoAtual ? 3 : 2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2 bg-white border border-slate-200 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-slate-800" style={{fontFamily:"'Poppins', sans-serif"}}>Volume de Chamados · {new Date().getFullYear()}</h2>
+                <ChevronRight size={16} className="text-slate-300" />
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={volumeMensal}>
+                  <CartesianGrid stroke="#EEF0EC" vertical={false} />
+                  <XAxis dataKey="mes" tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="chamados" stroke={BRAND_BLUE} strokeWidth={2.5} dot={{ r: 3 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-4" style={{fontFamily:"'Poppins', sans-serif"}}>Status (histórico)</h2>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={statusDistribuicao} dataKey="valor" nameKey="nome" innerRadius={45} outerRadius={70} paddingAngle={2}>
+                    {statusDistribuicao.map((s) => <Cell key={s.nome} fill={s.cor} />)}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2">
+                {statusDistribuicao.map((s) => (
+                  <div key={s.nome} className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                    <CircleDot fill={s.cor} size={7} />{s.nome}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Carga por Analista</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={analistasCarga} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="nome" type="category" width={70} tick={{ fontSize: 12, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Bar dataKey="chamados" fill="#3A6EA5" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top Clientes · {new Date().getFullYear()}</h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={topClientes.slice(0, 6)} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="nome" type="category" width={80} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Bar dataKey="chamados" fill="#E0A526" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-sm font-semibold text-slate-800" style={{fontFamily:"'Poppins', sans-serif"}}>Últimos Chamados</h2>
+              </div>
+              <div>
+                {chamadosFiltrados.slice(0, 6).map((c) => (
+                  <TicketRow key={c.id} n={c.numero} cliente={`${c.cliente_nome} · ${c.descricao || "sem descrição"}`} status={c.status} statusColor={corStatus(c.status)} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <h2 className="text-base font-semibold text-slate-800 mt-2" style={{fontFamily:"'Poppins', sans-serif"}}>Análise Gerencial</h2>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Distribuição por Analista</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={distribuicaoAnalista} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={90} label={(e) => `${e.nome}: ${e.valor}`}>
+                    {distribuicaoAnalista.map((_, i) => (<Cell key={i} fill={CORES_ANALISTAS[i % CORES_ANALISTAS.length]} />))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top 10 Clientes x Analistas</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={clienteAnalistaMatrix.linhas} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="cliente" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {clienteAnalistaMatrix.analistas.map((nome, i) => (
+                    <Bar key={nome} dataKey={nome} stackId="a" fill={CORES_ANALISTAS[i % CORES_ANALISTAS.length]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Projetos Aprovados {anoFocoAtual} por Analista</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={aprovadosPorAnalista} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="nome" type="category" width={90} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                  <Bar dataKey="quantidade" fill="#7C3AED" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top 10 Clientes - Projetos Aprovados {anoFocoAtual}</h2>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={top10ClientesAprovados} layout="vertical" margin={{ left: 10 }}>
+                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <YAxis dataKey="nome" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                  <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                  <Bar dataKey="valor" fill="#E0A526" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>🎁 Propostas Bonificadas por Cliente - {anoFocoAtual}</h2>
+              {bonificadasPorCliente.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-16">Nenhuma proposta bonificada encontrada para {anoFocoAtual}.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={bonificadasPorCliente} layout="vertical" margin={{ left: 10 }}>
+                    <XAxis type="number" tick={{ fontSize: 11 }} />
+                    <YAxis dataKey="nome" type="category" width={110} tick={{ fontSize: 11, fill: "#475569" }} axisLine={false} tickLine={false} />
+                    <Tooltip formatter={(v, n) => (n === "valor" ? [`R$ ${v}K`, "Valor"] : [v, "Quantidade"])} />
+                    <Bar dataKey="valor" fill="#EC4899" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-lg p-5">
+              <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>⚖️ % Propostas Aprovadas vs Bonificadas — {anoFocoAtual}</h2>
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie data={aprovadaVsBonificada} dataKey="valor" nameKey="nome" cx="50%" cy="50%" outerRadius={90} label={(e) => e.nome}>
+                    <Cell fill="#10B981" />
+                    <Cell fill="#F97316" />
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+            </div>
+          )}
+        </div>
+      </main>
+
+      <ChamadoFormModal
+        aberto={modalAberto}
+        onFechar={() => { setModalAberto(false); setChamadoEmEdicao(null); }}
+        onSalvar={salvarChamado}
+        salvando={salvando}
+        onExcluir={excluirChamado}
+        excluindo={excluindo}
+        config={config}
+        analistas={analistas}
+        modelosParcelamento={modelosParcelamento}
+        tabelasRecurso={tabelasRecurso}
+        chamadoExistente={chamadoEmEdicao}
+      />
+      <ConfiguracoesModal
+        aberto={configAberto}
+        onFechar={() => setConfigAberto(false)}
+        config={config}
+        onSalvar={salvarConfig}
+        salvando={salvandoConfig}
+        analistas={analistas}
+        onToggleAnalista={alternarAnalistaAtivo}
+        onNovoAnalista={criarAnalista}
+        statusOcultos={statusOcultos}
+        onToggleStatus={alternarStatusOculto}
+        modelosParcelamento={modelosParcelamento}
+        onCriarModelo={criarModeloParcelamento}
+        onAtualizarModelo={atualizarModeloParcelamento}
+        onExcluirModelo={excluirModeloParcelamento}
+        tabelasRecurso={tabelasRecurso}
+        onCriarTabelaRecurso={criarTabelaRecurso}
+        onAtualizarTabelaRecurso={atualizarTabelaRecurso}
+        onExcluirTabelaRecurso={excluirTabelaRecurso}
+      />
+    </div>
+  );
+}
+
+// Rede de seguranca: se qualquer parte da tela travar de verdade (um erro que o
+// React nao consegue renderizar), mostra uma mensagem explicando o que aconteceu
+// em vez da tela ficar totalmente em branco sem nenhuma pista do que deu errado.
+class ErrorBoundaryChamados extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { erro: null };
+  }
+  static getDerivedStateFromError(erro) {
+    return { erro };
+  }
+  componentDidCatch(erro, info) {
+    console.error("[ErrorBoundary] Falha ao renderizar:", erro, info);
+  }
+  render() {
+    if (this.state.erro) {
+      return (
+        <div style={{ fontFamily: "sans-serif", padding: 40, maxWidth: 700, margin: "0 auto" }}>
+          <h2 style={{ color: "#b91c1c" }}>Essa tela travou com um erro</h2>
+          <p style={{ color: "#475569" }}>
+            Alguma coisa deu errado ao carregar essa parte do Chamados. Copie a mensagem abaixo e mande pro
+            desenvolvedor — ela mostra exatamente o que quebrou.
+          </p>
+          <pre
+            style={{
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              padding: 16,
+              fontSize: 12,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {this.state.erro && (this.state.erro.stack || this.state.erro.message || String(this.state.erro))}
+          </pre>
+          <button
+            onClick={() => this.setState({ erro: null })}
+            style={{ marginTop: 16, padding: "8px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}
+          >
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <ErrorBoundaryChamados>
+    <ChamadosDashboard />
+  </ErrorBoundaryChamados>
+);
+</script>
+
+<script>
+  // Transforma o JSX manualmente, forçando o runtime "clássico" (React.createElement),
+  // já que o runtime "automático" padrão do Babel gera um `import` que quebra fora de um bundler.
+  var codigoFonte = document.getElementById("app-source").textContent;
+  var codigoTransformado = Babel.transform(codigoFonte, {
+    presets: [["react", { runtime: "classic" }]],
+  }).code;
+  var scriptFinal = document.createElement("script");
+  scriptFinal.textContent = codigoTransformado;
+  document.body.appendChild(scriptFinal);
+</script>
+</body>
+</html>
