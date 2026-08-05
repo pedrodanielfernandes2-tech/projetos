@@ -136,6 +136,9 @@ async function sbFetch(caminhoAntigo, options = {}) {
     } else {
       url = "/api/chamados-status-ocultos";
     }
+  } else if (base === "/modelos_parcelamento") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-modelos-parcelamento/${idMatch[1]}` : "/api/chamados-modelos-parcelamento";
   } else if (base === "/chamados") {
     const idMatch = query && query.match(/id=eq\.([\w-]+)/);
     url = idMatch ? `/api/chamados/${idMatch[1]}` : "/api/chamados";
@@ -319,7 +322,7 @@ const OPCOES_PROPOSTA = [
   "Release", "Suporte", "Recusada", "Equipe Exclusiva", "Negada",
 ];
 
-function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, chamadoExistente }) {
+function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, modelosParcelamento, chamadoExistente }) {
   const editando = !!chamadoExistente;
 
   const [cliente, setCliente] = useState("");
@@ -335,7 +338,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const [horasDev, setHorasDev] = useState("");
   const [pctMargem, setPctMargem] = useState("10");
   const [pctNegociado, setPctNegociado] = useState("0");
-  const [qtdParcelas, setQtdParcelas] = useState("1");
+  const [modeloParcelamentoId, setModeloParcelamentoId] = useState("");
   const [projetoFechado, setProjetoFechado] = useState(false);
 
   useEffect(() => {
@@ -354,7 +357,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setHorasDev(String(chamadoExistente.horas_dev ?? ""));
       setPctMargem(String(Number(chamadoExistente.pct_margem || 0) * 100));
       setPctNegociado(String(Number(chamadoExistente.pct_negociado || 0) * 100));
-      setQtdParcelas(String(chamadoExistente.qtd_parcelas || 1));
+      setModeloParcelamentoId(chamadoExistente.modelo_parcelamento_id ? String(chamadoExistente.modelo_parcelamento_id) : "");
       setProjetoFechado(
         Number(chamadoExistente.pct_qa_aplicado || 0) === 0 && Number(chamadoExistente.pct_gerencial_aplicado || 0) === 0
       );
@@ -372,7 +375,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setHorasDev("");
       setPctMargem("10");
       setPctNegociado("0");
-      setQtdParcelas("1");
+      setModeloParcelamentoId(modelosParcelamento.find((m) => m.nome.includes("Padrão"))?.id ? String(modelosParcelamento.find((m) => m.nome.includes("Padrão")).id) : "");
       setProjetoFechado(false);
     }
   }, [aberto, chamadoExistente]);
@@ -419,7 +422,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       horasDev: Number(horasDev),
       pctMargem: Number(pctMargem) / 100,
       pctNegociado: Number(pctNegociado) / 100,
-      qtdParcelas: Number(qtdParcelas),
+      modeloParcelamentoId: modeloParcelamentoId || null,
       pctQaAplicado: cfgCalculo.pctQA,
       pctGerencialAplicado: cfgCalculo.pctGerencial,
       valorHoraAplicado: cfgCalculo.valorHora,
@@ -616,16 +619,18 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-slate-500 block mb-1">Parcelas</label>
+                <label className="text-xs font-medium text-slate-500 block mb-1">Modelo de parcelamento</label>
                 <select
-                  value={qtdParcelas}
-                  onChange={(e) => setQtdParcelas(e.target.value)}
+                  value={modeloParcelamentoId}
+                  onChange={(e) => setModeloParcelamentoId(e.target.value)}
                   className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
                 >
-                  <option value="1">1x (15 dias)</option>
-                  <option value="2">2x (15 / 30 dias)</option>
-                  <option value="3">3x (15 / 30 / 60 dias)</option>
-                  <option value="4">4x (15 / 30 / 60 / 90 dias)</option>
+                  <option value="">Sem modelo (à vista)</option>
+                  {modelosParcelamento.filter((m) => m.ativo !== false).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome} ({m.parcelas.map((p) => `${p.dias}d ${Math.round(p.percentual * 100)}%`).join(" / ")})
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -687,6 +692,144 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   );
 }
 
+function ModelosParcelamentoSecao({ modelos, onCriar, onAtualizar, onExcluir }) {
+  const [criando, setCriando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [linhas, setLinhas] = useState([{ dias: 15, percentual: 100 }]);
+  const [salvandoModelo, setSalvandoModelo] = useState(false);
+
+  const somaPercentual = linhas.reduce((s, l) => s + Number(l.percentual || 0), 0);
+
+  function atualizarLinha(i, campo, valor) {
+    setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
+  }
+  function adicionarLinha() {
+    setLinhas((prev) => [...prev, { dias: 30, percentual: 0 }]);
+  }
+  function removerLinha(i) {
+    setLinhas((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function resetarForm() {
+    setNome("");
+    setLinhas([{ dias: 15, percentual: 100 }]);
+    setCriando(false);
+  }
+
+  async function salvarNovoModelo() {
+    if (!nome.trim()) {
+      alert("Dê um nome ao modelo.");
+      return;
+    }
+    if (Math.abs(somaPercentual - 100) > 0.5) {
+      alert(`Os percentuais precisam somar 100% (hoje soma ${somaPercentual}%).`);
+      return;
+    }
+    setSalvandoModelo(true);
+    const ok = await onCriar(
+      nome.trim(),
+      linhas.map((l) => ({ dias: Number(l.dias), percentual: Number(l.percentual) / 100 }))
+    );
+    setSalvandoModelo(false);
+    if (ok) resetarForm();
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Modelos de Parcelamento</p>
+      <p className="text-xs text-slate-400 mb-3">
+        Defina os prazos de cobrança (em dias após a aprovação) e o percentual de cada parcela. Escolha o modelo
+        na hora de criar ou editar o chamado.
+      </p>
+      <div className="space-y-2">
+        {modelos.map((m) => (
+          <div key={m.id} className="flex items-center justify-between px-3 py-2 rounded-md border border-slate-100">
+            <div>
+              <p className={"text-sm " + (m.ativo === false ? "text-slate-400" : "text-slate-700")}>
+                {m.nome}
+                {m.ativo === false ? " (inativo)" : ""}
+              </p>
+              <p className="text-xs text-slate-400">
+                {m.parcelas.map((p) => `${p.dias}d ${Math.round(p.percentual * 100)}%`).join(" · ")}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => onAtualizar(m.id, { ativo: m.ativo === false })} className="text-xs text-slate-500 hover:text-slate-700">
+                {m.ativo === false ? "Reativar" : "Desativar"}
+              </button>
+              <button onClick={() => onExcluir(m.id)} className="text-xs text-red-500 hover:text-red-700">
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+        {modelos.length === 0 && <p className="text-xs text-slate-400">Nenhum modelo cadastrado ainda.</p>}
+      </div>
+
+      {!criando ? (
+        <button onClick={() => setCriando(true)} className="text-sm mt-3" style={{ color: BRAND_BLUE }}>
+          + Novo modelo
+        </button>
+      ) : (
+        <div className="mt-3 border border-slate-200 rounded-md p-3 space-y-2">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome do modelo (ex: Cliente X - Entrega Escalonada)"
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+          />
+          {linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="number"
+                min="0"
+                value={l.dias}
+                onChange={(e) => atualizarLinha(i, "dias", e.target.value)}
+                placeholder="Dias"
+                className="w-24 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">dias após aprovação ·</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                value={l.percentual}
+                onChange={(e) => atualizarLinha(i, "percentual", e.target.value)}
+                placeholder="%"
+                className="w-20 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">%</span>
+              {linhas.length > 1 && (
+                <button onClick={() => removerLinha(i)} className="text-xs text-red-500 ml-auto">
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={adicionarLinha} className="text-xs" style={{ color: BRAND_BLUE }}>
+            + Adicionar parcela
+          </button>
+          <p className={"text-xs " + (Math.abs(somaPercentual - 100) > 0.5 ? "text-red-500" : "text-emerald-600")}>
+            Soma: {somaPercentual}% {Math.abs(somaPercentual - 100) > 0.5 ? "(precisa somar 100%)" : "✓"}
+          </p>
+          <div className="flex items-center gap-2 justify-end pt-1">
+            <button onClick={resetarForm} className="text-sm text-slate-500 px-3 py-1.5">
+              Cancelar
+            </button>
+            <button
+              disabled={salvandoModelo}
+              onClick={salvarNovoModelo}
+              className="text-sm text-white px-3 py-1.5 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvandoModelo ? "Salvando..." : "Salvar modelo"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConfiguracoesModal({
   aberto,
   onFechar,
@@ -698,6 +841,10 @@ function ConfiguracoesModal({
   onNovoAnalista,
   statusOcultos,
   onToggleStatus,
+  modelosParcelamento,
+  onCriarModelo,
+  onAtualizarModelo,
+  onExcluirModelo,
 }) {
   const [novoAnalistaNome, setNovoAnalistaNome] = useState("");
   const [salvandoAnalista, setSalvandoAnalista] = useState(false);
@@ -832,6 +979,15 @@ function ConfiguracoesModal({
           </div>
         </div>
 
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <ModelosParcelamentoSecao
+            modelos={modelosParcelamento}
+            onCriar={onCriarModelo}
+            onAtualizar={onAtualizarModelo}
+            onExcluir={onExcluirModelo}
+          />
+        </div>
+
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-slate-100 bg-slate-50/50 rounded-b-xl">
           <button onClick={onFechar} className="text-sm text-slate-500 px-4 py-2 hover:text-slate-700">
             Cancelar
@@ -924,8 +1080,13 @@ function AprovadasPorMesPage({ chamados, onEditar }) {
 
   const PRAZOS_PARCELA = [15, 30, 60, 90];
   function parcelasDe(c) {
+    const valorTotal = Number(c.valor_total_projeto || 0);
+    if (Array.isArray(c.modelo_parcelamento_parcelas) && c.modelo_parcelamento_parcelas.length > 0) {
+      return c.modelo_parcelamento_parcelas.map((p) => ({ dias: p.dias, valor: valorTotal * p.percentual }));
+    }
+    // fallback pro comportamento antigo, pra chamados que nao tem um modelo definido
     const qtd = Math.min(Math.max(Number(c.qtd_parcelas) || 1, 1), 4);
-    const valorParcela = Number(c.valor_total_projeto || 0) / qtd;
+    const valorParcela = valorTotal / qtd;
     return PRAZOS_PARCELA.slice(0, qtd).map((dias) => ({ dias, valor: valorParcela }));
   }
 
@@ -2140,22 +2301,25 @@ function ChamadosDashboard() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState(null);
   const [statusOcultos, setStatusOcultos] = useState([]);
+  const [modelosParcelamento, setModelosParcelamento] = useState([]);
 
   async function carregarTudo() {
     setCarregando(true);
     setErro(null);
     try {
-      const [chamadosRes, clientesRes, analistasRes, configRes, statusOcultosRes] = await Promise.all([
+      const [chamadosRes, clientesRes, analistasRes, configRes, statusOcultosRes, modelosRes] = await Promise.all([
         sbFetch("/chamados_calculado?select=*&order=criado_em.desc&limit=1000"),
         sbFetch("/clientes?select=id,nome&order=nome.asc"),
         sbFetch("/analistas?select=id,nome,ativo&order=nome.asc"),
         sbFetch("/config_calculo?select=*&vigente_ate=is.null&limit=1"),
         sbFetch("/status_ocultos?select=status"),
+        sbFetch("/modelos_parcelamento"),
       ]);
       setChamadosData(chamadosRes || []);
       setClientes(clientesRes || []);
       setAnalistas(analistasRes || []);
       setStatusOcultos((statusOcultosRes || []).map((s) => s.status));
+      setModelosParcelamento(modelosRes || []);
       if (configRes && configRes[0]) {
         setConfig({
           pctQA: Number(configRes[0].pct_qa),
@@ -2241,7 +2405,7 @@ function ChamadosDashboard() {
         horas_dev: registro.horasDev,
         pct_margem: registro.pctMargem,
         pct_negociado: registro.pctNegociado,
-        qtd_parcelas: registro.qtdParcelas || 1,
+        modelo_parcelamento_id: registro.modeloParcelamentoId || null,
         pct_qa_aplicado: registro.pctQaAplicado,
         pct_gerencial_aplicado: registro.pctGerencialAplicado,
         valor_hora_aplicado: registro.valorHoraAplicado,
@@ -2330,6 +2494,39 @@ function ChamadosDashboard() {
       if (criado && criado[0]) setAnalistas((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
     } catch (e) {
       alert("Não foi possível cadastrar o analista: " + e.message);
+    }
+  }
+
+  async function criarModeloParcelamento(nome, parcelas) {
+    try {
+      const criado = await sbFetch("/modelos_parcelamento", {
+        method: "POST",
+        body: JSON.stringify({ nome, parcelas }),
+      });
+      if (criado && criado[0]) setModelosParcelamento((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
+      return true;
+    } catch (e) {
+      alert("Não foi possível criar o modelo: " + e.message);
+      return false;
+    }
+  }
+  async function atualizarModeloParcelamento(id, dados) {
+    try {
+      await sbFetch(`/modelos_parcelamento?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(dados) });
+      await carregarTudo();
+      return true;
+    } catch (e) {
+      alert("Não foi possível atualizar o modelo: " + e.message);
+      return false;
+    }
+  }
+  async function excluirModeloParcelamento(id) {
+    if (!confirm("Excluir esse modelo de parcelamento?")) return;
+    try {
+      await sbFetch(`/modelos_parcelamento?id=eq.${id}`, { method: "DELETE" });
+      setModelosParcelamento((prev) => prev.filter((m) => m.id !== id));
+    } catch (e) {
+      alert("Não foi possível excluir o modelo: " + e.message);
     }
   }
 
@@ -2923,9 +3120,25 @@ function ChamadosDashboard() {
         excluindo={excluindo}
         config={config}
         analistas={analistas}
+        modelosParcelamento={modelosParcelamento}
         chamadoExistente={chamadoEmEdicao}
       />
-      <ConfiguracoesModal aberto={configAberto} onFechar={() => setConfigAberto(false)} config={config} onSalvar={salvarConfig} salvando={salvandoConfig} analistas={analistas} onToggleAnalista={alternarAnalistaAtivo} onNovoAnalista={criarAnalista} statusOcultos={statusOcultos} onToggleStatus={alternarStatusOculto} />
+      <ConfiguracoesModal
+        aberto={configAberto}
+        onFechar={() => setConfigAberto(false)}
+        config={config}
+        onSalvar={salvarConfig}
+        salvando={salvandoConfig}
+        analistas={analistas}
+        onToggleAnalista={alternarAnalistaAtivo}
+        onNovoAnalista={criarAnalista}
+        statusOcultos={statusOcultos}
+        onToggleStatus={alternarStatusOculto}
+        modelosParcelamento={modelosParcelamento}
+        onCriarModelo={criarModeloParcelamento}
+        onAtualizarModelo={atualizarModeloParcelamento}
+        onExcluirModelo={excluirModeloParcelamento}
+      />
     </div>
   );
 }
