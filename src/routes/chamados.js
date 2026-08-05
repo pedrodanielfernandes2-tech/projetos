@@ -6,10 +6,12 @@ const router = express.Router();
 
 async function carregarChamadosCalculados() {
   const { rows } = await pool.query(`
-    SELECT ch.*, cl.nome AS cliente_nome, an.nome AS analista_nome
+    SELECT ch.*, cl.nome AS cliente_nome, an.nome AS analista_nome,
+      mp.nome AS modelo_parcelamento_nome, mp.parcelas AS modelo_parcelamento_parcelas
     FROM chamados ch
     LEFT JOIN chamados_clientes cl ON cl.id = ch.cliente_id
     LEFT JOIN chamados_analistas an ON an.id = ch.analista_id
+    LEFT JOIN chamados_modelos_parcelamento mp ON mp.id = ch.modelo_parcelamento_id
     ORDER BY ch.criado_em DESC
     LIMIT 1000
   `);
@@ -67,16 +69,16 @@ router.post('/', requireChamadosAuth, async (req, res) => {
     const { rows } = await pool.query(
       `INSERT INTO chamados
         (numero, cliente_id, analista_id, descricao, status, data_abertura, grupo_trabalho, complexidade, proposta_status,
-         data_envio_proposta, data_aprovacao, horas_dev, pct_margem, pct_negociado, qtd_parcelas,
+         data_envio_proposta, data_aprovacao, horas_dev, pct_margem, pct_negociado, qtd_parcelas, modelo_parcelamento_id,
          pct_qa_aplicado, pct_gerencial_aplicado, valor_hora_aplicado,
          valor_projeto_real, desconto_negociado_real, valor_total_projeto_real)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
        RETURNING *`,
       [
         b.numero, b.cliente_id || null, b.analista_id || null, b.descricao || '', b.status || '',
         b.data_abertura || new Date().toISOString().slice(0, 10), b.grupo_trabalho || null, b.complexidade || null, b.proposta_status || null,
         b.data_envio_proposta || null, b.data_aprovacao || null,
-        b.horas_dev || 0, b.pct_margem || 0, b.pct_negociado || 0, b.qtd_parcelas || 1,
+        b.horas_dev || 0, b.pct_margem || 0, b.pct_negociado || 0, b.qtd_parcelas || 1, b.modelo_parcelamento_id || null,
         b.pct_qa_aplicado || 0, b.pct_gerencial_aplicado || 0, b.valor_hora_aplicado || 0,
         calc.valor_projeto, calc.desconto_negociado, calc.valor_total_projeto,
       ]
@@ -94,7 +96,7 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
   const b = req.body;
   const camposPermitidos = [
     'numero', 'descricao', 'status', 'analista_id', 'grupo_trabalho', 'complexidade', 'proposta_status',
-    'data_envio_proposta', 'data_aprovacao', 'horas_dev', 'pct_margem', 'pct_negociado', 'qtd_parcelas',
+    'data_envio_proposta', 'data_aprovacao', 'horas_dev', 'pct_margem', 'pct_negociado', 'qtd_parcelas', 'modelo_parcelamento_id',
     'pct_qa_aplicado', 'pct_gerencial_aplicado', 'valor_hora_aplicado', 'cliente_id', 'data_abertura',
   ];
   // mescla o que ja existia com o que veio no corpo, pra recalcular o valor financeiro com os dados completos
