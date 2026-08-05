@@ -139,6 +139,9 @@ async function sbFetch(caminhoAntigo, options = {}) {
   } else if (base === "/modelos_parcelamento") {
     const idMatch = query && query.match(/id=eq\.([\w-]+)/);
     url = idMatch ? `/api/chamados-modelos-parcelamento/${idMatch[1]}` : "/api/chamados-modelos-parcelamento";
+  } else if (base === "/tabelas_recurso") {
+    const idMatch = query && query.match(/id=eq\.([\w-]+)/);
+    url = idMatch ? `/api/chamados-tabelas-recurso/${idMatch[1]}` : "/api/chamados-tabelas-recurso";
   } else if (base === "/chamados") {
     const idMatch = query && query.match(/id=eq\.([\w-]+)/);
     url = idMatch ? `/api/chamados/${idMatch[1]}` : "/api/chamados";
@@ -236,6 +239,14 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, config }) {
   return { qa, gerencial, totalHoras, horasMargem, totalGeral, valorProjeto, descontoNegociado, valorTotalProjeto };
 }
 
+function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
+  const valorBase = (recursosHoras || []).reduce((s, r) => s + (Number(r.horas) || 0) * (Number(r.valor_hora) || 0), 0);
+  const valorProjeto = arredondarABNT(valorBase * (1 + (Number(pctMargem) || 0)), 2);
+  const descontoNegociado = arredondarABNT(valorProjeto * (Number(pctNegociado) || 0), 2);
+  const valorTotalProjeto = arredondarABNT(valorProjeto - descontoNegociado, 2);
+  return { valorBase, valorProjeto, descontoNegociado, valorTotalProjeto };
+}
+
 function navSecoes(totalChamados, totalBacklog) {
   return [
     { titulo: "GERAL", itens: [{ id: "visao-geral", label: "Visão Geral", icon: LayoutGrid }] },
@@ -322,7 +333,7 @@ const OPCOES_PROPOSTA = [
   "Release", "Suporte", "Recusada", "Equipe Exclusiva", "Negada",
 ];
 
-function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, modelosParcelamento, chamadoExistente }) {
+function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, excluindo, config, analistas, modelosParcelamento, tabelasRecurso, chamadoExistente }) {
   const editando = !!chamadoExistente;
 
   const [cliente, setCliente] = useState("");
@@ -339,7 +350,11 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const [pctMargem, setPctMargem] = useState("10");
   const [pctNegociado, setPctNegociado] = useState("0");
   const [modeloParcelamentoId, setModeloParcelamentoId] = useState("");
+  const [modoPrecificacao, setModoPrecificacao] = useState("unico");
+  const [tabelaRecursoId, setTabelaRecursoId] = useState("");
+  const [horasPorPapel, setHorasPorPapel] = useState({}); // { "Nome do Papel": "10" }
   const [projetoFechado, setProjetoFechado] = useState(false);
+  const [usarReguaVigente, setUsarReguaVigente] = useState(false);
 
   useEffect(() => {
     if (!aberto) return;
@@ -358,9 +373,19 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setPctMargem(String(Number(chamadoExistente.pct_margem || 0) * 100));
       setPctNegociado(String(Number(chamadoExistente.pct_negociado || 0) * 100));
       setModeloParcelamentoId(chamadoExistente.modelo_parcelamento_id ? String(chamadoExistente.modelo_parcelamento_id) : "");
+      setModoPrecificacao(chamadoExistente.modo_precificacao || "unico");
+      setTabelaRecursoId(chamadoExistente.tabela_recurso_id ? String(chamadoExistente.tabela_recurso_id) : "");
+      if (Array.isArray(chamadoExistente.recursos_horas)) {
+        const mapa = {};
+        chamadoExistente.recursos_horas.forEach((r) => { mapa[r.papel] = String(r.horas); });
+        setHorasPorPapel(mapa);
+      } else {
+        setHorasPorPapel({});
+      }
       setProjetoFechado(
         Number(chamadoExistente.pct_qa_aplicado || 0) === 0 && Number(chamadoExistente.pct_gerencial_aplicado || 0) === 0
       );
+      setUsarReguaVigente(false);
     } else {
       setCliente("");
       setNumero("");
@@ -376,15 +401,19 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setPctMargem("10");
       setPctNegociado("0");
       setModeloParcelamentoId(modelosParcelamento.find((m) => m.nome.includes("Padrão"))?.id ? String(modelosParcelamento.find((m) => m.nome.includes("Padrão")).id) : "");
+      setModoPrecificacao("unico");
+      setTabelaRecursoId("");
+      setHorasPorPapel({});
       setProjetoFechado(false);
+      setUsarReguaVigente(false);
     }
   }, [aberto, chamadoExistente]);
 
   if (!aberto) return null;
 
-  // no modo edição, usa a régua que estava salva NAQUELE chamado (não a atual);
-  // no modo criação, usa a régua vigente agora
-  const cfgCalculoBase = editando
+  // no modo edição, usa a régua que estava salva NAQUELE chamado (não a atual) --
+  // a menos que a pessoa clique em "usar valor de hora vigente", nesse caso usa a config atual
+  const cfgCalculoBase = editando && !usarReguaVigente
     ? {
         pctQA: Number(chamadoExistente.pct_qa_aplicado),
         pctGerencial: Number(chamadoExistente.pct_gerencial_aplicado),
@@ -401,10 +430,26 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
     pctNegociado: Number(pctNegociado) / 100,
     config: cfgCalculo,
   });
+
+  const tabelaRecursoSelecionada = tabelasRecurso.find((t) => String(t.id) === tabelaRecursoId);
+  const recursosHorasArray = tabelaRecursoSelecionada
+    ? tabelaRecursoSelecionada.papeis.map((p) => ({ papel: p.papel, valor_hora: p.valor_hora, horas: Number(horasPorPapel[p.papel] || 0) }))
+    : [];
+  const calcPorRecurso = calcularChamadoPorRecurso({
+    recursosHoras: recursosHorasArray,
+    pctMargem: Number(pctMargem) / 100,
+    pctNegociado: Number(pctNegociado) / 100,
+  });
+  const calcFinal = modoPrecificacao === "por_recurso" ? calcPorRecurso : calc;
+
   const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmtMoeda = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-  const podeSalvar = cliente.trim() && Number(horasDev) >= 0 && numero && Number(numero) > 0;
+  const podeSalvar =
+    cliente.trim() &&
+    numero &&
+    Number(numero) > 0 &&
+    (modoPrecificacao === "por_recurso" ? recursosHorasArray.some((r) => r.horas > 0) : Number(horasDev) >= 0);
 
   function handleSalvar() {
     onSalvar({
@@ -426,6 +471,9 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       pctQaAplicado: cfgCalculo.pctQA,
       pctGerencialAplicado: cfgCalculo.pctGerencial,
       valorHoraAplicado: cfgCalculo.valorHora,
+      modoPrecificacao,
+      tabelaRecursoId: modoPrecificacao === "por_recurso" ? (tabelaRecursoId || null) : null,
+      recursosHoras: modoPrecificacao === "por_recurso" ? recursosHorasArray.filter((r) => r.horas > 0) : null,
     });
   }
 
@@ -567,6 +615,35 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
             </div>
 
             <div className="pt-2 border-t border-slate-100">
+              <label className="text-xs font-medium text-slate-500 block mb-1">Modo de precificação</label>
+              <div className="flex gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setModoPrecificacao("unico")}
+                  className={
+                    "flex-1 text-xs font-medium px-3 py-2 rounded-md border " +
+                    (modoPrecificacao === "unico" ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white")
+                  }
+                  style={modoPrecificacao === "unico" ? { backgroundColor: BRAND_BLUE } : {}}
+                >
+                  Valor único de hora
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoPrecificacao("por_recurso")}
+                  className={
+                    "flex-1 text-xs font-medium px-3 py-2 rounded-md border " +
+                    (modoPrecificacao === "por_recurso" ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white")
+                  }
+                  style={modoPrecificacao === "por_recurso" ? { backgroundColor: BRAND_BLUE } : {}}
+                >
+                  Por recurso (papel)
+                </button>
+              </div>
+            </div>
+
+            {modoPrecificacao === "unico" ? (
+            <div className="pt-2 border-t border-slate-100">
               <label className="flex items-center gap-2 mb-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -595,6 +672,43 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                     )}%) são calculados automaticamente.`}
               </p>
             </div>
+            ) : (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-xs font-medium text-slate-500 block mb-1">Tabela de recursos</label>
+              <select
+                value={tabelaRecursoId}
+                onChange={(e) => setTabelaRecursoId(e.target.value)}
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6] mb-3"
+              >
+                <option value="">Selecione uma tabela...</option>
+                {tabelasRecurso.filter((t) => t.ativo !== false).map((t) => (
+                  <option key={t.id} value={t.id}>{t.nome}</option>
+                ))}
+              </select>
+              {tabelaRecursoSelecionada ? (
+                <div className="space-y-1.5">
+                  {tabelaRecursoSelecionada.papeis.map((p) => (
+                    <div key={p.papel} className="flex items-center gap-2">
+                      <span className="text-xs text-slate-600 flex-1">
+                        {p.papel} <span className="text-slate-400">(R$ {p.valor_hora.toFixed(2).replace(".", ",")}/h)</span>
+                      </span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={horasPorPapel[p.papel] || ""}
+                        onChange={(e) => setHorasPorPapel((prev) => ({ ...prev, [p.papel]: e.target.value }))}
+                        placeholder="0"
+                        className="w-20 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none focus:border-[#3B82D6]"
+                      />
+                      <span className="text-xs text-slate-400">h</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">Escolha uma tabela de recursos pra informar as horas de cada papel.</p>
+              )}
+            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -641,22 +755,43 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
             <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
               Calculado automaticamente
             </div>
-            <LinhaCalculada label="Horas QA" value={`${fmt(calc.qa)}h`} />
-            <LinhaCalculada label="Horas Gerencial" value={`${fmt(calc.gerencial)}h`} />
-            <LinhaCalculada label="Total Horas" value={`${fmt(calc.totalHoras)}h`} />
+            {modoPrecificacao === "unico" ? (
+              <>
+                <LinhaCalculada label="Horas QA" value={`${fmt(calc.qa)}h`} />
+                <LinhaCalculada label="Horas Gerencial" value={`${fmt(calc.gerencial)}h`} />
+                <LinhaCalculada label="Total Horas" value={`${fmt(calc.totalHoras)}h`} />
+                <div className="h-px bg-slate-200 my-2" />
+                <LinhaCalculada label="Horas Margem" value={`${fmt(calc.horasMargem)}h`} />
+                <LinhaCalculada label="Total Geral (h)" value={`${fmt(calc.totalGeral)}h`} />
+                <div className="h-px bg-slate-200 my-2" />
+              </>
+            ) : (
+              <>
+                <LinhaCalculada label="Valor Base (soma por papel)" value={fmtMoeda(calcFinal.valorBase)} />
+                <div className="h-px bg-slate-200 my-2" />
+              </>
+            )}
+            <LinhaCalculada label="Valor do Projeto" value={fmtMoeda(calcFinal.valorProjeto)} />
+            <LinhaCalculada label="Desconto Negociado" value={`- ${fmtMoeda(calcFinal.descontoNegociado)}`} />
             <div className="h-px bg-slate-200 my-2" />
-            <LinhaCalculada label="Horas Margem" value={`${fmt(calc.horasMargem)}h`} />
-            <LinhaCalculada label="Total Geral (h)" value={`${fmt(calc.totalGeral)}h`} />
-            <div className="h-px bg-slate-200 my-2" />
-            <LinhaCalculada label="Valor do Projeto" value={fmtMoeda(calc.valorProjeto)} />
-            <LinhaCalculada label="Desconto Negociado" value={`- ${fmtMoeda(calc.descontoNegociado)}`} />
-            <div className="h-px bg-slate-200 my-2" />
-            <LinhaCalculada label="Valor Total do Projeto" value={fmtMoeda(calc.valorTotalProjeto)} destaque />
+            <LinhaCalculada label="Valor Total do Projeto" value={fmtMoeda(calcFinal.valorTotalProjeto)} destaque />
             <div className="text-[10px] text-slate-400 mt-3">
-              {editando ? "Régua aplicada neste chamado" : "Parâmetros vigentes"}: QA{" "}
-              {Math.round(cfgCalculo.pctQA * 100)}% · Gerencial {Math.round(cfgCalculo.pctGerencial * 100)}% · R${" "}
-              {cfgCalculo.valorHora.toFixed(2).replace(".", ",")}/h
+              {modoPrecificacao === "unico"
+                ? `${editando ? (usarReguaVigente ? "Usando o valor de hora vigente" : "Régua aplicada neste chamado") : "Parâmetros vigentes"}: QA ${Math.round(cfgCalculo.pctQA * 100)}% · Gerencial ${Math.round(cfgCalculo.pctGerencial * 100)}% · R$ ${cfgCalculo.valorHora.toFixed(2).replace(".", ",")}/h`
+                : tabelaRecursoSelecionada
+                ? `Tabela: ${tabelaRecursoSelecionada.nome}`
+                : "Escolha uma tabela de recursos"}
             </div>
+            {editando && modoPrecificacao === "unico" && !usarReguaVigente && (
+              <button
+                type="button"
+                onClick={() => setUsarReguaVigente(true)}
+                className="text-[11px] mt-1.5 underline"
+                style={{ color: BRAND_BLUE }}
+              >
+                Usar valor de hora vigente (R$ {config.valorHora.toFixed(2).replace(".", ",")}/h) em vez do salvo neste chamado
+              </button>
+            )}
           </div>
         </div>
 
@@ -830,6 +965,137 @@ function ModelosParcelamentoSecao({ modelos, onCriar, onAtualizar, onExcluir }) 
   );
 }
 
+function TabelasRecursoSecao({ tabelas, onCriar, onAtualizar, onExcluir }) {
+  const fmtMoeda = (v) => Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  const [criando, setCriando] = useState(false);
+  const [nome, setNome] = useState("");
+  const [linhas, setLinhas] = useState([{ papel: "", valor_hora: "" }]);
+  const [salvandoTabela, setSalvandoTabela] = useState(false);
+
+  function atualizarLinha(i, campo, valor) {
+    setLinhas((prev) => prev.map((l, idx) => (idx === i ? { ...l, [campo]: valor } : l)));
+  }
+  function adicionarLinha() {
+    setLinhas((prev) => [...prev, { papel: "", valor_hora: "" }]);
+  }
+  function removerLinha(i) {
+    setLinhas((prev) => prev.filter((_, idx) => idx !== i));
+  }
+  function resetarForm() {
+    setNome("");
+    setLinhas([{ papel: "", valor_hora: "" }]);
+    setCriando(false);
+  }
+
+  async function salvarNovaTabela() {
+    if (!nome.trim()) {
+      alert("Dê um nome à tabela.");
+      return;
+    }
+    if (linhas.some((l) => !l.papel.trim() || !l.valor_hora)) {
+      alert("Preencha o nome e o valor de hora de todos os papéis (ou remova as linhas vazias).");
+      return;
+    }
+    setSalvandoTabela(true);
+    const ok = await onCriar(
+      nome.trim(),
+      linhas.map((l) => ({ papel: l.papel.trim(), valor_hora: Number(l.valor_hora) }))
+    );
+    setSalvandoTabela(false);
+    if (ok) resetarForm();
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-slate-500 mb-1 mt-4">Tabelas de Recurso</p>
+      <p className="text-xs text-slate-400 mb-3">
+        Pra clientes cuja negociação é por papel/recurso (cada função com seu próprio valor de hora), em vez
+        de um valor de hora único. Escolha a tabela na hora de criar ou editar o chamado.
+      </p>
+      <div className="space-y-2">
+        {tabelas.map((t) => (
+          <div key={t.id} className="flex items-center justify-between px-3 py-2 rounded-md border border-slate-100">
+            <div>
+              <p className={"text-sm " + (t.ativo === false ? "text-slate-400" : "text-slate-700")}>
+                {t.nome}
+                {t.ativo === false ? " (inativo)" : ""}
+              </p>
+              <p className="text-xs text-slate-400">
+                {t.papeis.map((p) => `${p.papel}: ${fmtMoeda(p.valor_hora)}`).join(" · ")}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 ml-3">
+              <button onClick={() => onAtualizar(t.id, { ativo: t.ativo === false })} className="text-xs text-slate-500 hover:text-slate-700">
+                {t.ativo === false ? "Reativar" : "Desativar"}
+              </button>
+              <button onClick={() => onExcluir(t.id)} className="text-xs text-red-500 hover:text-red-700">
+                Excluir
+              </button>
+            </div>
+          </div>
+        ))}
+        {tabelas.length === 0 && <p className="text-xs text-slate-400">Nenhuma tabela cadastrada ainda.</p>}
+      </div>
+
+      {!criando ? (
+        <button onClick={() => setCriando(true)} className="text-sm mt-3" style={{ color: BRAND_BLUE }}>
+          + Nova tabela de recursos
+        </button>
+      ) : (
+        <div className="mt-3 border border-slate-200 rounded-md p-3 space-y-2">
+          <input
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
+            placeholder="Nome da tabela (ex: Tabela Padrão de Recursos)"
+            className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+          />
+          {linhas.map((l, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={l.papel}
+                onChange={(e) => atualizarLinha(i, "papel", e.target.value)}
+                placeholder="Nome do papel (ex: Desenvolvedor Pleno)"
+                className="flex-1 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              <span className="text-xs text-slate-400">R$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={l.valor_hora}
+                onChange={(e) => atualizarLinha(i, "valor_hora", e.target.value)}
+                placeholder="Valor/hora"
+                className="w-28 border border-slate-200 rounded-md px-2 py-1.5 text-sm outline-none"
+              />
+              {linhas.length > 1 && (
+                <button onClick={() => removerLinha(i)} className="text-xs text-red-500">
+                  Remover
+                </button>
+              )}
+            </div>
+          ))}
+          <button onClick={adicionarLinha} className="text-xs" style={{ color: BRAND_BLUE }}>
+            + Adicionar papel
+          </button>
+          <div className="flex items-center gap-2 justify-end pt-1">
+            <button onClick={resetarForm} className="text-sm text-slate-500 px-3 py-1.5">
+              Cancelar
+            </button>
+            <button
+              disabled={salvandoTabela}
+              onClick={salvarNovaTabela}
+              className="text-sm text-white px-3 py-1.5 rounded-md disabled:opacity-40"
+              style={{ backgroundColor: BRAND_BLUE }}
+            >
+              {salvandoTabela ? "Salvando..." : "Salvar tabela"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ConfiguracoesModal({
   aberto,
   onFechar,
@@ -845,6 +1111,10 @@ function ConfiguracoesModal({
   onCriarModelo,
   onAtualizarModelo,
   onExcluirModelo,
+  tabelasRecurso,
+  onCriarTabelaRecurso,
+  onAtualizarTabelaRecurso,
+  onExcluirTabelaRecurso,
 }) {
   const [novoAnalistaNome, setNovoAnalistaNome] = useState("");
   const [salvandoAnalista, setSalvandoAnalista] = useState(false);
@@ -985,6 +1255,15 @@ function ConfiguracoesModal({
             onCriar={onCriarModelo}
             onAtualizar={onAtualizarModelo}
             onExcluir={onExcluirModelo}
+          />
+        </div>
+
+        <div className="px-6 pb-6 pt-2 border-t border-slate-100">
+          <TabelasRecursoSecao
+            tabelas={tabelasRecurso}
+            onCriar={onCriarTabelaRecurso}
+            onAtualizar={onAtualizarTabelaRecurso}
+            onExcluir={onExcluirTabelaRecurso}
           />
         </div>
 
@@ -2302,24 +2581,27 @@ function ChamadosDashboard() {
   const [erro, setErro] = useState(null);
   const [statusOcultos, setStatusOcultos] = useState([]);
   const [modelosParcelamento, setModelosParcelamento] = useState([]);
+  const [tabelasRecurso, setTabelasRecurso] = useState([]);
 
   async function carregarTudo() {
     setCarregando(true);
     setErro(null);
     try {
-      const [chamadosRes, clientesRes, analistasRes, configRes, statusOcultosRes, modelosRes] = await Promise.all([
+      const [chamadosRes, clientesRes, analistasRes, configRes, statusOcultosRes, modelosRes, tabelasRecursoRes] = await Promise.all([
         sbFetch("/chamados_calculado?select=*&order=criado_em.desc&limit=1000"),
         sbFetch("/clientes?select=id,nome&order=nome.asc"),
         sbFetch("/analistas?select=id,nome,ativo&order=nome.asc"),
         sbFetch("/config_calculo?select=*&vigente_ate=is.null&limit=1"),
         sbFetch("/status_ocultos?select=status"),
         sbFetch("/modelos_parcelamento"),
+        sbFetch("/tabelas_recurso"),
       ]);
       setChamadosData(chamadosRes || []);
       setClientes(clientesRes || []);
       setAnalistas(analistasRes || []);
       setStatusOcultos((statusOcultosRes || []).map((s) => s.status));
       setModelosParcelamento(modelosRes || []);
+      setTabelasRecurso(tabelasRecursoRes || []);
       if (configRes && configRes[0]) {
         setConfig({
           pctQA: Number(configRes[0].pct_qa),
@@ -2527,6 +2809,39 @@ function ChamadosDashboard() {
       setModelosParcelamento((prev) => prev.filter((m) => m.id !== id));
     } catch (e) {
       alert("Não foi possível excluir o modelo: " + e.message);
+    }
+  }
+
+  async function criarTabelaRecurso(nome, papeis) {
+    try {
+      const criado = await sbFetch("/tabelas_recurso", {
+        method: "POST",
+        body: JSON.stringify({ nome, papeis }),
+      });
+      if (criado && criado[0]) setTabelasRecurso((prev) => [...prev, criado[0]].sort((a, b) => a.nome.localeCompare(b.nome)));
+      return true;
+    } catch (e) {
+      alert("Não foi possível criar a tabela de recursos: " + e.message);
+      return false;
+    }
+  }
+  async function atualizarTabelaRecurso(id, dados) {
+    try {
+      await sbFetch(`/tabelas_recurso?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(dados) });
+      await carregarTudo();
+      return true;
+    } catch (e) {
+      alert("Não foi possível atualizar a tabela de recursos: " + e.message);
+      return false;
+    }
+  }
+  async function excluirTabelaRecurso(id) {
+    if (!confirm("Excluir essa tabela de recursos?")) return;
+    try {
+      await sbFetch(`/tabelas_recurso?id=eq.${id}`, { method: "DELETE" });
+      setTabelasRecurso((prev) => prev.filter((t) => t.id !== id));
+    } catch (e) {
+      alert("Não foi possível excluir a tabela de recursos: " + e.message);
     }
   }
 
@@ -3138,12 +3453,69 @@ function ChamadosDashboard() {
         onCriarModelo={criarModeloParcelamento}
         onAtualizarModelo={atualizarModeloParcelamento}
         onExcluirModelo={excluirModeloParcelamento}
+        tabelasRecurso={tabelasRecurso}
+        onCriarTabelaRecurso={criarTabelaRecurso}
+        onAtualizarTabelaRecurso={atualizarTabelaRecurso}
+        onExcluirTabelaRecurso={excluirTabelaRecurso}
       />
     </div>
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<ChamadosDashboard />);
+// Rede de seguranca: se qualquer parte da tela travar de verdade (um erro que o
+// React nao consegue renderizar), mostra uma mensagem explicando o que aconteceu
+// em vez da tela ficar totalmente em branco sem nenhuma pista do que deu errado.
+class ErrorBoundaryChamados extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { erro: null };
+  }
+  static getDerivedStateFromError(erro) {
+    return { erro };
+  }
+  componentDidCatch(erro, info) {
+    console.error("[ErrorBoundary] Falha ao renderizar:", erro, info);
+  }
+  render() {
+    if (this.state.erro) {
+      return (
+        <div style={{ fontFamily: "sans-serif", padding: 40, maxWidth: 700, margin: "0 auto" }}>
+          <h2 style={{ color: "#b91c1c" }}>Essa tela travou com um erro</h2>
+          <p style={{ color: "#475569" }}>
+            Alguma coisa deu errado ao carregar essa parte do Chamados. Copie a mensagem abaixo e mande pro
+            desenvolvedor — ela mostra exatamente o que quebrou.
+          </p>
+          <pre
+            style={{
+              background: "#f8fafc",
+              border: "1px solid #e2e8f0",
+              borderRadius: 8,
+              padding: 16,
+              fontSize: 12,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {this.state.erro && (this.state.erro.stack || this.state.erro.message || String(this.state.erro))}
+          </pre>
+          <button
+            onClick={() => this.setState({ erro: null })}
+            style={{ marginTop: 16, padding: "8px 16px", borderRadius: 6, border: "1px solid #cbd5e1", background: "#fff", cursor: "pointer" }}
+          >
+            Tentar de novo
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <ErrorBoundaryChamados>
+    <ChamadosDashboard />
+  </ErrorBoundaryChamados>
+);
 </script>
 
 <script>
