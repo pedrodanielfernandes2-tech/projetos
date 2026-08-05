@@ -265,6 +265,41 @@ router.post('/:id/historico', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
+router.patch('/:id/historico/:historicoId', async (req, res) => {
+  const { texto, data } = req.body;
+  if (!texto || !texto.trim()) return res.status(400).json({ error: 'texto obrigatorio' });
+  const existente = (await pool.query(
+    'SELECT * FROM historico WHERE id = $1 AND project_id = $2',
+    [req.params.historicoId, req.params.id]
+  )).rows[0];
+  if (!existente) return res.status(404).json({ error: 'registro de histórico não encontrado' });
+
+  await pool.query(
+    'UPDATE historico SET texto = $1, data = $2 WHERE id = $3',
+    [texto.trim(), data || existente.data, req.params.historicoId]
+  );
+  await registrarAuditoria({
+    entidade: 'historico', entidade_id: existente.id, projeto_id: req.params.id,
+    acao: 'editado', autor: getAutor(req), detalhes: `Registro de histórico editado: "${texto.trim()}"`,
+  });
+  res.json({ ok: true });
+});
+
+router.delete('/:id/historico/:historicoId', async (req, res) => {
+  const existente = (await pool.query(
+    'SELECT * FROM historico WHERE id = $1 AND project_id = $2',
+    [req.params.historicoId, req.params.id]
+  )).rows[0];
+  if (!existente) return res.status(404).json({ error: 'registro de histórico não encontrado' });
+
+  await pool.query('DELETE FROM historico WHERE id = $1', [req.params.historicoId]);
+  await registrarAuditoria({
+    entidade: 'historico', entidade_id: existente.id, projeto_id: req.params.id,
+    acao: 'excluido', autor: getAutor(req), detalhes: `Registro de histórico excluído: "${existente.texto}"`,
+  });
+  res.json({ ok: true });
+});
+
 // Links do projeto
 router.post('/:id/links', async (req, res) => {
   const { titulo, url } = req.body;
