@@ -207,6 +207,14 @@ async function init() {
       status TEXT PRIMARY KEY
     );
 
+    CREATE TABLE IF NOT EXISTS chamados_modelos_parcelamento (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      parcelas JSONB NOT NULL DEFAULT '[]',
+      ativo BOOLEAN DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS chamados (
       id SERIAL PRIMARY KEY,
       numero INTEGER NOT NULL,
@@ -224,6 +232,7 @@ async function init() {
       pct_margem NUMERIC DEFAULT 0,
       pct_negociado NUMERIC DEFAULT 0,
       qtd_parcelas INTEGER DEFAULT 1,
+      modelo_parcelamento_id INTEGER REFERENCES chamados_modelos_parcelamento(id) ON DELETE SET NULL,
       pct_qa_aplicado NUMERIC DEFAULT 0,
       pct_gerencial_aplicado NUMERIC DEFAULT 0,
       valor_hora_aplicado NUMERIC DEFAULT 0,
@@ -330,6 +339,22 @@ async function init() {
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS data_abertura DATE;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP DEFAULT NOW();');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_projeto_real NUMERIC;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS modelo_parcelamento_id INTEGER REFERENCES chamados_modelos_parcelamento(id) ON DELETE SET NULL;');
+  // Modelo padrao, semeado uma vez so, reproduzindo o comportamento fixo que o sistema
+  // sempre teve (15/30/60/90 dias, dividido igualmente) - garante que chamados antigos
+  // continuem calculando as parcelas do mesmo jeito de antes.
+  const { rows: modeloPadraoExiste } = await pool.query("SELECT id FROM chamados_modelos_parcelamento WHERE nome = 'Padrão 15/30/60/90 dias'");
+  if (modeloPadraoExiste.length === 0) {
+    await pool.query(
+      `INSERT INTO chamados_modelos_parcelamento (nome, parcelas) VALUES ($1, $2::jsonb)`,
+      ['Padrão 15/30/60/90 dias', JSON.stringify([
+        { dias: 15, percentual: 0.25 },
+        { dias: 30, percentual: 0.25 },
+        { dias: 60, percentual: 0.25 },
+        { dias: 90, percentual: 0.25 },
+      ])]
+    );
+  }
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS desconto_negociado_real NUMERIC;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_total_projeto_real NUMERIC;');
   // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas

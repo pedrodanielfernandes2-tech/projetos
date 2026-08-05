@@ -33,6 +33,7 @@ app.use('/api/chamados-clientes', require('./routes/chamadosClientes'));
 app.use('/api/chamados-analistas', require('./routes/chamadosAnalistas'));
 app.use('/api/chamados-config', require('./routes/chamadosConfig'));
 app.use('/api/chamados-status-ocultos', require('./routes/chamadosStatusOcultos'));
+app.use('/api/chamados-modelos-parcelamento', require('./routes/chamadosModelosParcelamento'));
 
 // ---------- modulo Projetos: exige login de usuario com permissao "pode_projetos" ----------
 const gateProjetos = requirePermissao('pode_projetos');
