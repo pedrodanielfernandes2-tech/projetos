@@ -48,25 +48,4 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pct
   };
 }
 
-// Modelo alternativo, pra clientes cuja negociacao e por papel/recurso (cada papel com
-// seu proprio valor de hora), em vez de um unico valor de hora pra tudo. Sem calculo
-// automatico de % de QA/Gerencial - as horas de cada papel (inclusive QA e Gerencial)
-// sao informadas diretamente.
-function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
-  const valorBase = (recursosHoras || []).reduce(
-    (soma, r) => soma + (Number(r.horas) || 0) * (Number(r.valor_hora) || 0),
-    0
-  );
-  const valorProjeto = arredondarABNT(valorBase * (1 + (Number(pctMargem) || 0)), 2);
-  const descontoNegociado = arredondarABNT(valorProjeto * (Number(pctNegociado) || 0), 2);
-  const valorTotalProjeto = arredondarABNT(valorProjeto - descontoNegociado, 2);
-
-  return {
-    valor_base: valorBase,
-    valor_projeto: valorProjeto,
-    desconto_negociado: descontoNegociado,
-    valor_total_projeto: valorTotalProjeto,
-  };
-}
-
-module.exports = { arredondarABNT, calcularChamado, calcularChamadoPorRecurso };
+module.exports = { arredondarABNT, calcularChamado };
