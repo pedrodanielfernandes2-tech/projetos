@@ -215,6 +215,14 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS chamados_tabelas_recurso (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      papeis JSONB NOT NULL DEFAULT '[]',
+      ativo BOOLEAN DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS chamados (
       id SERIAL PRIMARY KEY,
       numero INTEGER NOT NULL,
@@ -233,6 +241,9 @@ async function init() {
       pct_negociado NUMERIC DEFAULT 0,
       qtd_parcelas INTEGER DEFAULT 1,
       modelo_parcelamento_id INTEGER REFERENCES chamados_modelos_parcelamento(id) ON DELETE SET NULL,
+      modo_precificacao TEXT DEFAULT 'unico',
+      tabela_recurso_id INTEGER REFERENCES chamados_tabelas_recurso(id) ON DELETE SET NULL,
+      recursos_horas JSONB,
       pct_qa_aplicado NUMERIC DEFAULT 0,
       pct_gerencial_aplicado NUMERIC DEFAULT 0,
       valor_hora_aplicado NUMERIC DEFAULT 0,
@@ -340,6 +351,9 @@ async function init() {
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS atualizado_em TIMESTAMP DEFAULT NOW();');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_projeto_real NUMERIC;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS modelo_parcelamento_id INTEGER REFERENCES chamados_modelos_parcelamento(id) ON DELETE SET NULL;');
+  await pool.query("ALTER TABLE chamados ADD COLUMN IF NOT EXISTS modo_precificacao TEXT DEFAULT 'unico';");
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS tabela_recurso_id INTEGER REFERENCES chamados_tabelas_recurso(id) ON DELETE SET NULL;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS recursos_horas JSONB;');
   // Modelo padrao, semeado uma vez so, reproduzindo o comportamento fixo que o sistema
   // sempre teve (15/30/60/90 dias, dividido igualmente) - garante que chamados antigos
   // continuem calculando as parcelas do mesmo jeito de antes.
