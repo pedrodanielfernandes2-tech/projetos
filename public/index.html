@@ -717,7 +717,24 @@
         <span class="cal-presentation-dot active" data-slide="0"></span>
         <span class="cal-presentation-dot" data-slide="1"></span>
       </div>
+      <button type="button" id="btn-cal-config-apresentacao" class="btn" aria-label="Configurações da apresentação">⚙️</button>
       <button type="button" id="btn-cal-sair-apresentacao" class="btn">✕ Sair</button>
+    </div>
+
+    <div id="cal-presentation-resumo-areas" class="cal-presentation-resumo"></div>
+
+    <div id="cal-presentation-config-painel" class="cal-presentation-config hidden">
+      <label>
+        Atualizar dados a cada
+        <input type="number" id="cal-presentation-cfg-refresh" min="1" max="60" />
+        minuto(s)
+      </label>
+      <label>
+        Trocar de tela a cada
+        <input type="number" id="cal-presentation-cfg-slide" min="5" max="120" />
+        segundo(s)
+      </label>
+      <button type="button" id="btn-cal-config-salvar" class="btn btn-primary">Salvar</button>
     </div>
 
     <div id="cal-presentation-slide-calendario" class="calendar-presentation-slide">

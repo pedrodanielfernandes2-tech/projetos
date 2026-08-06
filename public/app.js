@@ -2925,12 +2925,43 @@ document.getElementById('btn-wbs-apresentacao').addEventListener('click', openWb
 document.getElementById('btn-wbs-sair-apresentacao').addEventListener('click', closeWbsPresentation);
 
 // ---------- modo apresentacao do calendario (pensado pra ficar ligado numa TV) ----------
+const CAL_PRESENTATION_CORES_AREA = [
+  '#1B63AC', '#C4211F', '#1F9D55', '#B7791F', '#7C3AED',
+  '#EC4899', '#0E7490', '#B45309', '#4D7C0F', '#9D174D',
+];
+function corDaArea(area) {
+  if (!area) return '#64748B';
+  let hash = 0;
+  for (let i = 0; i < area.length; i++) hash = (hash * 31 + area.charCodeAt(i)) >>> 0;
+  return CAL_PRESENTATION_CORES_AREA[hash % CAL_PRESENTATION_CORES_AREA.length];
+}
+function tagArea(area) {
+  if (!area) return '';
+  const cor = corDaArea(area);
+  return `<span class="cal-presentation-area-tag" style="background:${cor}1a;color:${cor};border-color:${cor}66;">${area.toUpperCase()}</span>`;
+}
+
 let calPresentationInterval = null;
 let calPresentationWakeLock = null;
 let calPresentationSlideInterval = null;
 let calPresentationSlideAtual = 0;
 const CAL_PRESENTATION_SLIDES = ['cal-presentation-slide-calendario', 'cal-presentation-slide-cards'];
-const CAL_PRESENTATION_SLIDE_SEGUNDOS = 15;
+
+function carregarConfigApresentacao() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem('calPresentationConfig') || '{}');
+    return {
+      refreshMin: Number(salvo.refreshMin) > 0 ? Number(salvo.refreshMin) : 5,
+      slideSeg: Number(salvo.slideSeg) > 0 ? Number(salvo.slideSeg) : 15,
+    };
+  } catch (e) {
+    return { refreshMin: 5, slideSeg: 15 };
+  }
+}
+function salvarConfigApresentacao(cfg) {
+  localStorage.setItem('calPresentationConfig', JSON.stringify(cfg));
+}
+let calPresentationConfig = carregarConfigApresentacao();
 
 function mostrarSlidePresentacao(indice) {
   calPresentationSlideAtual = indice;
@@ -2962,26 +2993,43 @@ function renderCalendarPresentationCards() {
   const hostSemPrazo = document.getElementById('cal-presentation-sem-prazo');
   hostSemPrazo.innerHTML = semPrazo.length === 0
     ? '<p class="calendar-presentation-cards-vazio">Nenhum projeto sem prazo. ✅</p>'
-    : semPrazo.map(p => `
+    : semPrazo.map(p => {
+        const areas = [...new Set((p.tarefas || []).map(t => t.area).filter(Boolean))];
+        return `
         <div class="calendar-presentation-card">
-          <div>
-            <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
-            <p class="cpc-meta">${areasDoProjeto(p) || 'Sem área definida'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''}</p>
-          </div>
+          <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+          <p class="cpc-meta">${areas.length ? areas.map(tagArea).join(' ') : 'Sem área definida'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''}</p>
         </div>
-      `).join('');
+      `;
+      }).join('');
 
   const hostAtrasados = document.getElementById('cal-presentation-atrasados');
   hostAtrasados.innerHTML = atrasados.length === 0
     ? '<p class="calendar-presentation-cards-vazio">Nenhum projeto atrasado. ✅</p>'
-    : atrasados.map(p => `
+    : atrasados.map(p => {
+        const areas = [...new Set((p.tarefas || []).map(t => t.area).filter(Boolean))];
+        return `
         <div class="calendar-presentation-card cpc-atrasado">
-          <div>
-            <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
-            <p class="cpc-meta">${areasDoProjeto(p) || 'Sem área definida'}${p.data_fim ? ' · Prazo: ' + fmtDate(p.data_fim) : ''}</p>
-          </div>
+          <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+          <p class="cpc-meta">${areas.length ? areas.map(tagArea).join(' ') : 'Sem área definida'}${p.data_fim ? ' · Prazo: ' + fmtDate(p.data_fim) : ''}</p>
         </div>
-      `).join('');
+      `;
+      }).join('');
+
+  // resumo: quantos atrasados por area, tipo "INTEGRAÇÃO = 5"
+  const contagemPorArea = {};
+  atrasados.forEach(p => {
+    const areas = [...new Set((p.tarefas || []).map(t => t.area).filter(Boolean))];
+    areas.forEach(a => { contagemPorArea[a] = (contagemPorArea[a] || 0) + 1; });
+  });
+  const resumoHost = document.getElementById('cal-presentation-resumo-areas');
+  const entradas = Object.entries(contagemPorArea).sort((a, b) => b[1] - a[1]);
+  resumoHost.innerHTML = entradas.length === 0
+    ? ''
+    : entradas.map(([area, qtd]) => {
+        const cor = corDaArea(area);
+        return `<span class="cal-presentation-resumo-item" style="background:${cor}1a;color:${cor};border-color:${cor}66;">${area.toUpperCase()} = ${qtd}</span>`;
+      }).join('');
 }
 
 async function refreshCalendarPresentation() {
@@ -3000,6 +3048,7 @@ async function openCalendarPresentation() {
   document.getElementById('calendar-presentation-overlay').classList.remove('hidden');
   await refreshCalendarPresentation();
   mostrarSlidePresentacao(0);
+  atualizarCamposConfigApresentacao();
 
   if (document.documentElement.requestFullscreen) {
     document.documentElement.requestFullscreen().catch(() => {});
@@ -3008,14 +3057,24 @@ async function openCalendarPresentation() {
   if (navigator.wakeLock) {
     try { calPresentationWakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* falha silenciosa */ }
   }
+  reiniciarIntervalosApresentacao();
+}
+
+function reiniciarIntervalosApresentacao() {
   if (calPresentationInterval) clearInterval(calPresentationInterval);
-  calPresentationInterval = setInterval(refreshCalendarPresentation, 5 * 60 * 1000);
+  calPresentationInterval = setInterval(refreshCalendarPresentation, calPresentationConfig.refreshMin * 60 * 1000);
   if (calPresentationSlideInterval) clearInterval(calPresentationSlideInterval);
-  calPresentationSlideInterval = setInterval(proximoSlidePresentacao, CAL_PRESENTATION_SLIDE_SEGUNDOS * 1000);
+  calPresentationSlideInterval = setInterval(proximoSlidePresentacao, calPresentationConfig.slideSeg * 1000);
+}
+
+function atualizarCamposConfigApresentacao() {
+  document.getElementById('cal-presentation-cfg-refresh').value = calPresentationConfig.refreshMin;
+  document.getElementById('cal-presentation-cfg-slide').value = calPresentationConfig.slideSeg;
 }
 
 function closeCalendarPresentation() {
   document.getElementById('calendar-presentation-overlay').classList.add('hidden');
+  document.getElementById('cal-presentation-config-painel').classList.add('hidden');
   if (document.fullscreenElement && document.exitFullscreen) {
     document.exitFullscreen().catch(() => {});
   }
@@ -3024,12 +3083,24 @@ function closeCalendarPresentation() {
   if (calPresentationWakeLock) { calPresentationWakeLock.release().catch(() => {}); calPresentationWakeLock = null; }
 }
 
+document.getElementById('btn-cal-config-apresentacao').addEventListener('click', () => {
+  document.getElementById('cal-presentation-config-painel').classList.toggle('hidden');
+});
+document.getElementById('btn-cal-config-salvar').addEventListener('click', () => {
+  const refreshMin = Math.max(1, Number(document.getElementById('cal-presentation-cfg-refresh').value) || 5);
+  const slideSeg = Math.max(5, Number(document.getElementById('cal-presentation-cfg-slide').value) || 15);
+  calPresentationConfig = { refreshMin, slideSeg };
+  salvarConfigApresentacao(calPresentationConfig);
+  reiniciarIntervalosApresentacao();
+  document.getElementById('cal-presentation-config-painel').classList.add('hidden');
+});
+
 document.querySelectorAll('.cal-presentation-dot').forEach((dot, i) => {
   dot.addEventListener('click', () => {
     mostrarSlidePresentacao(i);
     // reinicia a contagem pra nao trocar de novo logo em seguida do clique manual
     if (calPresentationSlideInterval) clearInterval(calPresentationSlideInterval);
-    calPresentationSlideInterval = setInterval(proximoSlidePresentacao, CAL_PRESENTATION_SLIDE_SEGUNDOS * 1000);
+    calPresentationSlideInterval = setInterval(proximoSlidePresentacao, calPresentationConfig.slideSeg * 1000);
   });
 });
 
