@@ -2927,6 +2927,23 @@ document.getElementById('btn-wbs-sair-apresentacao').addEventListener('click', c
 // ---------- modo apresentacao do calendario (pensado pra ficar ligado numa TV) ----------
 let calPresentationInterval = null;
 let calPresentationWakeLock = null;
+let calPresentationSlideInterval = null;
+let calPresentationSlideAtual = 0;
+const CAL_PRESENTATION_SLIDES = ['cal-presentation-slide-calendario', 'cal-presentation-slide-cards'];
+const CAL_PRESENTATION_SLIDE_SEGUNDOS = 15;
+
+function mostrarSlidePresentacao(indice) {
+  calPresentationSlideAtual = indice;
+  CAL_PRESENTATION_SLIDES.forEach((id, i) => {
+    document.getElementById(id).classList.toggle('hidden', i !== indice);
+  });
+  document.querySelectorAll('.cal-presentation-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === indice);
+  });
+}
+function proximoSlidePresentacao() {
+  mostrarSlidePresentacao((calPresentationSlideAtual + 1) % CAL_PRESENTATION_SLIDES.length);
+}
 
 function projetosSemPrazo() {
   return state.calendarProjects.filter(p => (p.status_prazo || '').toLowerCase() === 'pendente');
@@ -2982,6 +2999,7 @@ async function refreshCalendarPresentation() {
 async function openCalendarPresentation() {
   document.getElementById('calendar-presentation-overlay').classList.remove('hidden');
   await refreshCalendarPresentation();
+  mostrarSlidePresentacao(0);
 
   if (document.documentElement.requestFullscreen) {
     document.documentElement.requestFullscreen().catch(() => {});
@@ -2992,6 +3010,8 @@ async function openCalendarPresentation() {
   }
   if (calPresentationInterval) clearInterval(calPresentationInterval);
   calPresentationInterval = setInterval(refreshCalendarPresentation, 5 * 60 * 1000);
+  if (calPresentationSlideInterval) clearInterval(calPresentationSlideInterval);
+  calPresentationSlideInterval = setInterval(proximoSlidePresentacao, CAL_PRESENTATION_SLIDE_SEGUNDOS * 1000);
 }
 
 function closeCalendarPresentation() {
@@ -3000,8 +3020,18 @@ function closeCalendarPresentation() {
     document.exitFullscreen().catch(() => {});
   }
   if (calPresentationInterval) { clearInterval(calPresentationInterval); calPresentationInterval = null; }
+  if (calPresentationSlideInterval) { clearInterval(calPresentationSlideInterval); calPresentationSlideInterval = null; }
   if (calPresentationWakeLock) { calPresentationWakeLock.release().catch(() => {}); calPresentationWakeLock = null; }
 }
+
+document.querySelectorAll('.cal-presentation-dot').forEach((dot, i) => {
+  dot.addEventListener('click', () => {
+    mostrarSlidePresentacao(i);
+    // reinicia a contagem pra nao trocar de novo logo em seguida do clique manual
+    if (calPresentationSlideInterval) clearInterval(calPresentationSlideInterval);
+    calPresentationSlideInterval = setInterval(proximoSlidePresentacao, CAL_PRESENTATION_SLIDE_SEGUNDOS * 1000);
+  });
+});
 
 document.getElementById('btn-cal-apresentacao').addEventListener('click', openCalendarPresentation);
 document.getElementById('btn-cal-sair-apresentacao').addEventListener('click', closeCalendarPresentation);

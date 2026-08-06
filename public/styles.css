@@ -614,26 +614,35 @@ input:focus, select:focus, textarea:focus {
 .calendar-presentation-grid .calendar-more { font-size: 13px; }
 
 .calendar-presentation-secoes {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 32px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 8px;
 }
 .calendar-presentation-secao h2 { font-size: 22px; margin: 0 0 14px; }
-.calendar-presentation-cards { display: flex; flex-direction: column; gap: 10px; }
-.calendar-presentation-card {
-  border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px;
-  display: flex; justify-content: space-between; align-items: center; gap: 12px;
-  background: var(--surface-alt); font-size: 16px;
+.calendar-presentation-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; align-content: start;
 }
-.calendar-presentation-card .cpc-nome { font-weight: 700; }
-.calendar-presentation-card .cpc-meta { color: var(--text-muted); font-size: 14px; margin-top: 2px; }
+.calendar-presentation-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+  display: block; background: var(--surface-alt); font-size: 13px;
+}
+.calendar-presentation-card .cpc-nome { font-weight: 700; font-size: 13px; }
+.calendar-presentation-card .cpc-meta { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
 .calendar-presentation-card.cpc-atrasado {
   border-color: var(--danger); background: var(--danger-soft);
   animation: cpc-pulso 1.6s ease-in-out infinite;
 }
-.calendar-presentation-cards-vazio { color: var(--text-muted); font-size: 15px; }
+.calendar-presentation-cards-vazio { color: var(--text-muted); font-size: 15px; grid-column: 1 / -1; }
 @keyframes cpc-pulso {
   0%, 100% { box-shadow: 0 0 0 0 rgba(196, 33, 31, 0.35); }
   50% { box-shadow: 0 0 0 10px rgba(196, 33, 31, 0); }
 }
+
+.calendar-presentation-slide { min-height: 60vh; }
+.calendar-presentation-dots { display: flex; gap: 8px; align-items: center; }
+.cal-presentation-dot {
+  width: 10px; height: 10px; border-radius: 50%; background: var(--border);
+  display: inline-block; transition: background 0.2s;
+}
+.cal-presentation-dot.active { background: var(--accent); }
 
 @media (max-width: 900px) {
   .calendar-presentation-secoes { grid-template-columns: 1fr; }
