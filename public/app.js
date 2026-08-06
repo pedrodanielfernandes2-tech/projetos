@@ -2928,12 +2928,21 @@ document.getElementById('btn-wbs-sair-apresentacao').addEventListener('click', c
 const CAL_PRESENTATION_CORES_AREA = [
   '#1B63AC', '#C4211F', '#1F9D55', '#B7791F', '#7C3AED',
   '#EC4899', '#0E7490', '#B45309', '#4D7C0F', '#9D174D',
+  '#0891B2', '#DC2626', '#059669', '#7C2D12', '#4338CA', '#BE185D',
 ];
 function corDaArea(area) {
   if (!area) return '#64748B';
-  let hash = 0;
-  for (let i = 0; i < area.length; i++) hash = (hash * 31 + area.charCodeAt(i)) >>> 0;
-  return CAL_PRESENTATION_CORES_AREA[hash % CAL_PRESENTATION_CORES_AREA.length];
+  // usa a posicao da area na lista cadastrada (state.areas) - garante cores diferentes
+  // pra areas diferentes (ao contrario de um hash, que pode colidir por coincidencia)
+  const nomesAreas = (state.areas || []).map(a => (a.nome || a));
+  let indice = nomesAreas.indexOf(area);
+  if (indice === -1) {
+    // area nao encontrada na lista (ex: nome digitado livre) - cai num hash como reserva
+    let hash = 0;
+    for (let i = 0; i < area.length; i++) hash = (hash * 31 + area.charCodeAt(i)) >>> 0;
+    indice = hash;
+  }
+  return CAL_PRESENTATION_CORES_AREA[indice % CAL_PRESENTATION_CORES_AREA.length];
 }
 function tagArea(area) {
   if (!area) return '';
