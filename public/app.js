@@ -1523,9 +1523,9 @@ function renderCalendarAreaFilters() {
   });
 }
 
-function renderCalendar() {
+function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') {
   const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  document.getElementById('cal-label').textContent = `${monthNames[state.calendarMonth]} ${state.calendarYear}`;
+  document.getElementById(targetLabelId).textContent = `${monthNames[state.calendarMonth]} ${state.calendarYear}`;
 
   const diasMap = {};
   state.calendarProjects.forEach(p => {
@@ -1564,9 +1564,10 @@ function renderCalendar() {
       </div>
     `;
   }
-  document.getElementById('cal-grid').innerHTML = html;
+  const gridEl = document.getElementById(targetGridId);
+  gridEl.innerHTML = html;
 
-  document.querySelectorAll('.calendar-day[data-dia]').forEach(cell => {
+  gridEl.querySelectorAll('.calendar-day[data-dia]').forEach(cell => {
     const dia = Number(cell.dataset.dia);
     const itens = diasMap[dia] || [];
     if (itens.length === 0) return;
@@ -2922,6 +2923,93 @@ function closeWbsPresentation() {
 
 document.getElementById('btn-wbs-apresentacao').addEventListener('click', openWbsPresentation);
 document.getElementById('btn-wbs-sair-apresentacao').addEventListener('click', closeWbsPresentation);
+
+// ---------- modo apresentacao do calendario (pensado pra ficar ligado numa TV) ----------
+let calPresentationInterval = null;
+let calPresentationWakeLock = null;
+
+function projetosSemPrazo() {
+  return state.calendarProjects.filter(p => (p.status_prazo || '').toLowerCase() === 'pendente');
+}
+function projetosAtrasados() {
+  return state.calendarProjects.filter(p => (p.status_prazo || '').toLowerCase() === 'atrasado');
+}
+function areasDoProjeto(p) {
+  return [...new Set((p.tarefas || []).map(t => t.area).filter(Boolean))].join(', ');
+}
+
+function renderCalendarPresentationCards() {
+  const semPrazo = projetosSemPrazo();
+  const atrasados = projetosAtrasados();
+
+  const hostSemPrazo = document.getElementById('cal-presentation-sem-prazo');
+  hostSemPrazo.innerHTML = semPrazo.length === 0
+    ? '<p class="calendar-presentation-cards-vazio">Nenhum projeto sem prazo. ✅</p>'
+    : semPrazo.map(p => `
+        <div class="calendar-presentation-card">
+          <div>
+            <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+            <p class="cpc-meta">${areasDoProjeto(p) || 'Sem área definida'}${p.cliente_nome ? ' · Cliente: ' + p.cliente_nome : ''}</p>
+          </div>
+        </div>
+      `).join('');
+
+  const hostAtrasados = document.getElementById('cal-presentation-atrasados');
+  hostAtrasados.innerHTML = atrasados.length === 0
+    ? '<p class="calendar-presentation-cards-vazio">Nenhum projeto atrasado. ✅</p>'
+    : atrasados.map(p => `
+        <div class="calendar-presentation-card cpc-atrasado">
+          <div>
+            <p class="cpc-nome">${p.nome}${p.chamado ? ' · Chamado ' + p.chamado : ''}</p>
+            <p class="cpc-meta">${areasDoProjeto(p) || 'Sem área definida'}${p.data_fim ? ' · Prazo: ' + fmtDate(p.data_fim) : ''}</p>
+          </div>
+        </div>
+      `).join('');
+}
+
+async function refreshCalendarPresentation() {
+  try {
+    const projects = await api('/projects');
+    state.allProjects = projects;
+    state.calendarProjects = projects;
+    renderCalendar('cal-presentation-grid', 'cal-presentation-label');
+    renderCalendarPresentationCards();
+  } catch (err) {
+    console.error('[apresentacao] falha ao atualizar dados:', err.message);
+  }
+}
+
+async function openCalendarPresentation() {
+  document.getElementById('calendar-presentation-overlay').classList.remove('hidden');
+  await refreshCalendarPresentation();
+
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+  // evita a TV/tela apagar sozinha enquanto o painel estiver aberto (se o navegador suportar)
+  if (navigator.wakeLock) {
+    try { calPresentationWakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* falha silenciosa */ }
+  }
+  if (calPresentationInterval) clearInterval(calPresentationInterval);
+  calPresentationInterval = setInterval(refreshCalendarPresentation, 5 * 60 * 1000);
+}
+
+function closeCalendarPresentation() {
+  document.getElementById('calendar-presentation-overlay').classList.add('hidden');
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+  if (calPresentationInterval) { clearInterval(calPresentationInterval); calPresentationInterval = null; }
+  if (calPresentationWakeLock) { calPresentationWakeLock.release().catch(() => {}); calPresentationWakeLock = null; }
+}
+
+document.getElementById('btn-cal-apresentacao').addEventListener('click', openCalendarPresentation);
+document.getElementById('btn-cal-sair-apresentacao').addEventListener('click', closeCalendarPresentation);
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !document.getElementById('calendar-presentation-overlay').classList.contains('hidden')) {
+    closeCalendarPresentation();
+  }
+});
 document.addEventListener('fullscreenchange', () => {
   // se o usuario sair da tela cheia pelo Esc do navegador, fecha a apresentacao junto
   if (!document.fullscreenElement && !document.getElementById('wbs-presentation-overlay').classList.contains('hidden')) {

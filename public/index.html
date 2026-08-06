@@ -164,6 +164,7 @@
               <span id="cal-label" class="calendar-label"></span>
               <button class="btn" id="cal-next" aria-label="Próximo mês">›</button>
               <button class="btn" id="cal-hoje">Hoje</button>
+              <button class="btn" id="btn-cal-apresentacao">🖥️ Modo Apresentação</button>
             </div>
           </div>
           <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
@@ -704,6 +705,29 @@
     </div>
     <div id="wbs-presentation-progress" class="wbs-presentation-progress"></div>
     <div id="wbs-presentation-tree"></div>
+  </div>
+
+  <div id="calendar-presentation-overlay" class="calendar-presentation hidden">
+    <div class="calendar-presentation-header">
+      <div>
+        <h1>Painel de Entregas</h1>
+        <p id="cal-presentation-label" class="calendar-presentation-subtitulo"></p>
+      </div>
+      <button type="button" id="btn-cal-sair-apresentacao" class="btn">✕ Sair</button>
+    </div>
+    <div id="cal-presentation-label-nav" class="calendar-presentation-mes"></div>
+    <div id="cal-presentation-grid" class="calendar-grid calendar-presentation-grid"></div>
+
+    <div class="calendar-presentation-secoes">
+      <div class="calendar-presentation-secao">
+        <h2>⏳ Sem prazo definido</h2>
+        <div id="cal-presentation-sem-prazo" class="calendar-presentation-cards"></div>
+      </div>
+      <div class="calendar-presentation-secao">
+        <h2>🔴 Atrasados</h2>
+        <div id="cal-presentation-atrasados" class="calendar-presentation-cards"></div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
