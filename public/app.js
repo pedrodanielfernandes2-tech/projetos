@@ -3028,7 +3028,10 @@ function renderCalendarPresentationCards() {
     ? ''
     : entradas.map(([area, qtd]) => {
         const cor = corDaArea(area);
-        return `<span class="cal-presentation-resumo-item" style="background:${cor}1a;color:${cor};border-color:${cor}66;">${area.toUpperCase()} = ${qtd}</span>`;
+        return `<div class="cal-presentation-resumo-item" style="border-left-color:${cor};">
+          <span class="cpr-area" style="color:${cor};">${area.toUpperCase()}</span>
+          <span class="cpr-valor">${qtd}</span>
+        </div>`;
       }).join('');
 }
 

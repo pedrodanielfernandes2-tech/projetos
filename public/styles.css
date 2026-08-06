@@ -601,6 +601,7 @@ input:focus, select:focus, textarea:focus {
   margin-bottom: 18px; padding-bottom: 18px; border-bottom: 2px solid var(--border);
 }
 .calendar-presentation-header h1 { font-size: 40px; font-weight: 800; margin: 0 0 6px; letter-spacing: -0.02em; }
+.calendar-presentation-acoes { display: flex; gap: 8px; align-items: center; }
 .calendar-presentation-subtitulo { color: var(--text-muted); font-size: 17px; margin: 0; }
 .calendar-presentation-mes { font-size: 26px; font-weight: 700; text-align: center; margin-bottom: 14px; }
 .calendar-presentation-grid.calendar-grid {
@@ -640,9 +641,30 @@ input:focus, select:focus, textarea:focus {
 .calendar-presentation-dots { display: flex; gap: 8px; align-items: center; }
 .cal-presentation-dot {
   width: 10px; height: 10px; border-radius: 50%; background: var(--border);
-  display: inline-block; transition: background 0.2s;
+  display: inline-block; transition: background 0.2s; cursor: pointer;
 }
 .cal-presentation-dot.active { background: var(--accent); }
+
+.cal-presentation-resumo { display: flex; gap: 10px; flex-wrap: wrap; margin: 14px 0 20px; }
+.cal-presentation-resumo-item {
+  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid;
+  border-radius: 8px; padding: 6px 14px; box-shadow: var(--shadow-sm);
+  display: flex; flex-direction: column; gap: 1px; min-width: 100px;
+}
+.cal-presentation-resumo-item .cpr-area { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; }
+.cal-presentation-resumo-item .cpr-valor { font-size: 22px; font-weight: 800; color: var(--text); line-height: 1.1; }
+.cal-presentation-area-tag {
+  display: inline-block; border: 1px solid; border-radius: 5px; padding: 1px 7px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.03em; margin-right: 3px;
+}
+
+.cal-presentation-config {
+  position: absolute; top: 90px; right: 56px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px; padding: 16px;
+  box-shadow: var(--shadow-md); z-index: 10; display: flex; flex-direction: column; gap: 10px;
+}
+.cal-presentation-config label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.cal-presentation-config input { width: 60px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
 
 @media (max-width: 900px) {
   .calendar-presentation-secoes { grid-template-columns: 1fr; }
