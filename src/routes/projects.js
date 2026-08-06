@@ -4,6 +4,7 @@ const { requireAdminIfSetting } = require('../adminAuth');
 const { calcularStatusPrazo, calcularStatusTarefa } = require('../statusCalc');
 const { registrarAuditoria } = require('../audit');
 const { postToTeams } = require('../teams');
+const { gpIdRestrito, requireProjetoDoProprioGp } = require('../gpRestricao');
 const router = express.Router();
 
 function getAutor(req) {
@@ -76,11 +77,17 @@ router.get('/', async (req, res) => {
     const { rows } = await pool.query('SELECT id FROM projects ORDER BY id DESC');
     ids = rows.map(r => r.id);
   }
+  const meuGpId = await gpIdRestrito(req.usuario);
+  if (meuGpId !== null) {
+    const { rows } = await pool.query('SELECT id FROM projects WHERE gp_id = $1', [meuGpId]);
+    const idsDoMeuGp = new Set(rows.map(r => r.id));
+    ids = ids.filter(id => idsDoMeuGp.has(id));
+  }
   const projects = await Promise.all(ids.map(loadProject));
   res.json(projects.filter(Boolean));
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireProjetoDoProprioGp(), async (req, res) => {
   const project = await loadProject(req.params.id);
   if (!project) return res.status(404).json({ error: 'projeto nao encontrado' });
   res.json(project);
@@ -129,7 +136,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.put('/:id', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
   const antigo = (await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id])).rows[0];
 
@@ -164,7 +171,7 @@ router.put('/:id', requireAdminIfSetting('restringir_edicao_prazos'), async (req
 });
 
 // Liga/desliga a matriz de priorizacao (Impacto x Esforco) da WBS desse projeto.
-router.put('/:id/priorizacao', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.put('/:id/priorizacao', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { ativa } = req.body;
   await pool.query('UPDATE projects SET priorizacao_ativa = $1 WHERE id = $2', [!!ativa, req.params.id]);
   await registrarAuditoria({
@@ -175,7 +182,7 @@ router.put('/:id/priorizacao', requireAdminIfSetting('restringir_edicao_prazos')
   res.json({ ok: true, priorizacao_ativa: !!ativa });
 });
 
-router.delete('/:id', requireAdminIfSetting('restringir_exclusao'), async (req, res) => {
+router.delete('/:id', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_exclusao'), async (req, res) => {
   const projeto = (await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id])).rows[0];
   await pool.query('DELETE FROM projects WHERE id = $1', [req.params.id]);
 
@@ -190,7 +197,7 @@ router.delete('/:id', requireAdminIfSetting('restringir_exclusao'), async (req, 
 });
 
 // Tarefas por area dentro de um projeto
-router.post('/:id/tarefas', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.post('/:id/tarefas', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { area, inicio, fim, status } = req.body;
   if (!area) return res.status(400).json({ error: 'area obrigatoria' });
   const { rows } = await pool.query(
@@ -208,7 +215,7 @@ router.post('/:id/tarefas', requireAdminIfSetting('restringir_edicao_prazos'), a
   res.status(201).json(rows[0]);
 });
 
-router.put('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.put('/:id/tarefas/:taskId', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { area, inicio, fim, status } = req.body;
   const antiga = (await pool.query('SELECT * FROM area_tasks WHERE id = $1 AND project_id = $2', [req.params.taskId, req.params.id])).rows[0];
 
@@ -240,7 +247,7 @@ router.put('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_praz
   res.json({ ok: true });
 });
 
-router.delete('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.delete('/:id/tarefas/:taskId', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const antiga = (await pool.query('SELECT * FROM area_tasks WHERE id = $1 AND project_id = $2', [req.params.taskId, req.params.id])).rows[0];
   await pool.query('DELETE FROM area_tasks WHERE id=$1 AND project_id=$2', [req.params.taskId, req.params.id]);
 
@@ -255,7 +262,7 @@ router.delete('/:id/tarefas/:taskId', requireAdminIfSetting('restringir_edicao_p
 });
 
 // Historico
-router.post('/:id/historico', async (req, res) => {
+router.post('/:id/historico', requireProjetoDoProprioGp(), async (req, res) => {
   const { texto, autor, data } = req.body;
   if (!texto) return res.status(400).json({ error: 'texto obrigatorio' });
   const { rows } = await pool.query(
@@ -265,7 +272,7 @@ router.post('/:id/historico', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
-router.patch('/:id/historico/:historicoId', async (req, res) => {
+router.patch('/:id/historico/:historicoId', requireProjetoDoProprioGp(), async (req, res) => {
   const { texto, data } = req.body;
   if (!texto || !texto.trim()) return res.status(400).json({ error: 'texto obrigatorio' });
   const existente = (await pool.query(
@@ -285,7 +292,7 @@ router.patch('/:id/historico/:historicoId', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.delete('/:id/historico/:historicoId', async (req, res) => {
+router.delete('/:id/historico/:historicoId', requireProjetoDoProprioGp(), async (req, res) => {
   const existente = (await pool.query(
     'SELECT * FROM historico WHERE id = $1 AND project_id = $2',
     [req.params.historicoId, req.params.id]
@@ -301,7 +308,7 @@ router.delete('/:id/historico/:historicoId', async (req, res) => {
 });
 
 // Links do projeto
-router.post('/:id/links', async (req, res) => {
+router.post('/:id/links', requireProjetoDoProprioGp(), async (req, res) => {
   const { titulo, url } = req.body;
   if (!url || !url.trim()) return res.status(400).json({ error: 'url obrigatoria' });
   const { rows } = await pool.query(
@@ -311,13 +318,13 @@ router.post('/:id/links', async (req, res) => {
   res.status(201).json(rows[0]);
 });
 
-router.delete('/:id/links/:linkId', async (req, res) => {
+router.delete('/:id/links/:linkId', requireProjetoDoProprioGp(), async (req, res) => {
   await pool.query('DELETE FROM project_links WHERE id = $1 AND project_id = $2', [req.params.linkId, req.params.id]);
   res.json({ ok: true });
 });
 
 // Notificar um projeto especifico no Teams (sob demanda)
-router.post('/:id/notificar-teams', async (req, res) => {
+router.post('/:id/notificar-teams', requireProjetoDoProprioGp(), async (req, res) => {
   const project = await loadProject(req.params.id);
   if (!project) return res.status(404).json({ error: 'projeto nao encontrado' });
 

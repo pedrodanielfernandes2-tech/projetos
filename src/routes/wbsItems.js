@@ -2,13 +2,14 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireAdminIfSetting } = require('../adminAuth');
 const { registrarAuditoria } = require('../audit');
+const { requireItemWbsDoProprioGp } = require('../gpRestricao');
 const router = express.Router();
 
 function getAutor(req) {
   return req.header('x-autor') || 'anônimo';
 }
 
-router.put('/:itemId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.put('/:itemId', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco } = req.body;
   const antigo = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!antigo) return res.status(404).json({ error: 'item nao encontrado' });
@@ -41,7 +42,7 @@ router.put('/:itemId', requireAdminIfSetting('restringir_edicao_prazos'), async 
   res.json({ ok: true });
 });
 
-router.delete('/:itemId', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.delete('/:itemId', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const item = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   await pool.query('DELETE FROM wbs_items WHERE id = $1', [req.params.itemId]);
   if (item) {
@@ -54,7 +55,7 @@ router.delete('/:itemId', requireAdminIfSetting('restringir_edicao_prazos'), asy
 });
 
 // Troca a ordem do item com o irmao (mesmo parent) imediatamente acima ou abaixo.
-router.post('/:itemId/mover', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.post('/:itemId/mover', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const { direcao } = req.body; // 'up' ou 'down'
   const atual = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!atual) return res.status(404).json({ error: 'item nao encontrado' });
@@ -74,7 +75,7 @@ router.post('/:itemId/mover', requireAdminIfSetting('restringir_edicao_prazos'),
 });
 
 // Duplica um item e toda a sua subarvore, inserindo a copia como ultimo irmao.
-router.post('/:itemId/duplicar', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+router.post('/:itemId/duplicar', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
   const original = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!original) return res.status(404).json({ error: 'item nao encontrado' });
 
