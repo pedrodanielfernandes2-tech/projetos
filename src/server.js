@@ -38,6 +38,7 @@ app.use('/api/chamados-tabelas-recurso', require('./routes/chamadosTabelasRecurs
 
 // ---------- modulo Projetos: exige login de usuario com permissao "pode_projetos" ----------
 const gateProjetos = requirePermissao('pode_projetos');
+const { requireProjetoDoProprioGp } = require('./gpRestricao');
 app.use('/api/gps', gateProjetos, require('./routes/gps'));
 app.use('/api/admin-emails', gateProjetos, require('./routes/adminEmails'));
 app.use('/api/projects', gateProjetos, require('./routes/projects'));
@@ -49,7 +50,7 @@ app.use('/api/wbs-status', gateProjetos, require('./routes/wbsStatus'));
 app.use('/api/clientes', gateProjetos, require('./routes/clientes'));
 app.use('/api/settings', gateProjetos, require('./routes/settings'));
 app.use('/api/audit-log', gateProjetos, require('./routes/auditLog'));
-app.use('/api/projects/:id/wbs', gateProjetos, require('./routes/wbs'));
+app.use('/api/projects/:id/wbs', gateProjetos, requireProjetoDoProprioGp(), require('./routes/wbs'));
 app.use('/api/wbs', gateProjetos, require('./routes/wbsItems'));
 app.use('/api/wbs-templates', gateProjetos, require('./routes/wbsTemplates'));
 
