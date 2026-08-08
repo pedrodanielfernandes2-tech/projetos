@@ -10,13 +10,13 @@ function getAutor(req) {
 }
 
 router.put('/:itemId', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
-  const { titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco } = req.body;
+  const { titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco, horas_esforco } = req.body;
   const antigo = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
   if (!antigo) return res.status(404).json({ error: 'item nao encontrado' });
 
   await pool.query(
-    `UPDATE wbs_items SET titulo=$1, area=$2, acao=$3, responsavel=$4, status=$5, data_inicio=$6, data_fim=$7, observacao=$8, impacto=$9, esforco=$10 WHERE id=$11`,
-    [titulo, area || '', acao || '', responsavel || '', status, data_inicio || null, data_fim || null, observacao || '', impacto || 0, esforco || 0, req.params.itemId]
+    `UPDATE wbs_items SET titulo=$1, area=$2, acao=$3, responsavel=$4, status=$5, data_inicio=$6, data_fim=$7, observacao=$8, impacto=$9, esforco=$10, horas_esforco=$11 WHERE id=$12`,
+    [titulo, area || '', acao || '', responsavel || '', status, data_inicio || null, data_fim || null, observacao || '', impacto || 0, esforco || 0, horas_esforco || 0, req.params.itemId]
   );
 
   const mudancas = [];
@@ -97,9 +97,9 @@ router.post('/:itemId/duplicar', requireItemWbsDoProprioGp(), requireAdminIfSett
 
   async function inserirCopia(item, parentId, ordem, ehRaiz) {
     const { rows } = await pool.query(
-      `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem, impacto, esforco)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-      [item.project_id, parentId, ehRaiz ? `${item.titulo} (cópia)` : item.titulo, item.area, item.acao, item.responsavel, item.status, item.data_inicio, item.data_fim, item.observacao, ordem, item.impacto, item.esforco]
+      `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem, impacto, esforco, horas_esforco)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+      [item.project_id, parentId, ehRaiz ? `${item.titulo} (cópia)` : item.titulo, item.area, item.acao, item.responsavel, item.status, item.data_inicio, item.data_fim, item.observacao, ordem, item.impacto, item.esforco, item.horas_esforco]
     );
     const novoId = rows[0].id;
     let i = 0;

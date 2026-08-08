@@ -103,7 +103,7 @@ router.get('/pdf', async (req, res) => {
 });
 
 router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
-  const { parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco } = req.body;
+  const { parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, impacto, esforco, horas_esforco } = req.body;
   if (!titulo || !titulo.trim()) return res.status(400).json({ error: 'titulo obrigatorio' });
 
   const { rows: maxRows } = await pool.query(
@@ -113,9 +113,9 @@ router.post('/', requireAdminIfSetting('restringir_edicao_prazos'), async (req, 
   const ordem = maxRows[0].maxordem + 1;
 
   const { rows } = await pool.query(
-    `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem, impacto, esforco)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *`,
-    [req.params.id, parent_id || null, titulo.trim(), area || '', acao || '', responsavel || '', status || 'Pendente', data_inicio || null, data_fim || null, observacao || '', ordem, impacto || 0, esforco || 0]
+    `INSERT INTO wbs_items (project_id, parent_id, titulo, area, acao, responsavel, status, data_inicio, data_fim, observacao, ordem, impacto, esforco, horas_esforco)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING *`,
+    [req.params.id, parent_id || null, titulo.trim(), area || '', acao || '', responsavel || '', status || 'Pendente', data_inicio || null, data_fim || null, observacao || '', ordem, impacto || 0, esforco || 0, horas_esforco || 0]
   );
 
   await registrarAuditoria({
