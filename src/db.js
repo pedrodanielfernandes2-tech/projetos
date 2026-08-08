@@ -139,6 +139,7 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW(),
       impacto NUMERIC DEFAULT 0,
       esforco NUMERIC DEFAULT 0,
+      horas_esforco NUMERIC DEFAULT 0,
       concluido_em TIMESTAMP
     );
 
@@ -293,6 +294,10 @@ async function init() {
   // Guarda o momento exato em que um item foi marcado como Concluido - usado pra
   // calcular a sequencia (streak) de dias do implantador na tela de Implantacao.
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;');
+  // Esforco em horas (diferente do campo "esforco" existente, que e uma nota 0-5 pra
+  // matriz de priorizacao Impacto x Esforco - esse aqui e a quantidade real de horas
+  // estimada pra tarefa, usada pra calcular a duracao em dias.
+  await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS horas_esforco NUMERIC DEFAULT 0;');
 
   // Renomeia o status "Impasse" para "Suspensa" em instalacoes ja existentes
   // (tanto no cadastro quanto nos itens de WBS que ja usavam esse status).
