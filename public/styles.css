@@ -431,13 +431,16 @@ input:focus, select:focus, textarea:focus {
 .wbs-presentation-progress { max-width: 620px; margin-bottom: 32px; }
 .wbs-pres-node { }
 .wbs-pres-row {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 12px 10px; border-top: 1px solid var(--border); font-size: 16px; border-radius: 6px;
+  display: grid;
+  grid-template-columns: 60px minmax(280px, 2fr) 220px 220px 170px 150px;
+  align-items: center; gap: 20px; overflow: hidden;
+  padding: 14px 10px; border-top: 1px solid var(--border); font-size: 16px; border-radius: 6px;
 }
+.wbs-pres-vazio { color: var(--text-muted); opacity: 0.5; }
 .wbs-pres-node:first-child > .wbs-pres-row { border-top: none; }
-.wbs-pres-numero { color: var(--text-muted); font-size: 13px; min-width: 42px; }
-.wbs-pres-titulo { font-weight: 700; flex: 1; min-width: 220px; }
-.wbs-pres-responsavel { color: var(--text-muted); font-size: 14px; }
+.wbs-pres-numero { color: var(--text-muted); font-size: 13px; }
+.wbs-pres-titulo { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbs-pres-responsavel { color: var(--text-muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wbs-pres-datas { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
 .wbs-pres-esforco { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
 
@@ -459,7 +462,7 @@ input:focus, select:focus, textarea:focus {
 }
 .wbs-row {
   display: grid;
-  grid-template-columns: 22px 46px minmax(160px, 1fr) 100px 110px 100px 140px 120px 130px;
+  grid-template-columns: 22px 46px minmax(160px, 1fr) 100px 110px 100px 140px 80px 70px 120px 130px;
   align-items: center; gap: 8px; overflow: hidden;
   padding: 9px 6px; border-top: 1px solid var(--border); font-size: 13px;
 }
@@ -486,7 +489,7 @@ input:focus, select:focus, textarea:focus {
 .wbs-col-status { }
 .wbs-col-criticidade { display: none; overflow: hidden; justify-content: center; }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-row {
-  grid-template-columns: 22px 44px minmax(160px, 1fr) 90px 100px 90px 130px 110px 56px 130px;
+  grid-template-columns: 22px 44px minmax(160px, 1fr) 90px 100px 90px 130px 80px 70px 110px 56px 130px;
 }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-col-criticidade {
   display: flex; align-items: center; justify-content: center;

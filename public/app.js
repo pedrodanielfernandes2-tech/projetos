@@ -2778,6 +2778,8 @@ function buildWbsNode(item, depth, forceExpandIds) {
     <span class="wbs-col-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-responsavel">${item.responsavel || '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-datas${prazoClasse}" title="${prazoStatus === 'atrasado' ? 'Atrasado' : prazoStatus === 'risco' ? 'Possível atraso' : prazoStatus === 'ok' ? 'Dentro do prazo' : ''}">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-col-esforco">${Number(item.horas_esforco) > 0 ? `${Number(item.horas_esforco)}h` : '<span class="wbs-empty-cell">—</span>'}</span>
+    <span class="wbs-col-duracao">${Number(item.horas_esforco) > 0 ? `${(Number(item.horas_esforco) / HORAS_POR_DIA_WBS).toFixed(1)}d` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
     <span class="wbs-col-criticidade">${wbsCriticidadeBadge(item)}</span>
     <div class="wbs-actions">
@@ -2858,7 +2860,6 @@ function buildWbsPresentationNode(item, depth) {
 
   const row = document.createElement('div');
   row.className = 'wbs-pres-row';
-  row.style.paddingLeft = (depth * 26 + 10) + 'px';
 
   const temPrazo = item.data_inicio || item.data_fim;
   const prazoStatus = wbsPrazoStatus(item);
@@ -2868,16 +2869,15 @@ function buildWbsPresentationNode(item, depth) {
 
   const horasEsforco = Number(item.horas_esforco) || 0;
   const duracaoDias = horasEsforco > 0 ? (horasEsforco / HORAS_POR_DIA_WBS).toFixed(1) : null;
+  const vazio = '<span class="wbs-pres-vazio">—</span>';
 
   row.innerHTML = `
     <span class="wbs-pres-numero">${item.numero}</span>
-    <span class="wbs-pres-titulo">${item.titulo}</span>
-    ${item.area ? `<span class="area-tag">${item.area}</span>` : ''}
-    ${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : ''}
-    ${item.responsavel ? `<span class="wbs-pres-responsavel">👤 ${item.responsavel}</span>` : ''}
-    ${temPrazo ? `<span class="wbs-pres-datas">${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}</span>` : ''}
-    ${horasEsforco > 0 ? `<span class="wbs-pres-esforco">⏱ ${horasEsforco}h · ${duracaoDias}d</span>` : ''}
-    <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
+    <span class="wbs-pres-titulo" style="padding-left:${depth * 22}px" title="${item.titulo}">${item.titulo}</span>
+    <span class="wbs-pres-responsavel">${item.responsavel ? `👤 ${item.responsavel}` : vazio}</span>
+    <span class="wbs-pres-datas">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : vazio}</span>
+    <span class="wbs-pres-esforco">${horasEsforco > 0 ? `⏱ ${horasEsforco}h · ${duracaoDias}d` : vazio}</span>
+    <span class="wbs-pres-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
   `;
   wrapper.appendChild(row);
 
