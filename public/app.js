@@ -2866,6 +2866,9 @@ function buildWbsPresentationNode(item, depth) {
   if (prazoStatus === 'atrasado') row.classList.add('wbs-row-atrasado');
   else if (prazoStatus === 'risco') row.classList.add('wbs-row-risco');
 
+  const horasEsforco = Number(item.horas_esforco) || 0;
+  const duracaoDias = horasEsforco > 0 ? (horasEsforco / HORAS_POR_DIA_WBS).toFixed(1) : null;
+
   row.innerHTML = `
     <span class="wbs-pres-numero">${item.numero}</span>
     <span class="wbs-pres-titulo">${item.titulo}</span>
@@ -2873,6 +2876,7 @@ function buildWbsPresentationNode(item, depth) {
     ${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : ''}
     ${item.responsavel ? `<span class="wbs-pres-responsavel">👤 ${item.responsavel}</span>` : ''}
     ${temPrazo ? `<span class="wbs-pres-datas">${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}</span>` : ''}
+    ${horasEsforco > 0 ? `<span class="wbs-pres-esforco">⏱ ${horasEsforco}h · ${duracaoDias}d</span>` : ''}
     <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
   `;
   wrapper.appendChild(row);
@@ -3252,6 +3256,8 @@ async function openWbsItemModal(parentId, itemToEdit) {
   document.getElementById('wbs-item-inicio').value = itemToEdit ? (itemToEdit.data_inicio || '') : '';
   document.getElementById('wbs-item-fim').value = itemToEdit ? (itemToEdit.data_fim || '') : '';
   document.getElementById('wbs-item-observacao').value = itemToEdit ? (itemToEdit.observacao || '') : '';
+  document.getElementById('wbs-item-horas-esforco').value = itemToEdit ? (itemToEdit.horas_esforco || 0) : 0;
+  atualizarDuracaoWbsItem();
 
   const wrap = document.getElementById('wbs-item-priorizacao-wrap');
   const inputsDiv = document.getElementById('wbs-item-priorizacao-inputs');
@@ -3275,6 +3281,14 @@ async function openWbsItemModal(parentId, itemToEdit) {
 
   document.getElementById('modal-wbs-item').classList.remove('hidden');
 }
+const HORAS_POR_DIA_WBS = 8;
+function atualizarDuracaoWbsItem() {
+  const horas = Number(document.getElementById('wbs-item-horas-esforco').value) || 0;
+  const dias = horas / HORAS_POR_DIA_WBS;
+  document.getElementById('wbs-item-duracao-dias').value = horas > 0 ? `${dias.toFixed(1)} dia(s)` : '—';
+}
+document.getElementById('wbs-item-horas-esforco').addEventListener('input', atualizarDuracaoWbsItem);
+
 document.getElementById('btn-cancel-wbs-item').addEventListener('click', () => {
   document.getElementById('modal-wbs-item').classList.add('hidden');
 });
@@ -3293,6 +3307,7 @@ document.getElementById('form-wbs-item').addEventListener('submit', async (e) =>
     observacao: document.getElementById('wbs-item-observacao').value.trim(),
     impacto: Number(document.getElementById('wbs-item-impacto').value) || 0,
     esforco: Number(document.getElementById('wbs-item-esforco').value) || 0,
+    horas_esforco: Number(document.getElementById('wbs-item-horas-esforco').value) || 0,
   };
   if (!body.titulo) {
     alert('Preencha o título do item.');

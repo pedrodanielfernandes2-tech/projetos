@@ -619,6 +619,16 @@
           <input type="date" id="wbs-item-fim" />
         </div>
         <textarea id="wbs-item-observacao" placeholder="Observação" class="full-width" rows="3"></textarea>
+        <p class="field-label">Esforço estimado</p>
+        <div class="form-row">
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Esforço (horas)
+            <input type="number" id="wbs-item-horas-esforco" min="0" step="0.5" />
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Duração (dias)
+            <input type="text" id="wbs-item-duracao-dias" disabled />
+          </label>
+        </div>
+        <p class="muted" style="margin-top:-6px;font-size:12px;">Duração calculada automaticamente (esforço ÷ 8h por dia).</p>
         <div id="wbs-item-priorizacao-wrap" class="hidden">
           <p class="field-label">Priorização (Impacto x Esforço)</p>
           <p class="muted" style="margin-top:-4px;">
