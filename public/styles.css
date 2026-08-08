@@ -432,9 +432,14 @@ input:focus, select:focus, textarea:focus {
 .wbs-pres-node { }
 .wbs-pres-row {
   display: grid;
-  grid-template-columns: 60px minmax(280px, 2fr) 220px 220px 170px 150px;
-  align-items: center; gap: 20px; overflow: hidden;
+  grid-template-columns: 60px minmax(220px, 1.6fr) 110px 110px 150px 170px 80px 80px 130px;
+  align-items: center; gap: 14px; overflow: hidden;
   padding: 14px 10px; border-top: 1px solid var(--border); font-size: 16px; border-radius: 6px;
+}
+.wbs-pres-header-row {
+  border-top: none; border-bottom: 2px solid var(--border);
+  font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text-muted); padding-bottom: 10px;
 }
 .wbs-pres-vazio { color: var(--text-muted); opacity: 0.5; }
 .wbs-pres-node:first-child > .wbs-pres-row { border-top: none; }

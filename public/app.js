@@ -2874,9 +2874,12 @@ function buildWbsPresentationNode(item, depth) {
   row.innerHTML = `
     <span class="wbs-pres-numero">${item.numero}</span>
     <span class="wbs-pres-titulo" style="padding-left:${depth * 22}px" title="${item.titulo}">${item.titulo}</span>
+    <span class="wbs-pres-area">${item.area ? `<span class="area-tag">${item.area}</span>` : vazio}</span>
+    <span class="wbs-pres-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : vazio}</span>
     <span class="wbs-pres-responsavel">${item.responsavel ? `👤 ${item.responsavel}` : vazio}</span>
     <span class="wbs-pres-datas">${temPrazo ? `${prazoIcone}${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'}` : vazio}</span>
-    <span class="wbs-pres-esforco">${horasEsforco > 0 ? `⏱ ${horasEsforco}h · ${duracaoDias}d` : vazio}</span>
+    <span class="wbs-pres-esforco">${horasEsforco > 0 ? `${horasEsforco}h` : vazio}</span>
+    <span class="wbs-pres-duracao">${horasEsforco > 0 ? `${duracaoDias}d` : vazio}</span>
     <span class="wbs-pres-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
   `;
   wrapper.appendChild(row);
