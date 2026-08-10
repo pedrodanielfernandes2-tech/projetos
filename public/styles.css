@@ -465,10 +465,12 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--brand-blue); color: var(--brand-blue); font-weight: 600;
   animation: wbs-btn-pulse 1.8s ease-in-out infinite;
 }
+.wbs-tabela-scroll { overflow-x: auto; }
 .wbs-row {
   display: grid;
-  grid-template-columns: 22px 46px minmax(160px, 1fr) 100px 110px 100px 140px 80px 70px 120px 130px;
-  align-items: center; gap: 8px; overflow: hidden;
+  grid-template-columns: 22px 40px minmax(200px, 1fr) 90px 100px 90px 130px 60px 60px 110px 150px;
+  align-items: center; gap: 6px;
+  min-width: 1180px;
   padding: 9px 6px; border-top: 1px solid var(--border); font-size: 13px;
 }
 .wbs-node:first-child > .wbs-row { border-top: none; }
@@ -487,6 +489,7 @@ input:focus, select:focus, textarea:focus {
 .wbs-tag-acao { font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--surface-alt); color: var(--text-muted); }
 .wbs-responsavel { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wbs-datas { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.wbs-col-esforco, .wbs-col-duracao { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
 .wbs-prazo-atrasado { color: var(--danger); font-weight: 700; }
 .wbs-prazo-risco { color: var(--warning); font-weight: 700; }
 .wbs-row-atrasado { border-left: 3px solid var(--danger); }
@@ -494,7 +497,8 @@ input:focus, select:focus, textarea:focus {
 .wbs-col-status { }
 .wbs-col-criticidade { display: none; overflow: hidden; justify-content: center; }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-row {
-  grid-template-columns: 22px 44px minmax(160px, 1fr) 90px 100px 90px 130px 80px 70px 110px 56px 130px;
+  grid-template-columns: 22px 40px minmax(200px, 1fr) 90px 100px 90px 130px 60px 60px 110px 56px 150px;
+  min-width: 1236px;
 }
 #wbs-estrutura-panel.wbs-priorizacao-ativa .wbs-col-criticidade {
   display: flex; align-items: center; justify-content: center;
