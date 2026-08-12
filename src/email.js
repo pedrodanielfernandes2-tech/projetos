@@ -101,7 +101,12 @@ async function getAllProjectsFull() {
 async function sendDigestNow() {
   const { rows: configRows } = await pool.query('SELECT * FROM email_config WHERE id = 1');
   const config = configRows[0];
-  const allProjects = await getAllProjectsFull();
+  const allProjectsBruto = await getAllProjectsFull();
+  // Projetos ja concluidos nao precisam ser divulgados de novo nos resumos
+  const allProjects = allProjectsBruto.filter(p => {
+    const s = (p.status_prazo || '').toLowerCase();
+    return s !== 'concluído' && s !== 'concluido';
+  });
   const enviados = [];
   let emailErro = null;
 
@@ -161,6 +166,8 @@ async function sendDigestNow() {
     let enviadosTeams = 0;
     let falhasTeams = 0;
     for (const p of allProjects) {
+      const statusPrazoLower = (p.status_prazo || '').toLowerCase();
+      if (statusPrazoLower === 'concluído' || statusPrazoLower === 'concluido') continue; // ja concluido, nao precisa divulgar
       const emoji = emojiPorStatus[p.status_prazo] || '📋';
       const linhas = [];
       if (p.chamado) linhas.push(`**Chamado:** ${p.chamado}`);
