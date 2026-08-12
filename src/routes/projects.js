@@ -101,10 +101,12 @@ router.post('/', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const statusInicial = status_prazo || 'em dia';
+    const jaNasceConcluido = ['concluído', 'concluido'].includes(statusInicial.toLowerCase());
     const { rows } = await client.query(`
-      INSERT INTO projects (nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id
-    `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', status_prazo || 'em dia', resumo || '', data_inicio || null, data_fim || null, progresso || 0]);
+      INSERT INTO projects (nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso, concluido_em)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id
+    `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo || 'Melhoria', fase || 'Levantamento', statusInicial, resumo || '', data_inicio || null, data_fim || null, progresso || 0, jaNasceConcluido ? new Date() : null]);
     const projectId = rows[0].id;
 
     for (const t of tarefas) {
@@ -140,8 +142,17 @@ router.put('/:id', requireProjetoDoProprioGp(), requireAdminIfSetting('restringi
   const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
   const antigo = (await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id])).rows[0];
 
+  const statusNormalizado = (status_prazo || '').toLowerCase();
+  const eraConcluido = antigo && ['concluído', 'concluido'].includes((antigo.status_prazo || '').toLowerCase());
+  const ficaConcluido = ['concluído', 'concluido'].includes(statusNormalizado);
+  // So grava a data de conclusao na TRANSICAO pra concluido (nao sobrescreve se ja estava
+  // concluido e só editaram outra coisa); limpa se foi reaberto.
+  let concluidoEmClause = 'concluido_em';
+  if (ficaConcluido && !eraConcluido) concluidoEmClause = 'NOW()';
+  else if (!ficaConcluido && eraConcluido) concluidoEmClause = 'NULL';
+
   await pool.query(`
-    UPDATE projects SET nome=$1, chamado=$2, cliente_id=$3, gp_id=$4, tipo=$5, fase=$6, status_prazo=$7, resumo=$8, data_inicio=$9, data_fim=$10, progresso=$11
+    UPDATE projects SET nome=$1, chamado=$2, cliente_id=$3, gp_id=$4, tipo=$5, fase=$6, status_prazo=$7, resumo=$8, data_inicio=$9, data_fim=$10, progresso=$11, concluido_em=${concluidoEmClause}
     WHERE id=$12
   `, [nome, chamado || '', cliente_id || null, gp_id || null, tipo, fase, status_prazo, resumo, data_inicio || null, data_fim || null, progresso, req.params.id]);
 
