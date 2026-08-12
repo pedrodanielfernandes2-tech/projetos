@@ -482,6 +482,7 @@ function applyProjectFilters() {
   renderStats();
   renderDependencyAlerts();
   updateNavBadge();
+  atualizarBotaoMostrarConcluidos();
 }
 document.getElementById('search-projetos').addEventListener('input', (e) => {
   state.searchText = e.target.value.trim();
@@ -491,8 +492,23 @@ document.getElementById('sort-projetos').addEventListener('change', (e) => {
   state.sortBy = e.target.value;
   applyProjectFilters();
 });
-document.getElementById('chk-mostrar-concluidos').addEventListener('change', (e) => {
-  state.mostrarConcluidos = e.target.checked;
+function atualizarBotaoMostrarConcluidos() {
+  const btn = document.getElementById('chk-mostrar-concluidos');
+  btn.classList.toggle('selected', state.mostrarConcluidos);
+  btn.setAttribute('aria-pressed', String(state.mostrarConcluidos));
+  btn.textContent = state.mostrarConcluidos ? '☑ Mostrar concluídos' : '☐ Mostrar concluídos';
+
+  const ocultosCount = state.allProjects.filter(p => {
+    const s = (p.status_prazo || '').toLowerCase();
+    return s === 'concluído' || s === 'concluido';
+  }).length;
+  const msg = document.getElementById('msg-oculto-concluidos');
+  msg.textContent = (!state.mostrarConcluidos && ocultosCount > 0)
+    ? `${ocultosCount} projeto${ocultosCount > 1 ? 's' : ''} concluído${ocultosCount > 1 ? 's' : ''} oculto${ocultosCount > 1 ? 's' : ''}.`
+    : '';
+}
+document.getElementById('chk-mostrar-concluidos').addEventListener('click', () => {
+  state.mostrarConcluidos = !state.mostrarConcluidos;
   applyProjectFilters();
 });
 
