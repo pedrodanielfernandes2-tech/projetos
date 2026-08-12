@@ -22,6 +22,7 @@ const state = {
   settings: { restringir_exclusao: false, restringir_edicao_prazos: false },
   activeFilter: null,
   gpFilter: null,
+  mostrarConcluidos: false,
   searchText: '',
   sortBy: 'prazo',
   isAdmin: false,
@@ -460,6 +461,12 @@ function sortProjects(list, sortBy) {
 }
 function applyProjectFilters() {
   let list = state.allProjects;
+  if (!state.mostrarConcluidos) {
+    list = list.filter(p => {
+      const s = (p.status_prazo || '').toLowerCase();
+      return s !== 'concluído' && s !== 'concluido';
+    });
+  }
   if (state.activeFilter) list = list.filter(p => p.tarefas.some(t => t.area === state.activeFilter));
   if (state.gpFilter) list = list.filter(p => String(p.gp_id) === String(state.gpFilter));
   if (state.searchText) {
@@ -482,6 +489,10 @@ document.getElementById('search-projetos').addEventListener('input', (e) => {
 });
 document.getElementById('sort-projetos').addEventListener('change', (e) => {
   state.sortBy = e.target.value;
+  applyProjectFilters();
+});
+document.getElementById('chk-mostrar-concluidos').addEventListener('change', (e) => {
+  state.mostrarConcluidos = e.target.checked;
   applyProjectFilters();
 });
 
