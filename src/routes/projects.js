@@ -139,8 +139,17 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', requireProjetoDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
-  const { nome, chamado, cliente_id, gp_id, tipo, fase, status_prazo, resumo, data_inicio, data_fim, progresso } = req.body;
+  const { nome, chamado, cliente_id, gp_id, tipo, resumo, data_inicio, data_fim, progresso } = req.body;
+  let { fase, status_prazo } = req.body;
   const antigo = (await pool.query('SELECT * FROM projects WHERE id = $1', [req.params.id])).rows[0];
+
+  // "Fase" e "Status do prazo" sao dois campos diferentes que a pessoa pode confundir -
+  // se a fase for marcada como Concluído, o status do prazo acompanha automaticamente
+  // (a nao ser que ja tenha sido marcado manualmente como bloqueado).
+  const faseEhConcluido = (fase || '').toLowerCase() === 'concluído' || (fase || '').toLowerCase() === 'concluido';
+  if (faseEhConcluido && (status_prazo || '').toLowerCase() !== 'bloqueado') {
+    status_prazo = 'concluído';
+  }
 
   const statusNormalizado = (status_prazo || '').toLowerCase();
   const eraConcluido = antigo && ['concluído', 'concluido'].includes((antigo.status_prazo || '').toLowerCase());
