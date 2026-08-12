@@ -792,12 +792,22 @@ function renderProjectList() {
       : '';
     const elapsed = elapsedPercent(p.data_inicio, p.data_fim);
     let diasAtraso = null;
+    let diasAtrasoTexto = '';
     if (statusAtencao === 'atrasado' && p.data_fim) {
+      // ainda em andamento - conta "ao vivo" contra hoje
       const hoje = new Date();
       hoje.setHours(0, 0, 0, 0);
       const fim = new Date(p.data_fim + 'T00:00:00');
       const diff = Math.floor((hoje - fim) / (1000 * 60 * 60 * 24));
-      if (diff > 0) diasAtraso = diff;
+      if (diff > 0) { diasAtraso = diff; diasAtrasoTexto = `${diff} dia${diff > 1 ? 's' : ''} de atraso`; }
+    } else if ((statusAtencao === 'concluído' || statusAtencao === 'concluido') && p.data_fim && p.concluido_em) {
+      // ja concluido - "congela" usando a data em que foi marcado concluido, nao hoje,
+      // pra servir de registro historico de quanto atraso teve na entrega
+      const concluidoEm = new Date(p.concluido_em);
+      concluidoEm.setHours(0, 0, 0, 0);
+      const fim = new Date(p.data_fim + 'T00:00:00');
+      const diff = Math.floor((concluidoEm - fim) / (1000 * 60 * 60 * 24));
+      if (diff > 0) { diasAtraso = diff; diasAtrasoTexto = `Entregue com ${diff} dia${diff > 1 ? 's' : ''} de atraso`; }
     }
     const prazoGeralHtml = elapsed === null
       ? `<p class="card-sub" style="color:var(--pending);font-weight:600;">📌 Datas do projeto ainda não definidas</p>`
@@ -816,7 +826,7 @@ function renderProjectList() {
         </div>
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           <span class="badge ${statusClass(p.status_prazo)}">prazo: ${p.status_prazo}</span>
-          ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtraso} dia${diasAtraso > 1 ? 's' : ''} de atraso</span>` : ''}
+          ${diasAtraso ? `<span class="dias-atraso-tag">${diasAtrasoTexto}</span>` : ''}
           <button class="icon-btn" data-edit-project aria-label="Editar projeto">✎</button>
           <button class="icon-btn" data-delete-project aria-label="Excluir projeto">🗑</button>
           <button class="icon-btn" data-notify-teams aria-label="Notificar no Teams">📣</button>
