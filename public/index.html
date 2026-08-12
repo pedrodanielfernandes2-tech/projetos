@@ -510,32 +510,50 @@
       <h2>Novo projeto</h2>
       <form id="form-new-project">
         <div class="form-row">
-          <input type="text" id="np-nome" placeholder="Nome do projeto" required />
-          <input type="text" id="np-chamado" placeholder="Nº do chamado" />
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Nome do projeto
+            <input type="text" id="np-nome" placeholder="Nome do projeto" required />
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Nº do chamado
+            <input type="text" id="np-chamado" placeholder="Nº do chamado" />
+          </label>
         </div>
         <div class="form-row">
-          <select id="np-cliente"></select>
-          <select id="np-gp"></select>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Cliente
+            <select id="np-cliente"></select>
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Gerente de projeto (GP)
+            <select id="np-gp"></select>
+          </label>
         </div>
         <div class="form-row">
-          <select id="np-tipo">
-            <option>Projeto</option>
-            <option>Release</option>
-            <option>Melhoria</option>
-            <option>Implantação</option>
-            <option>Correção</option>
-          </select>
-          <select id="np-fase"></select>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Tipo
+            <select id="np-tipo">
+              <option>Projeto</option>
+              <option>Release</option>
+              <option>Melhoria</option>
+              <option>Implantação</option>
+              <option>Correção</option>
+            </select>
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Fase atual
+            <select id="np-fase"></select>
+          </label>
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
-          <input type="date" id="np-inicio" />
-          <input type="date" id="np-fim" />
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de início
+            <input type="date" id="np-inicio" />
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de entrega prevista
+            <input type="date" id="np-fim" />
+          </label>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
           <input type="checkbox" id="np-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
         </label>
-        <input type="text" id="np-resumo" placeholder="Resumo curto" class="full-width" />
+        <label style="font-size:12px;color:var(--text-muted);">Resumo curto (aparece no card do projeto)
+          <input type="text" id="np-resumo" placeholder="Resumo curto" class="full-width" />
+        </label>
         <p class="field-label">Áreas envolvidas — selecione e defina o prazo de cada uma (deixe em branco se ainda não tiver a data — a área fica marcada como pendente)</p>
         <div id="np-areas" class="chip-row"></div>
         <div id="np-area-dates" class="stack tight"></div>
@@ -553,40 +571,59 @@
       <form id="form-edit-project">
         <input type="hidden" id="edit-id" />
         <div class="form-row">
-          <input type="text" id="edit-nome" placeholder="Nome do projeto" required />
-          <input type="text" id="edit-chamado" placeholder="Nº do chamado" />
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Nome do projeto
+            <input type="text" id="edit-nome" placeholder="Nome do projeto" required />
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Nº do chamado
+            <input type="text" id="edit-chamado" placeholder="Nº do chamado" />
+          </label>
         </div>
         <div class="form-row">
-          <select id="edit-cliente"></select>
-          <select id="edit-gp"></select>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Cliente
+            <select id="edit-cliente"></select>
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Gerente de projeto (GP)
+            <select id="edit-gp"></select>
+          </label>
         </div>
         <div class="form-row">
-          <select id="edit-tipo">
-            <option>Projeto</option>
-            <option>Release</option>
-            <option>Melhoria</option>
-            <option>Implantação</option>
-            <option>Correção</option>
-          </select>
-          <select id="edit-fase"></select>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Tipo
+            <select id="edit-tipo">
+              <option>Projeto</option>
+              <option>Release</option>
+              <option>Melhoria</option>
+              <option>Implantação</option>
+              <option>Correção</option>
+            </select>
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Fase atual
+            <select id="edit-fase"></select>
+          </label>
         </div>
         <p class="field-label">Prazo geral do projeto</p>
         <div class="form-row">
-          <input type="date" id="edit-inicio" />
-          <input type="date" id="edit-fim" />
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de início
+            <input type="date" id="edit-inicio" />
+          </label>
+          <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de entrega prevista
+            <input type="date" id="edit-fim" />
+          </label>
         </div>
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-6px 0 12px;">
           <input type="checkbox" id="edit-sem-datas" style="width:auto;" /> Ainda não tenho as datas de início/fim (deixar pendente)
         </label>
+        <p class="field-label" style="margin-bottom:2px;">Situação do prazo</p>
         <div class="form-row">
           <select id="edit-status-prazo">
-            <option value="automatico">Status do prazo: automático (pelas datas)</option>
-            <option value="bloqueado">Marcar como: bloqueado</option>
-            <option value="concluído">Marcar como: concluído</option>
+            <option value="automatico">Automático (calculado pelas datas acima)</option>
+            <option value="bloqueado">Marcar manualmente como: bloqueado</option>
+            <option value="concluído">Marcar manualmente como: concluído</option>
           </select>
         </div>
         <p class="field-label" style="margin-top:-4px;">O progresso exibido é calculado automaticamente pelo tempo decorrido entre início e fim.</p>
-        <input type="text" id="edit-resumo" placeholder="Resumo curto" class="full-width" />
+        <label style="font-size:12px;color:var(--text-muted);">Resumo curto (aparece no card do projeto)
+          <input type="text" id="edit-resumo" placeholder="Resumo curto" class="full-width" />
+        </label>
         <div class="form-actions">
           <button type="button" id="btn-cancel-edit-project" class="btn">Cancelar</button>
           <button type="submit" class="btn btn-primary">Salvar alterações</button>
