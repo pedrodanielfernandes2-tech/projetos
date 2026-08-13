@@ -69,4 +69,16 @@ function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
   };
 }
 
-module.exports = { arredondarABNT, calcularChamado, calcularChamadoPorRecurso };
+// Modelo pra projetos com valor negociado fechado (ex: R$ 5.000,00), sem calculo nenhum
+// em cima - nem % Margem, nem % Desconto Negociado. O valor informado JA e o valor final.
+function calcularChamadoValorFixo({ valorFixo }) {
+  const valor = Number(valorFixo) || 0;
+  return {
+    valor_base: valor,
+    valor_projeto: valor,
+    desconto_negociado: 0,
+    valor_total_projeto: valor,
+  };
+}
+
+module.exports = { arredondarABNT, calcularChamado, calcularChamadoPorRecurso, calcularChamadoValorFixo };
