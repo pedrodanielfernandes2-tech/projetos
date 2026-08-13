@@ -229,7 +229,7 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, config }) {
   const cfg = config || CONFIG_PADRAO;
   const dev = Number(horasDev) || 0;
   const qa = arredondarABNT(dev * cfg.pctQA, 0);
-  const gerencial = arredondarABNT(dev * cfg.pctGerencial, 0);
+  const gerencial = arredondarABNT((dev + qa) * cfg.pctGerencial, 0);
   const totalHoras = arredondarABNT(dev + qa + gerencial, 0);
   const horasMargem = arredondarABNT(totalHoras * (Number(pctMargem) || 0), 0);
   const totalGeral = arredondarABNT(totalHoras + horasMargem, 0);
@@ -640,7 +640,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                   }
                   style={modoPrecificacao === "unico" ? { backgroundColor: BRAND_BLUE } : {}}
                 >
-                  Valor único de hora
+                  Valor hora
                 </button>
                 <button
                   type="button"
