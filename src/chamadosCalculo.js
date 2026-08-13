@@ -28,7 +28,7 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pct
   const valorHora = Number(valorHoraAplicado) || 0;
 
   const qa = arredondarABNT(dev * pctQA, 0);
-  const gerencial = arredondarABNT(dev * pctGerencial, 0);
+  const gerencial = arredondarABNT((dev + qa) * pctGerencial, 0);
   const totalHoras = arredondarABNT(dev + qa + gerencial, 0);
   const horasMargem = arredondarABNT(totalHoras * (Number(pctMargem) || 0), 0);
   const totalGeral = arredondarABNT(totalHoras + horasMargem, 0);
