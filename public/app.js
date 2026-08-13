@@ -200,6 +200,24 @@ function logout() {
 }
 document.getElementById('btn-logout').addEventListener('click', logout);
 
+// ---------- recolher/expandir o menu lateral (lembra a escolha entre sessoes) ----------
+(function () {
+  const sidebar = document.getElementById('app-sidebar');
+  const btn = document.getElementById('btn-sidebar-collapse');
+  const salvo = localStorage.getItem('sidebarColapsado') === 'true';
+  if (salvo) {
+    sidebar.classList.add('collapsed');
+    btn.setAttribute('title', 'Expandir menu');
+    btn.setAttribute('aria-label', 'Expandir menu');
+  }
+  btn.addEventListener('click', () => {
+    const colapsado = sidebar.classList.toggle('collapsed');
+    localStorage.setItem('sidebarColapsado', String(colapsado));
+    btn.setAttribute('title', colapsado ? 'Expandir menu' : 'Recolher menu');
+    btn.setAttribute('aria-label', colapsado ? 'Expandir menu' : 'Recolher menu');
+  });
+})();
+
 async function aposLogin() {
   resetarTodasAsViews();
   esconderPortaoLogin();
