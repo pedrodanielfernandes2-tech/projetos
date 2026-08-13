@@ -133,18 +133,19 @@ async function api(path, opts = {}) {
 
 // ---------- login de usuario ----------
 function loadUsuarioSession() {
-  const token = localStorage.getItem('usuarioToken');
-  const infoRaw = localStorage.getItem('usuarioInfo');
-  if (token && infoRaw) {
-    try {
+  try {
+    const token = localStorage.getItem('usuarioToken');
+    const infoRaw = localStorage.getItem('usuarioInfo');
+    if (token && infoRaw) {
       state.usuarioToken = token;
       state.usuario = JSON.parse(infoRaw);
       return true;
-    } catch (e) {
-      return false;
     }
+    return false;
+  } catch (e) {
+    // localStorage bloqueado (modo privado, politica corporativa, etc.) - segue sem sessao salva
+    return false;
   }
-  return false;
 }
 
 function aplicarPermissoesMenu() {
@@ -244,6 +245,32 @@ document.getElementById('link-esqueci-senha').addEventListener('click', () => {
   document.getElementById('login-form-wrap').classList.add('hidden');
   document.getElementById('esqueci-form-wrap').classList.remove('hidden');
 });
+
+// ---------- recolher/expandir o menu lateral (lembra a escolha entre sessoes) ----------
+// Colocado DEPOIS do login estar conectado de proposito, e protegido com try/catch: se
+// algo aqui falhar (localStorage bloqueado, elemento faltando por um deploy incompleto,
+// etc.) isso nunca pode travar o app.js antes do login funcionar.
+try {
+  const sidebar = document.getElementById('app-sidebar');
+  const btn = document.getElementById('btn-sidebar-collapse');
+  if (sidebar && btn) {
+    let salvo = false;
+    try { salvo = localStorage.getItem('sidebarColapsado') === 'true'; } catch (e) { /* localStorage indisponivel - segue sem lembrar a escolha */ }
+    if (salvo) {
+      sidebar.classList.add('collapsed');
+      btn.setAttribute('title', 'Expandir menu');
+      btn.setAttribute('aria-label', 'Expandir menu');
+    }
+    btn.addEventListener('click', () => {
+      const colapsado = sidebar.classList.toggle('collapsed');
+      try { localStorage.setItem('sidebarColapsado', String(colapsado)); } catch (e) { /* localStorage indisponivel - so nao lembra da proxima vez */ }
+      btn.setAttribute('title', colapsado ? 'Expandir menu' : 'Recolher menu');
+      btn.setAttribute('aria-label', colapsado ? 'Expandir menu' : 'Recolher menu');
+    });
+  }
+} catch (e) {
+  console.error('[sidebar-colapsar] falha ao iniciar (nao critico):', e.message);
+}
 document.getElementById('link-voltar-login').addEventListener('click', () => {
   document.getElementById('esqueci-form-wrap').classList.add('hidden');
   document.getElementById('login-form-wrap').classList.remove('hidden');
