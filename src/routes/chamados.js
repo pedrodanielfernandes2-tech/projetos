@@ -1,12 +1,13 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
-const { calcularChamado, calcularChamadoPorRecurso } = require('../chamadosCalculo');
+const { calcularChamado, calcularChamadoPorRecurso, calcularChamadoValorFixo } = require('../chamadosCalculo');
 const router = express.Router();
 
 // Calcula o valor financeiro de um chamado de acordo com o modo escolhido - 'unico'
-// (um valor de hora so, com QA/Gerencial em %) ou 'por_recurso' (cada papel com seu
-// proprio valor de hora, informado diretamente, sem % automatico).
+// (um valor de hora so, com QA/Gerencial em %), 'por_recurso' (cada papel com seu
+// proprio valor de hora, sem % automatico) ou 'valor_fixo' (valor negociado fechado,
+// sem calculo nenhum em cima).
 function calcularPorModo(dados) {
   if (dados.modo_precificacao === 'por_recurso') {
     return calcularChamadoPorRecurso({
@@ -14,6 +15,9 @@ function calcularPorModo(dados) {
       pctMargem: dados.pct_margem,
       pctNegociado: dados.pct_negociado,
     });
+  }
+  if (dados.modo_precificacao === 'valor_fixo') {
+    return calcularChamadoValorFixo({ valorFixo: dados.valor_fixo });
   }
   return calcularChamado({
     horasDev: dados.horas_dev,
@@ -95,9 +99,9 @@ router.post('/', requireChamadosAuth, async (req, res) => {
         (numero, cliente_id, analista_id, descricao, status, data_abertura, grupo_trabalho, complexidade, proposta_status,
          data_envio_proposta, data_aprovacao, horas_dev, pct_margem, pct_negociado, qtd_parcelas, modelo_parcelamento_id,
          pct_qa_aplicado, pct_gerencial_aplicado, valor_hora_aplicado,
-         modo_precificacao, tabela_recurso_id, recursos_horas,
+         modo_precificacao, tabela_recurso_id, recursos_horas, valor_fixo,
          valor_projeto_real, desconto_negociado_real, valor_total_projeto_real)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24,$25)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24,$25,$26)
        RETURNING *`,
       [
         b.numero, b.cliente_id || null, b.analista_id || null, b.descricao || '', b.status || '',
@@ -105,7 +109,7 @@ router.post('/', requireChamadosAuth, async (req, res) => {
         b.data_envio_proposta || null, b.data_aprovacao || null,
         b.horas_dev || 0, b.pct_margem || 0, b.pct_negociado || 0, b.qtd_parcelas || 1, b.modelo_parcelamento_id || null,
         b.pct_qa_aplicado || 0, b.pct_gerencial_aplicado || 0, b.valor_hora_aplicado || 0,
-        b.modo_precificacao || 'unico', b.tabela_recurso_id || null, JSON.stringify(b.recursos_horas || null),
+        b.modo_precificacao || 'unico', b.tabela_recurso_id || null, JSON.stringify(b.recursos_horas || null), b.valor_fixo || 0,
         calc.valor_projeto, calc.desconto_negociado, calc.valor_total_projeto,
       ]
     );
@@ -124,7 +128,7 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
     'numero', 'descricao', 'status', 'analista_id', 'grupo_trabalho', 'complexidade', 'proposta_status',
     'data_envio_proposta', 'data_aprovacao', 'horas_dev', 'pct_margem', 'pct_negociado', 'qtd_parcelas', 'modelo_parcelamento_id',
     'pct_qa_aplicado', 'pct_gerencial_aplicado', 'valor_hora_aplicado', 'cliente_id', 'data_abertura',
-    'modo_precificacao', 'tabela_recurso_id', 'recursos_horas',
+    'modo_precificacao', 'tabela_recurso_id', 'recursos_horas', 'valor_fixo',
   ];
   // mescla o que ja existia com o que veio no corpo, pra recalcular o valor financeiro com os dados completos
   const mesclado = { ...antigo };
