@@ -2544,7 +2544,7 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
                 <th className="px-4 py-3 font-medium">Abertura</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Proposta</th>
-                <th className="px-4 py-3 font-medium text-right">Total Horas</th>
+                <th className="px-4 py-3 font-medium text-right">Total Geral</th>
               </tr>
             </thead>
             <tbody>
@@ -2569,7 +2569,7 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
                   </td>
                   <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.proposta_status || "—"}</td>
                   <td className="px-4 py-2.5 text-right tabular-nums text-slate-600 whitespace-nowrap">
-                    {Number(c.total_horas || 0).toLocaleString("pt-BR")}h
+                    {Number(c.total_geral || 0).toLocaleString("pt-BR")}h
                   </td>
                 </tr>
               ))}
