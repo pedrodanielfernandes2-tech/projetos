@@ -41,18 +41,21 @@
   </div>
 
   <div class="app-shell hidden" id="app-shell">
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar">
+      <button class="sidebar-collapse-btn" id="btn-sidebar-collapse" aria-label="Recolher menu" title="Recolher menu">
+        <span class="sidebar-collapse-icon">&#8249;</span>
+      </button>
       <div class="sidebar-brand-wrap">
         <img src="assets/logo-white.png" alt="Visual Mix" class="sidebar-logo" />
         <p class="sidebar-subtitle">Painel de Projetos</p>
       </div>
       <nav class="sidebar-nav">
-        <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9638;</span>Projetos<span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
-        <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos"><span class="sidebar-nav-icon">&#9711;</span>Dashboard</button>
-        <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao"><span class="sidebar-nav-icon">&#128295;</span>Implantação</button>
-        <button class="sidebar-nav-btn" data-tab="chamados" data-requer="pode_chamados"><span class="sidebar-nav-icon">&#128179;</span>Chamados</button>
-        <button class="sidebar-nav-btn" data-tab="admin" data-requer="pode_admin"><span class="sidebar-nav-icon">&#9881;</span>Admin</button>
-        <button class="sidebar-nav-btn sidebar-nav-btn-sair" id="btn-logout"><span class="sidebar-nav-icon">&#128682;</span>Sair</button>
+        <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos" data-tooltip="Projetos"><span class="sidebar-nav-icon">&#9638;</span><span class="sidebar-nav-label">Projetos</span><span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
+        <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos" data-tooltip="Dashboard"><span class="sidebar-nav-icon">&#9711;</span><span class="sidebar-nav-label">Dashboard</span></button>
+        <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao" data-tooltip="Implantação"><span class="sidebar-nav-icon">&#128295;</span><span class="sidebar-nav-label">Implantação</span></button>
+        <button class="sidebar-nav-btn" data-tab="chamados" data-requer="pode_chamados" data-tooltip="Chamados"><span class="sidebar-nav-icon">&#128179;</span><span class="sidebar-nav-label">Chamados</span></button>
+        <button class="sidebar-nav-btn" data-tab="admin" data-requer="pode_admin" data-tooltip="Admin"><span class="sidebar-nav-icon">&#9881;</span><span class="sidebar-nav-label">Admin</span></button>
+        <button class="sidebar-nav-btn sidebar-nav-btn-sair" id="btn-logout" data-tooltip="Sair"><span class="sidebar-nav-icon">&#128682;</span><span class="sidebar-nav-label">Sair</span></button>
       </nav>
       <div class="sidebar-footer-wrap">
         <p class="sidebar-usuario-linha"><span id="sidebar-usuario-nome"></span></p>
