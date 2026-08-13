@@ -247,6 +247,11 @@ function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
   return { valorBase, valorProjeto, descontoNegociado, valorTotalProjeto };
 }
 
+function calcularChamadoValorFixo({ valorFixo }) {
+  const valor = Number(valorFixo) || 0;
+  return { valorBase: valor, valorProjeto: valor, descontoNegociado: 0, valorTotalProjeto: valor };
+}
+
 function navSecoes(totalChamados, totalBacklog) {
   return [
     { titulo: "GERAL", itens: [{ id: "visao-geral", label: "Visão Geral", icon: LayoutGrid }] },
@@ -353,6 +358,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const [modoPrecificacao, setModoPrecificacao] = useState("unico");
   const [tabelaRecursoId, setTabelaRecursoId] = useState("");
   const [horasPorPapel, setHorasPorPapel] = useState({}); // { "Nome do Papel": "10" }
+  const [valorFixo, setValorFixo] = useState("");
   const [projetoFechado, setProjetoFechado] = useState(false);
   const [usarReguaVigente, setUsarReguaVigente] = useState(false);
 
@@ -382,6 +388,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       } else {
         setHorasPorPapel({});
       }
+      setValorFixo(chamadoExistente.valor_fixo ? String(chamadoExistente.valor_fixo) : "");
       setProjetoFechado(
         Number(chamadoExistente.pct_qa_aplicado || 0) === 0 && Number(chamadoExistente.pct_gerencial_aplicado || 0) === 0
       );
@@ -404,6 +411,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setModoPrecificacao("unico");
       setTabelaRecursoId("");
       setHorasPorPapel({});
+      setValorFixo("");
       setProjetoFechado(false);
       setUsarReguaVigente(false);
     }
@@ -440,7 +448,8 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
     pctMargem: Number(pctMargem) / 100,
     pctNegociado: Number(pctNegociado) / 100,
   });
-  const calcFinal = modoPrecificacao === "por_recurso" ? calcPorRecurso : calc;
+  const calcValorFixo = calcularChamadoValorFixo({ valorFixo });
+  const calcFinal = modoPrecificacao === "por_recurso" ? calcPorRecurso : modoPrecificacao === "valor_fixo" ? calcValorFixo : calc;
 
   const fmt = (v) => v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   const fmtMoeda = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -449,7 +458,11 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
     cliente.trim() &&
     numero &&
     Number(numero) > 0 &&
-    (modoPrecificacao === "por_recurso" ? recursosHorasArray.some((r) => r.horas > 0) : Number(horasDev) >= 0);
+    (modoPrecificacao === "por_recurso"
+      ? recursosHorasArray.some((r) => r.horas > 0)
+      : modoPrecificacao === "valor_fixo"
+      ? Number(valorFixo) > 0
+      : Number(horasDev) >= 0);
 
   function handleSalvar() {
     onSalvar({
@@ -474,6 +487,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       modoPrecificacao,
       tabelaRecursoId: modoPrecificacao === "por_recurso" ? (tabelaRecursoId || null) : null,
       recursosHoras: modoPrecificacao === "por_recurso" ? recursosHorasArray.filter((r) => r.horas > 0) : null,
+      valorFixo: modoPrecificacao === "valor_fixo" ? Number(valorFixo) : 0,
     });
   }
 
@@ -639,6 +653,17 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                 >
                   Por recurso (papel)
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setModoPrecificacao("valor_fixo")}
+                  className={
+                    "flex-1 text-xs font-medium px-3 py-2 rounded-md border " +
+                    (modoPrecificacao === "valor_fixo" ? "text-white border-transparent" : "text-slate-600 border-slate-200 bg-white")
+                  }
+                  style={modoPrecificacao === "valor_fixo" ? { backgroundColor: BRAND_BLUE } : {}}
+                >
+                  Valor fixo
+                </button>
               </div>
             </div>
 
@@ -672,7 +697,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                     )}%) são calculados automaticamente.`}
               </p>
             </div>
-            ) : (
+            ) : modoPrecificacao === "por_recurso" ? (
             <div className="pt-2 border-t border-slate-100">
               <label className="text-xs font-medium text-slate-500 block mb-1">Tabela de recursos</label>
               <select
@@ -708,9 +733,27 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                 <p className="text-xs text-slate-400">Escolha uma tabela de recursos pra informar as horas de cada papel.</p>
               )}
             </div>
+            ) : (
+            <div className="pt-2 border-t border-slate-100">
+              <label className="text-xs font-medium text-slate-500 block mb-1">Valor Fixo do Projeto (R$)</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={valorFixo}
+                onChange={(e) => setValorFixo(e.target.value)}
+                placeholder="Ex: 5000"
+                className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Esse é o valor final do projeto, sem nenhum cálculo por cima — % Margem e % Negociado não se aplicam nesse modo.
+              </p>
+            </div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
+              {modoPrecificacao !== "valor_fixo" && (
+              <>
               <div>
                 <label className="text-xs font-medium text-slate-500 block mb-1">% Margem</label>
                 <input
@@ -732,6 +775,8 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                   className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm outline-none focus:border-[#3B82D6]"
                 />
               </div>
+              </>
+              )}
               <div>
                 <label className="text-xs font-medium text-slate-500 block mb-1">Modelo de parcelamento</label>
                 <select
@@ -765,22 +810,26 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                 <LinhaCalculada label="Total Geral (h)" value={`${fmt(calc.totalGeral)}h`} />
                 <div className="h-px bg-slate-200 my-2" />
               </>
-            ) : (
+            ) : modoPrecificacao === "por_recurso" ? (
               <>
                 <LinhaCalculada label="Valor Base (soma por papel)" value={fmtMoeda(calcFinal.valorBase)} />
                 <div className="h-px bg-slate-200 my-2" />
               </>
+            ) : null}
+            {modoPrecificacao !== "valor_fixo" && (
+              <>
+                <LinhaCalculada label="Valor do Projeto" value={fmtMoeda(calcFinal.valorProjeto)} />
+                <LinhaCalculada label="Desconto Negociado" value={`- ${fmtMoeda(calcFinal.descontoNegociado)}`} />
+                <div className="h-px bg-slate-200 my-2" />
+              </>
             )}
-            <LinhaCalculada label="Valor do Projeto" value={fmtMoeda(calcFinal.valorProjeto)} />
-            <LinhaCalculada label="Desconto Negociado" value={`- ${fmtMoeda(calcFinal.descontoNegociado)}`} />
-            <div className="h-px bg-slate-200 my-2" />
             <LinhaCalculada label="Valor Total do Projeto" value={fmtMoeda(calcFinal.valorTotalProjeto)} destaque />
             <div className="text-[10px] text-slate-400 mt-3">
               {modoPrecificacao === "unico"
                 ? `${editando ? (usarReguaVigente ? "Usando o valor de hora vigente" : "Régua aplicada neste chamado") : "Parâmetros vigentes"}: QA ${Math.round(cfgCalculo.pctQA * 100)}% · Gerencial ${Math.round(cfgCalculo.pctGerencial * 100)}% · R$ ${cfgCalculo.valorHora.toFixed(2).replace(".", ",")}/h`
-                : tabelaRecursoSelecionada
-                ? `Tabela: ${tabelaRecursoSelecionada.nome}`
-                : "Escolha uma tabela de recursos"}
+                : modoPrecificacao === "por_recurso"
+                ? (tabelaRecursoSelecionada ? `Tabela: ${tabelaRecursoSelecionada.nome}` : "Escolha uma tabela de recursos")
+                : "Valor fixo, sem cálculo adicional"}
             </div>
             {editando && modoPrecificacao === "unico" && !usarReguaVigente && (
               <button
@@ -2694,6 +2743,7 @@ function ChamadosDashboard() {
         modo_precificacao: registro.modoPrecificacao || "unico",
         tabela_recurso_id: registro.tabelaRecursoId || null,
         recursos_horas: registro.recursosHoras || null,
+        valor_fixo: registro.valorFixo || 0,
       };
 
       if (editando) {
