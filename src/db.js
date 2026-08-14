@@ -62,6 +62,32 @@ async function init() {
       concluido_em TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS implantadores (
+      id SERIAL PRIMARY KEY,
+      nome TEXT NOT NULL,
+      ativo BOOLEAN DEFAULT TRUE,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
+    -- Demandas avulsas: trabalho de um implantador que pode ou nao estar ligado a um
+    -- projeto formal. tipo='demanda' e trabalho de verdade; tipo='ausencia' e
+    -- ferias/atestado/folga - ocupa a agenda (100%) mas nao conta como trabalho.
+    CREATE TABLE IF NOT EXISTS demandas_avulsas (
+      id SERIAL PRIMARY KEY,
+      implantador_id INTEGER NOT NULL REFERENCES implantadores(id) ON DELETE CASCADE,
+      titulo TEXT NOT NULL,
+      cliente_nome TEXT DEFAULT '',
+      chamado_numero TEXT DEFAULT '',
+      data_inicio DATE NOT NULL,
+      data_fim DATE,
+      horas_esforco NUMERIC DEFAULT 0,
+      pct_dedicacao NUMERIC DEFAULT 100,
+      status TEXT DEFAULT 'Pendente',
+      tipo TEXT DEFAULT 'demanda',
+      project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+      criado_em TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS area_tasks (
       id SERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
