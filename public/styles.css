@@ -723,3 +723,24 @@ input:focus, select:focus, textarea:focus {
 @media (max-width: 900px) {
   .calendar-presentation-secoes { grid-template-columns: 1fr; }
 }
+
+/* ---------- Visao da Equipe (Gantt de implantadores) ---------- */
+.equipe-gantt-cell-header {
+  font-size: 12px; color: var(--text-muted); font-weight: 600; padding: 8px 6px;
+  border-bottom: 1px solid var(--border); text-align: center;
+}
+.equipe-gantt-row { border-bottom: 1px solid var(--border); }
+.equipe-gantt-row:last-child { border-bottom: none; }
+.equipe-gantt-nome {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 10px 10px 10px 6px; font-size: 13px; font-weight: 600;
+}
+.equipe-gantt-track { min-height: 46px; }
+.equipe-gantt-dia { border-left: 1px solid var(--border); }
+.equipe-gantt-livre { position: absolute; left: 8px; top: 15px; font-size: 12px; color: var(--text-muted); }
+.equipe-gantt-barra {
+  position: absolute; top: 6px; height: 34px; border-radius: 6px; color: #fff;
+  font-size: 11px; font-weight: 600; display: flex; align-items: center; padding: 0 8px;
+  overflow: hidden; white-space: nowrap; cursor: pointer;
+}
+.active-tipo { background: var(--accent); color: #fff; border-color: var(--accent); }

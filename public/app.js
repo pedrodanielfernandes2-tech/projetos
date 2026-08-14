@@ -406,10 +406,16 @@ function activateTab(btn) {
   if (btn.dataset.tab === 'dashboard') renderDashboard();
   if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
   if (btn.dataset.tab === 'implantacao') refreshImplantacao();
+  if (btn.dataset.tab === 'equipe') refreshEquipe();
+  document.getElementById('view-equipe').classList.toggle('hidden', btn.dataset.tab !== 'equipe');
 }
 document.querySelectorAll('.sidebar-nav-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.tab === 'admin' && !state.isAdmin) {
+      requestAdminLogin(() => activateTab(btn));
+      return;
+    }
+    if (btn.dataset.tab === 'equipe' && !state.isAdmin) {
       requestAdminLogin(() => activateTab(btn));
       return;
     }
@@ -3389,6 +3395,311 @@ document.getElementById('form-wbs-item').addEventListener('submit', async (e) =>
     }
     document.getElementById('modal-wbs-item').classList.add('hidden');
     await loadWbsData();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ---------- Visão da Equipe ----------
+function segundaFeiraDe(data) {
+  const d = new Date(data);
+  const diaSemana = d.getDay(); // 0=domingo
+  const diff = diaSemana === 0 ? -6 : 1 - diaSemana;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function diasDoPeriodo(inicio, fim) {
+  const dias = [];
+  const cursor = new Date(inicio);
+  while (cursor <= fim) { dias.push(new Date(cursor)); cursor.setDate(cursor.getDate() + 1); }
+  return dias;
+}
+const DOWS_CURTOS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+async function refreshEquipe() {
+  if (!state.equipeInicio) {
+    state.equipeInicio = segundaFeiraDe(new Date());
+    state.equipeFim = new Date(state.equipeInicio);
+    state.equipeFim.setDate(state.equipeFim.getDate() + 6);
+  }
+  try {
+    const [projetos] = await Promise.all([api('/projects')]);
+    state.equipeProjetosCache = projetos;
+    await loadEquipeData();
+  } catch (err) {
+    document.getElementById('equipe-gantt').innerHTML = `<p class="muted">Falha ao carregar: ${err.message}</p>`;
+  }
+}
+
+async function loadEquipeData() {
+  const inicio = isoDate(state.equipeInicio);
+  const fim = isoDate(state.equipeFim);
+  const data = await api(`/visao-equipe?inicio=${inicio}&fim=${fim}`);
+  state.equipeData = data;
+  renderEquipePeriodoLabel();
+  renderEquipeKpis(data);
+  renderEquipeGantt(data);
+}
+
+function renderEquipePeriodoLabel() {
+  const fmt = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  document.getElementById('equipe-periodo-label').textContent = `${fmt(state.equipeInicio)} — ${fmt(state.equipeFim)}`;
+}
+
+function tarefasNoDia(tarefas, diaIso) {
+  return tarefas.filter((t) => {
+    const ini = t.data_inicio;
+    const fimT = t.data_fim || t.data_inicio;
+    return ini <= diaIso && fimT >= diaIso;
+  });
+}
+
+function renderEquipeKpis(data) {
+  const hojeIso = isoDate(new Date());
+  const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim).map(isoDate);
+
+  let livresHoje = 0;
+  let sobrecarregados = 0;
+  let semPrevisao = 0;
+
+  data.implantadores.forEach((imp) => {
+    const doDiaHoje = tarefasNoDia(imp.tarefas, hojeIso);
+    const cargaHoje = doDiaHoje.reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0);
+    if (cargaHoje === 0) livresHoje++;
+
+    let teveSobrecarga = false;
+    dias.forEach((diaIso) => {
+      const carga = tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0);
+      if (carga > 100) teveSobrecarga = true;
+    });
+    if (teveSobrecarga) sobrecarregados++;
+
+    imp.tarefas.forEach((t) => { if (!t.data_fim) semPrevisao++; });
+  });
+
+  document.getElementById('equipe-kpis').innerHTML = `
+    <div class="stat-card"><p class="stat-label">Livres hoje</p><p class="stat-value">${livresHoje}</p></div>
+    <div class="stat-card"><p class="stat-label">Sobrecarregados na semana</p><p class="stat-value" style="color:var(--danger);">${sobrecarregados}</p></div>
+    <div class="stat-card"><p class="stat-label">Tarefas sem previsão de fim</p><p class="stat-value" style="color:var(--warning);">${semPrevisao}</p></div>
+  `;
+}
+
+function renderEquipeGantt(data) {
+  const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim);
+  const diasIso = dias.map(isoDate);
+  const buscaTexto = (state.equipeBusca || '').trim().toLowerCase();
+
+  const implantadoresFiltrados = data.implantadores.filter((imp) => {
+    if (!buscaTexto) return true;
+    if (imp.nome.toLowerCase().includes(buscaTexto)) return true;
+    return imp.tarefas.some((t) => (t.cliente_nome || '').toLowerCase().includes(buscaTexto));
+  });
+
+  const host = document.getElementById('equipe-gantt');
+  let html = `<div class="equipe-gantt-header" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
+    <div class="equipe-gantt-cell-header"></div>
+    ${dias.map((d) => `<div class="equipe-gantt-cell-header">${DOWS_CURTOS[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}</div>`).join('')}
+  </div>`;
+
+  if (implantadoresFiltrados.length === 0) {
+    html += '<p class="muted" style="padding:16px;">Nenhum implantador encontrado.</p>';
+  }
+
+  implantadoresFiltrados.forEach((imp) => {
+    const cargaPorDia = diasIso.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
+
+    html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
+      <div class="equipe-gantt-nome">
+        <span>${imp.nome}</span>
+        <button type="button" class="icon-btn" data-add-demanda="${imp.id}" data-nome="${imp.nome}" title="Adicionar demanda">+</button>
+      </div>
+      <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr);">
+        ${dias.map(() => '<div class="equipe-gantt-dia"></div>').join('')}
+        ${imp.tarefas.length === 0 ? '<span class="equipe-gantt-livre">Livre no período</span>' : ''}
+        ${imp.tarefas.map((t) => {
+          const iniClip = t.data_inicio < diasIso[0] ? diasIso[0] : t.data_inicio;
+          const fimT = t.data_fim || t.data_inicio;
+          const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
+          const idxIni = diasIso.indexOf(iniClip);
+          const idxFim = diasIso.indexOf(fimClip);
+          if (idxIni === -1 || idxFim === -1) return '';
+          const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
+          const cor = sobrecarregado ? 'var(--danger)' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
+          const semPrevisaoTag = !t.data_fim ? ' (sem previsão)' : '';
+          const clicavel = t.tipo === 'wbs' ? '' : `data-editar-demanda="${t.id}"`;
+          return `<div class="equipe-gantt-barra" style="left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  });
+
+  host.innerHTML = html;
+
+  host.querySelectorAll('[data-add-demanda]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirModalDemanda(btn.dataset.addDemanda, btn.dataset.nome, null));
+  });
+  host.querySelectorAll('[data-editar-demanda]').forEach((barra) => {
+    barra.addEventListener('click', () => {
+      const id = Number(barra.dataset.editarDemanda);
+      let alvo = null, nomeImp = '';
+      data.implantadores.forEach((imp) => {
+        const achado = imp.tarefas.find((t) => t.id === id && t.tipo !== 'wbs');
+        if (achado) { alvo = achado; nomeImp = imp.nome; }
+      });
+      if (alvo) abrirModalDemanda(alvo.implantador_id || data.implantadores.find(i => i.tarefas.includes(alvo)).id, nomeImp, alvo);
+    });
+  });
+}
+
+document.getElementById('equipe-semana-anterior').addEventListener('click', () => {
+  state.equipeInicio.setDate(state.equipeInicio.getDate() - 7);
+  state.equipeFim.setDate(state.equipeFim.getDate() - 7);
+  loadEquipeData();
+});
+document.getElementById('equipe-proxima-semana').addEventListener('click', () => {
+  state.equipeInicio.setDate(state.equipeInicio.getDate() + 7);
+  state.equipeFim.setDate(state.equipeFim.getDate() + 7);
+  loadEquipeData();
+});
+document.getElementById('equipe-hoje').addEventListener('click', () => {
+  state.equipeInicio = segundaFeiraDe(new Date());
+  state.equipeFim = new Date(state.equipeInicio);
+  state.equipeFim.setDate(state.equipeFim.getDate() + 6);
+  loadEquipeData();
+});
+document.getElementById('equipe-busca').addEventListener('input', (e) => {
+  state.equipeBusca = e.target.value;
+  if (state.equipeData) renderEquipeGantt(state.equipeData);
+});
+
+// ---------- modal de demanda avulsa ----------
+function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
+  document.getElementById('demanda-avulsa-titulo').textContent = demandaExistente ? 'Editar demanda' : 'Nova demanda';
+  document.getElementById('demanda-implantador-id').value = implantadorId;
+  document.getElementById('demanda-implantador-nome').textContent = `Implantador: ${implantadorNome}`;
+  document.getElementById('demanda-id').value = demandaExistente ? demandaExistente.id : '';
+  document.getElementById('demanda-titulo').value = demandaExistente ? demandaExistente.titulo : '';
+  document.getElementById('demanda-cliente').value = demandaExistente ? demandaExistente.cliente_nome || '' : '';
+  document.getElementById('demanda-chamado').value = demandaExistente ? demandaExistente.chamado_numero || '' : '';
+  document.getElementById('demanda-inicio').value = demandaExistente ? demandaExistente.data_inicio : isoDate(new Date());
+  document.getElementById('demanda-fim').value = demandaExistente ? (demandaExistente.data_fim || '') : '';
+  document.getElementById('demanda-horas').value = demandaExistente ? demandaExistente.horas_esforco || '' : '';
+  document.getElementById('demanda-pct').value = demandaExistente ? demandaExistente.pct_dedicacao : 100;
+  document.getElementById('btn-excluir-demanda').classList.toggle('hidden', !demandaExistente);
+
+  const selectProjeto = document.getElementById('demanda-projeto');
+  selectProjeto.innerHTML = '<option value="">Nenhum</option>' + (state.equipeProjetosCache || []).map((p) => `<option value="${p.id}">${p.nome}${p.chamado ? ' · ' + p.chamado : ''}</option>`).join('');
+  selectProjeto.value = demandaExistente && demandaExistente.projeto_id ? demandaExistente.projeto_id : '';
+
+  const tipoAtual = demandaExistente ? demandaExistente.tipo : 'demanda';
+  document.getElementById('demanda-tipo-demanda').classList.toggle('active-tipo', tipoAtual === 'demanda');
+  document.getElementById('demanda-tipo-ausencia').classList.toggle('active-tipo', tipoAtual === 'ausencia');
+  document.getElementById('form-demanda-avulsa').dataset.tipo = tipoAtual;
+
+  document.getElementById('modal-demanda-avulsa').classList.remove('hidden');
+}
+document.getElementById('demanda-tipo-demanda').addEventListener('click', () => {
+  document.getElementById('form-demanda-avulsa').dataset.tipo = 'demanda';
+  document.getElementById('demanda-tipo-demanda').classList.add('active-tipo');
+  document.getElementById('demanda-tipo-ausencia').classList.remove('active-tipo');
+});
+document.getElementById('demanda-tipo-ausencia').addEventListener('click', () => {
+  document.getElementById('form-demanda-avulsa').dataset.tipo = 'ausencia';
+  document.getElementById('demanda-tipo-ausencia').classList.add('active-tipo');
+  document.getElementById('demanda-tipo-demanda').classList.remove('active-tipo');
+});
+document.getElementById('btn-cancel-demanda-avulsa').addEventListener('click', () => {
+  document.getElementById('modal-demanda-avulsa').classList.add('hidden');
+});
+document.getElementById('form-demanda-avulsa').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('demanda-id').value;
+  const payload = {
+    implantador_id: Number(document.getElementById('demanda-implantador-id').value),
+    titulo: document.getElementById('demanda-titulo').value.trim(),
+    cliente_nome: document.getElementById('demanda-cliente').value.trim(),
+    chamado_numero: document.getElementById('demanda-chamado').value.trim(),
+    data_inicio: document.getElementById('demanda-inicio').value,
+    data_fim: document.getElementById('demanda-fim').value || null,
+    horas_esforco: Number(document.getElementById('demanda-horas').value) || 0,
+    pct_dedicacao: Number(document.getElementById('demanda-pct').value),
+    tipo: document.getElementById('form-demanda-avulsa').dataset.tipo || 'demanda',
+    project_id: document.getElementById('demanda-projeto').value || null,
+    status: 'Pendente',
+  };
+  try {
+    if (id) {
+      await api(`/demandas-avulsas/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+    } else {
+      await api('/demandas-avulsas', { method: 'POST', body: JSON.stringify(payload) });
+    }
+    document.getElementById('modal-demanda-avulsa').classList.add('hidden');
+    await loadEquipeData();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+document.getElementById('btn-excluir-demanda').addEventListener('click', async () => {
+  const id = document.getElementById('demanda-id').value;
+  if (!id) return;
+  if (!confirm('Excluir essa demanda?')) return;
+  try {
+    await api(`/demandas-avulsas/${id}`, { method: 'DELETE' });
+    document.getElementById('modal-demanda-avulsa').classList.add('hidden');
+    await loadEquipeData();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+// ---------- modal de gerenciar implantadores ----------
+async function abrirModalImplantadores() {
+  document.getElementById('modal-implantadores').classList.remove('hidden');
+  await renderListaImplantadores();
+}
+async function renderListaImplantadores() {
+  const implantadores = await api('/implantadores');
+  document.getElementById('lista-implantadores').innerHTML = implantadores.map((i) => `
+    <div class="toolbar" style="justify-content:space-between;">
+      <span style="${i.ativo ? '' : 'text-decoration:line-through;color:var(--text-muted);'}">${i.nome}</span>
+      <div class="toolbar" style="gap:6px;">
+        <button type="button" class="btn" data-toggle-implantador="${i.id}" data-ativo="${i.ativo}">${i.ativo ? 'Desativar' : 'Ativar'}</button>
+        <button type="button" class="btn" data-excluir-implantador="${i.id}" style="color:var(--danger);">Excluir</button>
+      </div>
+    </div>
+  `).join('') || '<p class="muted">Nenhum implantador cadastrado.</p>';
+
+  document.querySelectorAll('[data-toggle-implantador]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ativo = btn.dataset.ativo === 'true';
+      const nome = btn.closest('.toolbar').querySelector('span').textContent;
+      await api(`/implantadores/${btn.dataset.toggleImplantador}`, { method: 'PUT', body: JSON.stringify({ nome, ativo: !ativo }) });
+      await renderListaImplantadores();
+      if (state.equipeData) refreshEquipe();
+    });
+  });
+  document.querySelectorAll('[data-excluir-implantador]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      if (!confirm('Excluir esse implantador? As demandas avulsas dele também serão apagadas.')) return;
+      await api(`/implantadores/${btn.dataset.excluirImplantador}`, { method: 'DELETE' });
+      await renderListaImplantadores();
+      if (state.equipeData) refreshEquipe();
+    });
+  });
+}
+document.getElementById('btn-gerenciar-implantadores').addEventListener('click', abrirModalImplantadores);
+document.getElementById('btn-fechar-implantadores').addEventListener('click', () => {
+  document.getElementById('modal-implantadores').classList.add('hidden');
+});
+document.getElementById('btn-add-implantador').addEventListener('click', async () => {
+  const input = document.getElementById('novo-implantador-nome');
+  if (!input.value.trim()) return;
+  try {
+    await api('/implantadores', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
+    input.value = '';
+    await renderListaImplantadores();
   } catch (err) {
     alert(err.message);
   }

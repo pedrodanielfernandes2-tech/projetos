@@ -53,6 +53,7 @@
         <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos" data-tooltip="Projetos"><span class="sidebar-nav-icon">&#9638;</span><span class="sidebar-nav-label">Projetos</span><span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
         <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos" data-tooltip="Dashboard"><span class="sidebar-nav-icon">&#9711;</span><span class="sidebar-nav-label">Dashboard</span></button>
         <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao" data-tooltip="Implantação"><span class="sidebar-nav-icon">&#128295;</span><span class="sidebar-nav-label">Implantação</span></button>
+        <button class="sidebar-nav-btn" data-tab="equipe" data-requer="pode_projetos" data-tooltip="Equipe"><span class="sidebar-nav-icon">&#128101;</span><span class="sidebar-nav-label">Equipe</span></button>
         <button class="sidebar-nav-btn" data-tab="chamados" data-requer="pode_chamados" data-tooltip="Chamados"><span class="sidebar-nav-icon">&#128179;</span><span class="sidebar-nav-label">Chamados</span></button>
         <button class="sidebar-nav-btn" data-tab="admin" data-requer="pode_admin" data-tooltip="Admin"><span class="sidebar-nav-icon">&#9881;</span><span class="sidebar-nav-label">Admin</span></button>
         <button class="sidebar-nav-btn sidebar-nav-btn-sair" id="btn-logout" data-tooltip="Sair"><span class="sidebar-nav-icon">&#128682;</span><span class="sidebar-nav-label">Sair</span></button>
@@ -419,6 +420,103 @@
 
       <div id="implantacao-lista" class="stack"></div>
     </section>
+
+    <section id="view-equipe" class="view hidden">
+      <div class="toolbar">
+        <h1>Visão da Equipe</h1>
+      </div>
+
+      <div class="stats-grid" id="equipe-kpis" style="margin-bottom:16px;"></div>
+
+      <div class="toolbar" style="margin-top:-6px;">
+        <button class="btn" id="equipe-semana-anterior">‹ Semana anterior</button>
+        <button class="btn" id="equipe-hoje">Hoje</button>
+        <button class="btn" id="equipe-proxima-semana">Próxima semana ›</button>
+        <span id="equipe-periodo-label" class="calendar-label" style="margin-left:8px;"></span>
+      </div>
+
+      <div class="toolbar" style="margin-top:-6px;">
+        <input type="text" id="equipe-busca" placeholder="Buscar por implantador ou cliente..." style="max-width:320px;" />
+        <button class="btn" id="btn-gerenciar-implantadores">Gerenciar implantadores</button>
+      </div>
+
+      <div class="legend-row" style="margin:10px 0 16px;">
+        <span class="legend-item"><span class="legend-dot" style="background:#1B63AC"></span>Tarefa de projeto (WBS)</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#E0A526"></span>Demanda avulsa</span>
+        <span class="legend-item"><span class="legend-dot" style="background:#94a3b8"></span>Ausência</span>
+        <span class="legend-item"><span class="legend-dot" style="background:var(--danger)"></span>Sobrecarregado (&gt;100% no dia)</span>
+      </div>
+
+      <div class="chart-panel">
+        <div id="equipe-gantt-scroll" style="overflow-x:auto;">
+          <div id="equipe-gantt"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="modal-demanda-avulsa" class="modal-overlay hidden">
+      <div class="modal">
+        <h2 id="demanda-avulsa-titulo">Nova demanda</h2>
+        <form id="form-demanda-avulsa">
+          <input type="hidden" id="demanda-id" />
+          <input type="hidden" id="demanda-implantador-id" />
+          <p class="field-label" id="demanda-implantador-nome"></p>
+          <div class="form-row">
+            <button type="button" class="btn" id="demanda-tipo-demanda" data-tipo="demanda">Demanda</button>
+            <button type="button" class="btn" id="demanda-tipo-ausencia" data-tipo="ausencia">Ausência (férias/atestado)</button>
+          </div>
+          <label style="font-size:12px;color:var(--text-muted);">Título
+            <input type="text" id="demanda-titulo" placeholder="Ex: Suporte urgente cliente X" class="full-width" required />
+          </label>
+          <div class="form-row">
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">Cliente
+              <input type="text" id="demanda-cliente" placeholder="Ex: Boa Jundiaí" />
+            </label>
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">Nº do chamado
+              <input type="text" id="demanda-chamado" placeholder="Ex: 25010" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de início
+              <input type="date" id="demanda-inicio" required />
+            </label>
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">Data de fim (opcional)
+              <input type="date" id="demanda-fim" />
+            </label>
+          </div>
+          <div class="form-row">
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">Esforço (horas)
+              <input type="number" id="demanda-horas" min="0" step="0.5" />
+            </label>
+            <label style="flex:1;font-size:12px;color:var(--text-muted);">% de dedicação nesse período
+              <input type="number" id="demanda-pct" min="1" max="100" value="100" required />
+            </label>
+          </div>
+          <label style="font-size:12px;color:var(--text-muted);">Projeto vinculado (opcional)
+            <select id="demanda-projeto"><option value="">Nenhum</option></select>
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn" id="btn-excluir-demanda" style="margin-right:auto;color:var(--danger);">Excluir</button>
+            <button type="button" class="btn" id="btn-cancel-demanda-avulsa">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="modal-implantadores" class="modal-overlay hidden">
+      <div class="modal">
+        <h2>Gerenciar implantadores</h2>
+        <div class="form-row">
+          <input type="text" id="novo-implantador-nome" placeholder="Nome do implantador" class="full-width" />
+          <button type="button" class="btn btn-primary" id="btn-add-implantador">Adicionar</button>
+        </div>
+        <div id="lista-implantadores" class="stack tight" style="margin-top:14px;"></div>
+        <div class="form-actions">
+          <button type="button" class="btn" id="btn-fechar-implantadores">Fechar</button>
+        </div>
+      </div>
+    </div>
 
     <section id="view-wbs" class="view hidden">
       <button id="btn-wbs-voltar" class="btn" style="margin-bottom:16px;">← Voltar aos projetos</button>
