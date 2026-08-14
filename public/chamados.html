@@ -2613,6 +2613,9 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
 function ChamadosDashboard() {
   const [ativo, setAtivo] = useState("visao-geral");
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
+  const [menuColapsado, setMenuColapsado] = useState(() => {
+    try { return localStorage.getItem("chamadosMenuColapsado") === "true"; } catch (e) { return false; }
+  });
   const [modalAberto, setModalAberto] = useState(false);
   const [exportandoPdf, setExportandoPdf] = useState(false);
   const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
@@ -3149,32 +3152,50 @@ function ChamadosDashboard() {
         <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMenuMobileAberto(false)} />
       )}
       <aside
-        className={`w-64 shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-transform duration-200 ${
+        className={`${menuColapsado ? "md:w-16" : "w-64"} shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-all duration-200 relative ${
           menuMobileAberto ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
-        <div className="px-5 py-4 border-b border-white/10">
-          <a href="/" className="flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-3 transition-colors">
+        <button
+          type="button"
+          onClick={() => {
+            setMenuColapsado((prev) => {
+              const novo = !prev;
+              try { localStorage.setItem("chamadosMenuColapsado", String(novo)); } catch (e) { /* localStorage indisponivel - so nao lembra da proxima vez */ }
+              return novo;
+            });
+          }}
+          className="hidden md:flex absolute -right-3 top-7 z-20 w-6 h-6 rounded-full bg-white text-[#1F3F66] border border-slate-200 items-center justify-center shadow-sm hover:scale-105 transition-transform"
+          aria-label={menuColapsado ? "Expandir menu" : "Recolher menu"}
+          title={menuColapsado ? "Expandir menu" : "Recolher menu"}
+        >
+          <ChevronRight size={13} className={menuColapsado ? "" : "rotate-180"} />
+        </button>
+        <div className={`px-5 py-4 border-b border-white/10 ${menuColapsado ? "md:px-3" : ""}`}>
+          <a href="/" className={`flex items-center gap-1 text-xs text-slate-400 hover:text-white mb-3 transition-colors ${menuColapsado ? "md:hidden" : ""}`}>
             <ChevronRight size={12} className="rotate-180" />
             Voltar para Projetos
           </a>
-          <Wordmark size={20} variant="light" />
-          <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-3">Painel de Chamados</div>
+          <div className={menuColapsado ? "md:hidden" : ""}>
+            <Wordmark size={20} variant="light" />
+            <div className="text-[11px] font-semibold tracking-[0.15em] text-slate-400 uppercase mt-3">Painel de Chamados</div>
+          </div>
         </div>
         <nav className="flex-1 overflow-y-auto py-3 px-3">
           {navSecoes(kpis.total, totalBacklog).map((secao) => (
             <div key={secao.titulo} className="mb-4">
-              <div className="text-[10px] font-mono tracking-widest text-slate-500 px-2 mb-1.5">{secao.titulo}</div>
+              <div className={`text-[10px] font-mono tracking-widest text-slate-500 px-2 mb-1.5 ${menuColapsado ? "md:hidden" : ""}`}>{secao.titulo}</div>
               {secao.itens.map((item) => {
                 const IconComp = item.icon;
                 const selecionado = ativo === item.id;
                 return (
                   <button key={item.id} onClick={() => { if (item.id === "config") setConfigAberto(true); else setAtivo(item.id); setMenuMobileAberto(false); }}
-                    className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm mb-0.5 font-medium transition-colors"
-                    style={selecionado ? { backgroundColor: "rgba(226,0,26,0.14)", color: "#FF9FAE" } : { color: "#94a3b8" }}>
-                    <span className="flex items-center gap-2.5"><IconComp size={15} />{item.label}</span>
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm mb-0.5 font-medium transition-colors ${menuColapsado ? "md:justify-center" : ""}`}
+                    style={selecionado ? { backgroundColor: "rgba(226,0,26,0.14)", color: "#FF9FAE" } : { color: "#94a3b8" }}
+                    title={menuColapsado ? item.label : ""}>
+                    <span className="flex items-center gap-2.5"><IconComp size={15} /><span className={menuColapsado ? "md:hidden" : ""}>{item.label}</span></span>
                     {item.badge && (
-                      <span className="text-[10px] font-mono min-w-[20px] text-center rounded-full px-1.5 py-0.5"
+                      <span className={`text-[10px] font-mono min-w-[20px] text-center rounded-full px-1.5 py-0.5 ${menuColapsado ? "md:hidden" : ""}`}
                         style={selecionado ? { backgroundColor: BRAND_RED, color: "#fff", fontWeight: 700 } : { color: "#64748b" }}>
                         {item.badge}
                       </span>
@@ -3185,7 +3206,7 @@ function ChamadosDashboard() {
             </div>
           ))}
         </nav>
-        <div className="px-5 py-2.5 border-t border-white/10 text-[11px] text-slate-500">Dados migrados de 34 abas → 1 base única</div>
+        <div className={`px-5 py-2.5 border-t border-white/10 text-[11px] text-slate-500 ${menuColapsado ? "md:hidden" : ""}`}>Dados migrados de 34 abas → 1 base única</div>
       </aside>
 
       <main className="flex-1 overflow-y-auto w-full min-w-0">
