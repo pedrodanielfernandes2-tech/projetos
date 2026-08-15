@@ -85,7 +85,8 @@ async function init() {
       status TEXT DEFAULT 'Pendente',
       tipo TEXT DEFAULT 'demanda',
       project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
-      criado_em TIMESTAMP DEFAULT NOW()
+      criado_em TIMESTAMP DEFAULT NOW(),
+      concluido_em TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS area_tasks (
@@ -330,6 +331,7 @@ async function init() {
   // matriz de priorizacao Impacto x Esforco - esse aqui e a quantidade real de horas
   // estimada pra tarefa, usada pra calcular a duracao em dias.
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS horas_esforco NUMERIC DEFAULT 0;');
+  await pool.query('ALTER TABLE demandas_avulsas ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;');
 
   // Renomeia o status "Impasse" para "Suspensa" em instalacoes ja existentes
   // (tanto no cadastro quanto nos itens de WBS que ja usavam esse status).
