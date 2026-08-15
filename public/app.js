@@ -1400,12 +1400,13 @@ async function refreshUsuarios() {
       <div class="list-row-main">
         <p class="list-row-name">${u.nome}${!u.ativo ? ' <span style="color:var(--danger);font-weight:400;">(inativo)</span>' : ''}</p>
         <p class="list-row-sub">${u.email} · ${u.senha_definida ? 'senha definida' : '⏳ aguardando definir senha'}</p>
-        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--text-muted);">
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--text-muted);align-items:center;">
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_projetos" style="width:auto;" ${u.pode_projetos ? 'checked' : ''}/> Projetos</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_implantacao" style="width:auto;" ${u.pode_implantacao ? 'checked' : ''}/> Implantação</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_equipe" style="width:auto;" ${u.pode_equipe ? 'checked' : ''}/> Equipe</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_chamados" style="width:auto;" ${u.pode_chamados ? 'checked' : ''}/> Chamados</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_admin" style="width:auto;" ${u.pode_admin ? 'checked' : ''}/> Admin</label>
+          <span class="permissao-status" style="font-size:11.5px;opacity:0;transition:opacity 0.2s;">✓ Salvo</span>
         </div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -1415,11 +1416,19 @@ async function refreshUsuarios() {
         <button class="icon-btn" data-excluir-usuario aria-label="Excluir usuário">✕</button>
       </div>
     `;
+    const statusEl = row.querySelector('.permissao-status');
     row.querySelectorAll('[data-permissao]').forEach(chk => {
       chk.onchange = async () => {
         try {
           await api(`/usuarios/${u.id}`, { method: 'PATCH', body: JSON.stringify({ [chk.dataset.permissao]: chk.checked }) });
+          statusEl.style.color = 'var(--success)';
+          statusEl.textContent = '✓ Salvo';
+          statusEl.style.opacity = '1';
+          setTimeout(() => { statusEl.style.opacity = '0'; }, 1800);
         } catch (err) {
+          statusEl.style.color = 'var(--danger)';
+          statusEl.textContent = '✕ Falhou ao salvar';
+          statusEl.style.opacity = '1';
           alert(err.message);
           chk.checked = !chk.checked;
         }
