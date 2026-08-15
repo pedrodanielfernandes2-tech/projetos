@@ -1,12 +1,11 @@
 const express = require('express');
 const { pool } = require('../db');
-const { requireAdminAlways } = require('../adminAuth');
 const router = express.Router();
 
 // Junta, por implantador, as tarefas vindas da WBS (casando pelo nome em
 // wbs_items.responsavel, sempre 100% de dedicacao) com as demandas avulsas
 // (que tem % proprio) - devolve um formato unico pro Gantt da tela desenhar.
-router.get('/', requireAdminAlways, async (req, res) => {
+router.get('/', async (req, res) => {
   const { inicio, fim } = req.query;
   if (!inicio || !fim) return res.status(400).json({ error: 'informe inicio e fim (YYYY-MM-DD)' });
 
@@ -64,6 +63,7 @@ router.get('/', requireAdminAlways, async (req, res) => {
         status: d.status,
         projeto_id: d.project_id,
         projeto_nome: d.projeto_nome,
+        trabalha_fim_semana: !!d.trabalha_fim_semana,
       }));
 
     return { id: imp.id, nome: imp.nome, tarefas: [...tarefasWbs, ...tarefasAvulsas] };
