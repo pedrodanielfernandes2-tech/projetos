@@ -1,13 +1,21 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAdminAlways } = require('../adminAuth');
-const { gerarTokenSenha, hashSenha } = require('../usuariosAuth');
+const { gerarTokenSenha, hashSenha, requirePermissao } = require('../usuariosAuth');
 const { sendMail } = require('../email');
 const router = express.Router();
 
+// Lista leve (so id + nome) de todo mundo cadastrado e ativo - usada pra popular selects
+// como o "Responsavel" da WBS. Acessivel a qualquer um com acesso a Projetos, sem
+// precisar de senha de Admin, ja que quem monta a WBS normalmente e um GP comum.
+router.get('/nomes', requirePermissao('pode_projetos'), async (req, res) => {
+  const { rows } = await pool.query('SELECT id, nome FROM usuarios WHERE ativo = TRUE ORDER BY nome');
+  res.json(rows);
+});
+
 router.get('/', requireAdminAlways, async (req, res) => {
   const { rows } = await pool.query(`
-    SELECT id, nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, ativo, criado_em,
+    SELECT id, nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, eh_gp, eh_implantador, ativo, criado_em,
       (senha_hash IS NOT NULL) AS senha_definida
     FROM usuarios ORDER BY nome
   `);
@@ -15,7 +23,7 @@ router.get('/', requireAdminAlways, async (req, res) => {
 });
 
 router.post('/', requireAdminAlways, async (req, res) => {
-  const { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, senha } = req.body;
+  const { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, eh_gp, eh_implantador, senha } = req.body;
   if (!nome || !nome.trim() || !email || !email.trim()) {
     return res.status(400).json({ error: 'nome e e-mail são obrigatórios' });
   }
@@ -27,8 +35,8 @@ router.post('/', requireAdminAlways, async (req, res) => {
   try {
     const senhaHash = senha ? await hashSenha(senha) : null;
     const { rows } = await pool.query(
-      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, senha_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
-      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao, !!pode_chamados, !!pode_admin, !!pode_equipe, senhaHash]
+      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, eh_gp, eh_implantador, senha_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
+      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao, !!pode_chamados, !!pode_admin, !!pode_equipe, !!eh_gp, !!eh_implantador, senhaHash]
     );
     usuario = rows[0];
   } catch (e) {
@@ -65,7 +73,7 @@ router.patch('/:id', requireAdminAlways, async (req, res) => {
   const campos = [];
   const valores = [];
   let i = 1;
-  ['nome', 'pode_projetos', 'pode_implantacao', 'pode_chamados', 'pode_admin', 'pode_equipe', 'ativo'].forEach(campo => {
+  ['nome', 'pode_projetos', 'pode_implantacao', 'pode_chamados', 'pode_admin', 'pode_equipe', 'eh_gp', 'eh_implantador', 'ativo'].forEach(campo => {
     if (req.body[campo] !== undefined) {
       campos.push(`${campo} = $${i++}`);
       valores.push(req.body[campo]);
