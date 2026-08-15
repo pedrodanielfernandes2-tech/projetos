@@ -411,6 +411,8 @@ input:focus, select:focus, textarea:focus {
   padding: 6px; background: var(--surface); display: flex; flex-direction: column; gap: 3px;
 }
 .calendar-day.outside { background: var(--surface-alt); opacity: 0.5; }
+.calendar-day.weekend { background: var(--surface-alt); }
+.calendar-day.weekend.today { background: var(--surface); }
 .calendar-day.has-items { cursor: pointer; }
 .calendar-day.has-items:hover { border-color: var(--brand-blue); box-shadow: var(--shadow-sm); }
 .calendar-day.today { border-color: var(--brand-blue); box-shadow: 0 0 0 1px var(--brand-blue); }
@@ -420,6 +422,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 10.5px; padding: 2px 5px; border-radius: 5px; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default;
 }
+.calendar-item.sem-previsao { border: 1px dashed var(--warning); }
 .calendar-more { font-size: 10.5px; color: var(--text-muted); padding: 0 5px; }
 
 @media (max-width: 780px) {

@@ -1622,7 +1622,7 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
       diasMap[dia].push({
         area: `👤 ${d.implantador_nome || 'Implantador'}`,
         nome: d.titulo, chamado: d.chamado_numero, status: d.status,
-        cliente_nome: d.cliente_nome, gerente_nome: '',
+        cliente_nome: d.cliente_nome, gerente_nome: '', semPrevisao: !d.data_fim,
       });
     }
   });
@@ -1640,12 +1640,14 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
   for (let dia = 1; dia <= diasNoMes; dia++) {
     const itens = diasMap[dia] || [];
     const isHoje = ehMesAtual && hoje.getDate() === dia;
+    const diaSemana = new Date(state.calendarYear, state.calendarMonth, dia).getDay();
+    const isFimDeSemana = diaSemana === 0 || diaSemana === 6;
     const visiveis = itens.slice(0, 3);
     const extra = itens.length - visiveis.length;
     html += `
-      <div class="calendar-day${isHoje ? ' today' : ''}${itens.length > 0 ? ' has-items' : ''}" data-dia="${dia}">
+      <div class="calendar-day${isHoje ? ' today' : ''}${isFimDeSemana ? ' weekend' : ''}${itens.length > 0 ? ' has-items' : ''}" data-dia="${dia}">
         <span class="calendar-day-num">${dia}</span>
-        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}" title="${it.area} — ${it.nome} (${it.status})">${it.area}${it.chamado ? ' · ' + it.chamado : ''}</span>`).join('')}
+        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}${it.semPrevisao ? ' sem-previsao' : ''}" title="${it.area} — ${it.nome} (${it.status})${it.semPrevisao ? ' · sem previsão de término' : ''}">${it.semPrevisao ? '⏳ ' : ''}${it.area}${it.chamado ? ' · ' + it.chamado : ''}</span>`).join('')}
         ${extra > 0 ? `<span class="calendar-more">+${extra} mais</span>` : ''}
       </div>
     `;
