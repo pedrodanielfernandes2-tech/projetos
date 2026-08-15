@@ -1610,6 +1610,22 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
       }
     });
   });
+  // demandas avulsas dos implantadores (nao ficam vinculadas obrigatoriamente a um projeto,
+  // por isso entram direto, sem passar pelo filtro de area - area de projeto nao se aplica a elas)
+  (state.calendarDemandas || []).forEach(d => {
+    const dataRef = d.data_fim || d.data_inicio;
+    if (!dataRef) return;
+    const dt = new Date(dataRef + 'T00:00:00');
+    if (dt.getMonth() === state.calendarMonth && dt.getFullYear() === state.calendarYear) {
+      const dia = dt.getDate();
+      if (!diasMap[dia]) diasMap[dia] = [];
+      diasMap[dia].push({
+        area: `👤 ${d.implantador_nome || 'Implantador'}`,
+        nome: d.titulo, chamado: d.chamado_numero, status: d.status,
+        cliente_nome: d.cliente_nome, gerente_nome: '',
+      });
+    }
+  });
 
   const primeiroDiaSemana = new Date(state.calendarYear, state.calendarMonth, 1).getDay();
   const diasNoMes = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
@@ -1901,8 +1917,13 @@ async function renderDashboard() {
   // linha do tempo (gantt simplificado)
   renderGanttChart(projects);
 
-  // calendario de entregas
+  // calendario de entregas (projetos + demandas avulsas dos implantadores)
   state.calendarProjects = projects;
+  try {
+    state.calendarDemandas = await api('/demandas-avulsas');
+  } catch (e) {
+    state.calendarDemandas = [];
+  }
   renderCalendarAreaFilters();
   renderCalendar();
 
@@ -3126,6 +3147,11 @@ async function refreshCalendarPresentation() {
     const projects = await api('/projects');
     state.allProjects = projects;
     state.calendarProjects = projects;
+    try {
+      state.calendarDemandas = await api('/demandas-avulsas');
+    } catch (e) {
+      state.calendarDemandas = [];
+    }
     renderCalendar('cal-presentation-grid', 'cal-presentation-label');
     renderCalendarPresentationCards();
   } catch (err) {
@@ -3576,7 +3602,7 @@ document.getElementById('equipe-busca').addEventListener('input', (e) => {
 
 // ---------- modal de demanda avulsa ----------
 function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
-  document.getElementById('demanda-avulsa-titulo').textContent = demandaExistente ? 'Editar demanda' : 'Nova demanda';
+  document.getElementById('demanda-avulsa-titulo').textContent = demandaExistente ? `Editar demanda de ${implantadorNome}` : `Nova demanda para ${implantadorNome}`;
   document.getElementById('demanda-cliente-lista').innerHTML = (state.clientes || []).map((c) => `<option value="${c.nome}"></option>`).join('');
   document.getElementById('demanda-implantador-id').value = implantadorId;
   document.getElementById('demanda-implantador-nome').textContent = `Implantador: ${implantadorNome}`;
