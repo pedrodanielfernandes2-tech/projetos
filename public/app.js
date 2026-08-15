@@ -202,15 +202,37 @@ function logout() {
 }
 document.getElementById('btn-logout').addEventListener('click', logout);
 
+// Espera o navegador terminar de desenhar a troca de "portao de login" pro app
+// (dois requestAnimationFrame = garante que passou por um ciclo de pintura completo)
+// antes de ativar a aba - sem isso, telas que medem o proprio tamanho (como o Gantt
+// da Equipe, pra calcular a paginacao) podem medir com o layout ainda "escondido",
+// e so acertam depois que a pessoa clica de novo em algum lugar.
+function proximoFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
 async function aposLogin() {
   resetarTodasAsViews();
   esconderPortaoLogin();
   aplicarPermissoesMenu();
+  loadAdminSession();
+  loadChamadosSession();
+  await proximoFrame();
   if (state.usuario.pode_projetos) {
     activateTab(document.querySelector('[data-tab="projetos"]'));
     await loadAll();
   } else if (state.usuario.pode_implantacao) {
     activateTab(document.querySelector('[data-tab="implantacao"]'));
+  } else if (state.usuario.pode_equipe) {
+    activateTab(document.querySelector('[data-tab="equipe"]'));
+  } else if (state.usuario.pode_chamados) {
+    if (state.isChamados) {
+      window.location.href = '/chamados.html';
+    } else {
+      requestChamadosLogin(() => { window.location.href = '/chamados.html'; });
+    }
+  } else if (state.usuario.pode_admin) {
+    requestAdminLogin(() => activateTab(document.querySelector('[data-tab="admin"]')));
   } else {
     activateTab(document.querySelector('[data-tab="projetos"]'));
     mostrarSemAcessoProjetos();
@@ -3448,9 +3470,15 @@ async function refreshEquipe() {
     state.equipeFim = new Date(state.equipeInicio);
     state.equipeFim.setDate(state.equipeFim.getDate() + 6);
   }
+  // A lista de projetos so alimenta o campo opcional "vincular projeto" do formulario
+  // de demanda - quem nao tem acesso a Projetos (ex: so tem "Equipe") nao consegue
+  // buscar isso, mas o resto da tela (Gantt, KPIs) continua funcionando normalmente.
   try {
-    const [projetos] = await Promise.all([api('/projects')]);
-    state.equipeProjetosCache = projetos;
+    state.equipeProjetosCache = await api('/projects');
+  } catch (err) {
+    state.equipeProjetosCache = [];
+  }
+  try {
     await loadEquipeData();
   } catch (err) {
     document.getElementById('equipe-gantt').innerHTML = `<p class="muted">Falha ao carregar: ${err.message}</p>`;
