@@ -1611,23 +1611,6 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
       }
     });
   });
-  // demandas avulsas dos implantadores (nao ficam vinculadas obrigatoriamente a um projeto,
-  // por isso entram direto, sem passar pelo filtro de area - area de projeto nao se aplica a elas)
-  (state.calendarDemandas || []).forEach(d => {
-    const dataRef = d.data_fim || d.data_inicio;
-    if (!dataRef) return;
-    const dt = new Date(dataRef + 'T00:00:00');
-    if (dt.getMonth() === state.calendarMonth && dt.getFullYear() === state.calendarYear) {
-      const dia = dt.getDate();
-      if (!diasMap[dia]) diasMap[dia] = [];
-      diasMap[dia].push({
-        area: `👤 ${d.implantador_nome || 'Implantador'}`,
-        nome: d.titulo, chamado: d.chamado_numero, status: d.status,
-        cliente_nome: d.cliente_nome, gerente_nome: '', semPrevisao: !d.data_fim,
-        isDemanda: true, pct: d.pct_dedicacao, raw: d,
-      });
-    }
-  });
 
   const primeiroDiaSemana = new Date(state.calendarYear, state.calendarMonth, 1).getDay();
   const diasNoMes = new Date(state.calendarYear, state.calendarMonth + 1, 0).getDate();
@@ -1650,10 +1633,7 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
       <div class="calendar-day${isHoje ? ' today' : ''}${isFimDeSemana ? ' weekend' : ''}${itens.length > 0 ? ' has-items' : ''}" data-dia="${dia}">
         <span class="calendar-day-num">${dia}</span>
         ${visiveis.map(it => {
-          const textoPrincipal = it.isDemanda
-            ? `${it.cliente_nome ? it.cliente_nome + ' - ' : ''}${it.nome}${it.pct ? ' - ' + Math.round(it.pct) + '%' : ''}`
-            : `${it.area}${it.chamado ? ' · ' + it.chamado : ''}`;
-          return `<span class="calendar-item badge ${statusClass(it.status)}${it.semPrevisao ? ' sem-previsao' : ''}" title="${it.area} — ${it.nome} (${it.status})${it.cliente_nome ? ' · Cliente: ' + it.cliente_nome : ''}${it.semPrevisao ? ' · sem previsão de término' : ''}">${it.semPrevisao ? '⏳ ' : ''}${textoPrincipal}</span>`;
+          return `<span class="calendar-item badge ${statusClass(it.status)}" title="${it.area} — ${it.nome} (${it.status})">${it.area}${it.chamado ? ' · ' + it.chamado : ''}</span>`;
         }).join('')}
         ${extra > 0 ? `<span class="calendar-more">+${extra} mais</span>` : ''}
       </div>
@@ -1674,27 +1654,16 @@ function openDayModal(dia, itens) {
   const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   document.getElementById('day-modal-title').textContent = `Entregas em ${dia} de ${monthNames[state.calendarMonth]} (${itens.length})`;
   const list = document.getElementById('day-modal-list');
-  list.innerHTML = itens.map((it, i) => `
+  list.innerHTML = itens.map(it => `
     <div class="deadline-row">
       <div>
         <p class="deadline-name">${it.nome}${it.chamado ? ' · Chamado ' + it.chamado : ''}</p>
         <p class="deadline-meta">${it.area}${it.cliente_nome ? ' · Cliente: ' + it.cliente_nome : ''}${it.gerente_nome ? ' · GP: ' + it.gerente_nome : ''}</p>
       </div>
       <span class="badge ${statusClass(it.status)}">${it.status}</span>
-      ${it.isDemanda ? `<button type="button" class="btn" data-editar-demanda-calendario="${i}">✎ Editar</button>` : ''}
     </div>
   `).join('');
   document.getElementById('modal-day-details').classList.remove('hidden');
-
-  list.querySelectorAll('[data-editar-demanda-calendario]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const it = itens[Number(btn.dataset.editarDemandaCalendario)];
-      document.getElementById('modal-day-details').classList.add('hidden');
-      const abrir = () => abrirModalDemanda(it.raw.implantador_id, it.raw.implantador_nome || 'Implantador', it.raw);
-      if (!state.isAdmin) { requestAdminLogin(abrir); return; }
-      abrir();
-    });
-  });
 }
 document.getElementById('btn-close-day-modal').addEventListener('click', () => {
   document.getElementById('modal-day-details').classList.add('hidden');
@@ -1937,13 +1906,8 @@ async function renderDashboard() {
   // linha do tempo (gantt simplificado)
   renderGanttChart(projects);
 
-  // calendario de entregas (projetos + demandas avulsas dos implantadores)
+  // calendario de entregas (somente projetos/WBS - agenda do implantador fica isolada na tela Equipe)
   state.calendarProjects = projects;
-  try {
-    state.calendarDemandas = await api('/demandas-avulsas');
-  } catch (e) {
-    state.calendarDemandas = [];
-  }
   renderCalendarAreaFilters();
   renderCalendar();
 
@@ -2501,15 +2465,18 @@ function buildImplantacaoItemRow(item) {
   const prazoTexto = (item.data_inicio || item.data_fim)
     ? ` <span style="color:var(--text-muted);font-size:11.5px;">(${item.data_inicio ? fmtDate(item.data_inicio) : '?'} → ${item.data_fim ? fmtDate(item.data_fim) : '?'})</span>`
     : '';
+  const tagAvulsa = item.tipo === 'avulsa'
+    ? ` <span class="badge" style="background:#EDE4FB;color:#5B21B6;font-size:10px;">Demanda Avulsa${item.cliente_nome ? ' · ' + item.cliente_nome : ''}${item.chamado_numero ? ' · Chamado ' + item.chamado_numero : ''}</span>`
+    : '';
   const botoesAcao = acoesImplantacaoDisponiveis(item.status)
     .map(a => `<button class="btn" data-status="${a.status}" style="font-size:11px;padding:4px 8px;">${a.label}</button>`)
     .join('');
   row.innerHTML = `
-    <span style="flex:1;">${prazoIcone}${item.titulo}${prazoTexto}</span>
+    <span style="flex:1;">${prazoIcone}${item.titulo}${prazoTexto}${tagAvulsa}</span>
     <span class="badge ${wbsStatusClass(item.status)}">${item.status}</span>
     <div style="display:flex;gap:4px;flex-wrap:wrap;">
       ${botoesAcao}
-      <button class="icon-btn" data-editar-item aria-label="Adicionar/editar observação">✎</button>
+      ${item.tipo === 'avulsa' ? '' : '<button class="icon-btn" data-editar-item aria-label="Adicionar/editar observação">✎</button>'}
     </div>
   `;
   if (item.observacao) {
@@ -2522,7 +2489,8 @@ function buildImplantacaoItemRow(item) {
   row.querySelectorAll('[data-status]').forEach(btn => {
     btn.onclick = async () => {
       try {
-        await api(`/implantacao/itens/${item.id}`, { method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status }) });
+        const rota = item.tipo === 'avulsa' ? `/implantacao/demandas/${item.id}` : `/implantacao/itens/${item.id}`;
+        await api(rota, { method: 'PATCH', body: JSON.stringify({ status: btn.dataset.status }) });
         if (btn.dataset.status === 'Concluído') celebrarConclusao();
         await refreshImplantacao();
       } catch (err) {
@@ -2530,7 +2498,9 @@ function buildImplantacaoItemRow(item) {
       }
     };
   });
-  row.querySelector('[data-editar-item]').onclick = () => openImplantacaoItemModal(item.project_id, item);
+  if (item.tipo !== 'avulsa') {
+    row.querySelector('[data-editar-item]').onclick = () => openImplantacaoItemModal(item.project_id, item);
+  }
   return row;
 }
 
@@ -3167,11 +3137,6 @@ async function refreshCalendarPresentation() {
     const projects = await api('/projects');
     state.allProjects = projects;
     state.calendarProjects = projects;
-    try {
-      state.calendarDemandas = await api('/demandas-avulsas');
-    } catch (e) {
-      state.calendarDemandas = [];
-    }
     renderCalendar('cal-presentation-grid', 'cal-presentation-label');
     renderCalendarPresentationCards();
   } catch (err) {
@@ -3495,19 +3460,6 @@ async function loadEquipeData() {
   renderEquipeGantt(data);
 }
 
-// Recarrega o calendario de entregas (Dashboard) se ele ja tiver sido aberto nesta
-// sessao - assim, editar/excluir uma demanda de qualquer lugar (Equipe ou Calendario)
-// sempre deixa as duas telas em dia, mesmo sem precisar visitar a outra tela de novo.
-async function refreshCalendarioSeAberto() {
-  if (!state.calendarProjects) return; // calendario nunca foi carregado nesta sessao
-  try {
-    state.calendarDemandas = await api('/demandas-avulsas');
-  } catch (e) {
-    state.calendarDemandas = state.calendarDemandas || [];
-  }
-  renderCalendar();
-}
-
 function renderEquipePeriodoLabel() {
   const fmt = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   document.getElementById('equipe-periodo-label').textContent = `${fmt(state.equipeInicio)} — ${fmt(state.equipeFim)}`;
@@ -3675,7 +3627,7 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
           const bordaSemPrevisao = semPrevisao ? 'border:2px dashed #4C1D95;' : '';
           const clicavel = !presentacao && t.tipo !== 'wbs' ? `data-editar-demanda="${t.id}"` : '';
           const top = PADDING_TRACK_GANTT + raia * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT);
-          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${bordaSemPrevisao}${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${semPrevisaoIcone}${t.titulo} · ${t.pct_dedicacao}%</div>`;
+          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${bordaSemPrevisao}${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${semPrevisaoIcone}${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''} · ${t.pct_dedicacao}%</div>`;
         }).join('')}
       </div>
     </div>`;
@@ -3900,7 +3852,6 @@ document.getElementById('form-demanda-avulsa').addEventListener('submit', async 
     }
     document.getElementById('modal-demanda-avulsa').classList.add('hidden');
     await loadEquipeData();
-    await refreshCalendarioSeAberto();
   } catch (err) {
     alert(err.message);
   }
@@ -3913,7 +3864,6 @@ document.getElementById('btn-excluir-demanda').addEventListener('click', async (
     await api(`/demandas-avulsas/${id}`, { method: 'DELETE' });
     document.getElementById('modal-demanda-avulsa').classList.add('hidden');
     await loadEquipeData();
-    await refreshCalendarioSeAberto();
   } catch (err) {
     alert(err.message);
   }
