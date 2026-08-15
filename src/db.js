@@ -293,6 +293,7 @@ async function init() {
       pode_implantacao BOOLEAN DEFAULT FALSE,
       pode_chamados BOOLEAN DEFAULT TRUE,
       pode_admin BOOLEAN DEFAULT TRUE,
+      pode_equipe BOOLEAN DEFAULT FALSE,
       ativo BOOLEAN DEFAULT TRUE,
       criado_em TIMESTAMP DEFAULT NOW()
     );
@@ -419,6 +420,7 @@ async function init() {
   // pra quem precisar ficar restrito (ex: um implantador).
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_chamados BOOLEAN DEFAULT TRUE;');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_admin BOOLEAN DEFAULT TRUE;');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_equipe BOOLEAN DEFAULT FALSE;');
 }
 
 const ready = (async () => {
