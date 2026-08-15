@@ -53,7 +53,7 @@
         <button class="sidebar-nav-btn active" data-tab="projetos" data-requer="pode_projetos" data-tooltip="Projetos"><span class="sidebar-nav-icon">&#9638;</span><span class="sidebar-nav-label">Projetos</span><span id="nav-badge-projetos" class="nav-badge hidden">0</span></button>
         <button class="sidebar-nav-btn" data-tab="dashboard" data-requer="pode_projetos" data-tooltip="Dashboard"><span class="sidebar-nav-icon">&#9711;</span><span class="sidebar-nav-label">Dashboard</span></button>
         <button class="sidebar-nav-btn" data-tab="implantacao" data-requer="pode_implantacao" data-tooltip="Implantação"><span class="sidebar-nav-icon">&#128295;</span><span class="sidebar-nav-label">Implantação</span></button>
-        <button class="sidebar-nav-btn" data-tab="equipe" data-requer="pode_projetos" data-tooltip="Equipe"><span class="sidebar-nav-icon">&#128101;</span><span class="sidebar-nav-label">Equipe</span></button>
+        <button class="sidebar-nav-btn" data-tab="equipe" data-requer="pode_equipe" data-tooltip="Equipe"><span class="sidebar-nav-icon">&#128101;</span><span class="sidebar-nav-label">Equipe</span></button>
         <button class="sidebar-nav-btn" data-tab="chamados" data-requer="pode_chamados" data-tooltip="Chamados"><span class="sidebar-nav-icon">&#128179;</span><span class="sidebar-nav-label">Chamados</span></button>
         <button class="sidebar-nav-btn" data-tab="admin" data-requer="pode_admin" data-tooltip="Admin"><span class="sidebar-nav-icon">&#9881;</span><span class="sidebar-nav-label">Admin</span></button>
         <button class="sidebar-nav-btn sidebar-nav-btn-sair" id="btn-logout" data-tooltip="Sair"><span class="sidebar-nav-icon">&#128682;</span><span class="sidebar-nav-label">Sair</span></button>
@@ -384,6 +384,7 @@
             <div class="checkbox-row">
               <label><input type="checkbox" id="usuario-pode-projetos" /> Acessa Projetos/Dashboard</label>
               <label><input type="checkbox" id="usuario-pode-implantacao" /> Acessa Implantação</label>
+              <label><input type="checkbox" id="usuario-pode-equipe" /> Acessa Equipe</label>
               <label><input type="checkbox" id="usuario-pode-chamados" /> Acessa Chamados</label>
               <label><input type="checkbox" id="usuario-pode-admin" /> Acessa Admin</label>
             </div>

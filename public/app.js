@@ -416,10 +416,6 @@ document.querySelectorAll('.sidebar-nav-btn[data-tab]').forEach(btn => {
       requestAdminLogin(() => activateTab(btn));
       return;
     }
-    if (btn.dataset.tab === 'equipe' && !state.isAdmin) {
-      requestAdminLogin(() => activateTab(btn));
-      return;
-    }
     if (btn.dataset.tab === 'chamados') {
       if (state.isChamados) {
         window.location.href = '/chamados.html';
@@ -1407,6 +1403,7 @@ async function refreshUsuarios() {
         <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:6px;font-size:12.5px;color:var(--text-muted);">
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_projetos" style="width:auto;" ${u.pode_projetos ? 'checked' : ''}/> Projetos</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_implantacao" style="width:auto;" ${u.pode_implantacao ? 'checked' : ''}/> Implantação</label>
+          <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_equipe" style="width:auto;" ${u.pode_equipe ? 'checked' : ''}/> Equipe</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_chamados" style="width:auto;" ${u.pode_chamados ? 'checked' : ''}/> Chamados</label>
           <label style="display:flex;align-items:center;gap:5px;"><input type="checkbox" data-permissao="pode_admin" style="width:auto;" ${u.pode_admin ? 'checked' : ''}/> Admin</label>
         </div>
@@ -1481,6 +1478,7 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
   const senha = document.getElementById('usuario-senha').value;
   const pode_projetos = document.getElementById('usuario-pode-projetos').checked;
   const pode_implantacao = document.getElementById('usuario-pode-implantacao').checked;
+  const pode_equipe = document.getElementById('usuario-pode-equipe').checked;
   const pode_chamados = document.getElementById('usuario-pode-chamados').checked;
   const pode_admin = document.getElementById('usuario-pode-admin').checked;
   if (!nome || !email) return;
@@ -1489,7 +1487,7 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
     return;
   }
   try {
-    const body = { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin };
+    const body = { nome, email, pode_projetos, pode_implantacao, pode_equipe, pode_chamados, pode_admin };
     if (senha) body.senha = senha;
     const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
