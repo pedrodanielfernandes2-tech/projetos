@@ -3537,26 +3537,44 @@ function renderEquipeGantt(data) {
   implantadoresFiltrados.forEach((imp) => {
     const cargaPorDia = diasIso.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
 
+    // Calcula em qual "raia" (linha vertical) cada tarefa entra, pra tarefas que se
+    // cruzam no tempo nao ficarem uma em cima da outra (sen esconder tudo menos a ultima).
+    const tarefasComIntervalo = imp.tarefas.map((t) => {
+      const iniClip = t.data_inicio < diasIso[0] ? diasIso[0] : t.data_inicio;
+      const fimT = t.data_fim || t.data_inicio;
+      const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
+      const idxIni = diasIso.indexOf(iniClip);
+      const idxFim = diasIso.indexOf(fimClip);
+      return { t, idxIni, idxFim };
+    }).filter((x) => x.idxIni !== -1 && x.idxFim !== -1)
+      .sort((a, b) => a.idxIni - b.idxIni);
+
+    const fimPorRaia = [];
+    tarefasComIntervalo.forEach((x) => {
+      let raia = fimPorRaia.findIndex((fimOcupado) => fimOcupado < x.idxIni);
+      if (raia === -1) { raia = fimPorRaia.length; }
+      fimPorRaia[raia] = x.idxFim;
+      x.raia = raia;
+    });
+    const totalRaias = Math.max(1, fimPorRaia.length);
+    const alturaBarra = 26, gapBarra = 4, paddingTrack = 6;
+    const alturaTrack = totalRaias * (alturaBarra + gapBarra) + paddingTrack;
+
     html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
       <div class="equipe-gantt-nome">
         <span>${imp.nome}</span>
         <button type="button" class="icon-btn" data-add-demanda="${imp.id}" data-nome="${imp.nome}" title="Adicionar demanda">+</button>
       </div>
-      <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr);">
+      <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${alturaTrack}px;">
         ${dias.map(() => '<div class="equipe-gantt-dia"></div>').join('')}
         ${imp.tarefas.length === 0 ? '<span class="equipe-gantt-livre">Livre no período</span>' : ''}
-        ${imp.tarefas.map((t) => {
-          const iniClip = t.data_inicio < diasIso[0] ? diasIso[0] : t.data_inicio;
-          const fimT = t.data_fim || t.data_inicio;
-          const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
-          const idxIni = diasIso.indexOf(iniClip);
-          const idxFim = diasIso.indexOf(fimClip);
-          if (idxIni === -1 || idxFim === -1) return '';
+        ${tarefasComIntervalo.map(({ t, idxIni, idxFim, raia }) => {
           const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
           const cor = sobrecarregado ? 'var(--danger)' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
           const semPrevisaoTag = !t.data_fim ? ' (sem previsão)' : '';
           const clicavel = t.tipo === 'wbs' ? '' : `data-editar-demanda="${t.id}"`;
-          return `<div class="equipe-gantt-barra" style="left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
+          const top = paddingTrack + raia * (alturaBarra + gapBarra);
+          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${alturaBarra}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
         }).join('')}
       </div>
     </div>`;
