@@ -23,6 +23,8 @@ router.get('/projetos', gate, async (req, res) => {
 
 // Projetos onde o implantador logado ja tem algum item atribuido (responsavel = seu nome),
 // agrupados com os proprios itens - essa e a lista "automatica" da tela de Implantacao.
+// Tambem inclui, num grupo virtual separado, as demandas avulsas atribuidas a essa pessoa
+// (casando pelo nome com o cadastro de implantadores - mesmo criterio usado na WBS).
 router.get('/meus-itens', gate, async (req, res) => {
   const meuNome = normalizar(req.usuario.nome);
   const { rows } = await pool.query(`
@@ -47,7 +49,38 @@ router.get('/meus-itens', gate, async (req, res) => {
     }
     projetosMap[item.project_id].itens.push(item);
   });
-  res.json(Object.values(projetosMap));
+
+  const { rows: demandas } = await pool.query(`
+    SELECT d.*
+    FROM demandas_avulsas d
+    JOIN implantadores i ON i.id = d.implantador_id
+    WHERE LOWER(TRIM(i.nome)) = $1
+    ORDER BY d.data_inicio
+  `, [meuNome]);
+
+  const grupos = Object.values(projetosMap);
+  if (demandas.length > 0) {
+    grupos.push({
+      project_id: null,
+      nome: 'Demandas Avulsas',
+      chamado: null,
+      cliente_nome: null,
+      itens: demandas.map(d => ({
+        id: d.id,
+        tipo: 'avulsa',
+        project_id: null,
+        titulo: d.titulo,
+        status: d.status,
+        observacao: '',
+        data_inicio: d.data_inicio,
+        data_fim: d.data_fim,
+        cliente_nome: d.cliente_nome,
+        chamado_numero: d.chamado_numero,
+      })),
+    });
+  }
+
+  res.json(grupos);
 });
 
 // Cria um item novo de checklist num projeto, ja atribuido ao implantador logado.
@@ -163,6 +196,35 @@ router.get('/sequencia', gate, async (req, res) => {
     console.error('[implantacao/sequencia] erro:', e.message);
     res.status(500).json({ error: 'falha ao calcular a sequência: ' + e.message });
   }
+});
+
+// Deixa o proprio implantador (nao precisa ser admin) atualizar o status de uma demanda
+// avulsa atribuida a ele - so o status pode mudar por aqui, o resto (datas, cliente,
+// % de dedicacao) continua exclusivo da tela Equipe, gerenciado pelo GP.
+router.patch('/demandas/:demandaId', gate, async (req, res) => {
+  const demanda = (await pool.query(`
+    SELECT d.*, i.nome AS implantador_nome
+    FROM demandas_avulsas d
+    JOIN implantadores i ON i.id = d.implantador_id
+    WHERE d.id = $1
+  `, [req.params.demandaId])).rows[0];
+  if (!demanda) return res.status(404).json({ error: 'demanda não encontrada' });
+  if (normalizar(demanda.implantador_nome) !== normalizar(req.usuario.nome)) {
+    return res.status(403).json({ error: 'você só pode atualizar demandas atribuídas a você' });
+  }
+  const statusValidos = ['Pendente', 'Em Andamento', 'Suspensa', 'Concluído'];
+  if (!statusValidos.includes(req.body.status)) {
+    return res.status(400).json({ error: 'status inválido' });
+  }
+  await pool.query(
+    `UPDATE demandas_avulsas SET status = $1, concluido_em = ${req.body.status === 'Concluído' ? 'NOW()' : 'NULL'} WHERE id = $2`,
+    [req.body.status, req.params.demandaId]
+  );
+  await registrarAuditoria({
+    entidade: 'demanda_avulsa', entidade_id: demanda.id,
+    acao: 'editado', autor: req.usuario.nome, detalhes: `Demanda "${demanda.titulo}" marcada como ${req.body.status} via Implantação`,
+  });
+  res.json({ ok: true });
 });
 
 module.exports = router;
