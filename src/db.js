@@ -296,7 +296,9 @@ async function init() {
       pode_admin BOOLEAN DEFAULT TRUE,
       pode_equipe BOOLEAN DEFAULT FALSE,
       ativo BOOLEAN DEFAULT TRUE,
-      criado_em TIMESTAMP DEFAULT NOW()
+      criado_em TIMESTAMP DEFAULT NOW(),
+      eh_gp BOOLEAN DEFAULT FALSE,
+      eh_implantador BOOLEAN DEFAULT FALSE
     );
 
     CREATE TABLE IF NOT EXISTS usuarios_tokens (
@@ -423,6 +425,33 @@ async function init() {
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_chamados BOOLEAN DEFAULT TRUE;');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_admin BOOLEAN DEFAULT TRUE;');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_equipe BOOLEAN DEFAULT FALSE;');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eh_gp BOOLEAN DEFAULT FALSE;');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eh_implantador BOOLEAN DEFAULT FALSE;');
+
+  // Migracao (idempotente, pode rodar em todo start sem duplicar nada): traz os cadastros
+  // antigos de GPs e Implantadores pra dentro de Usuarios, marcando os papeis certos.
+  // Casa GP por e-mail (ja tinham); casa Implantador por nome (nao tinham e-mail antes).
+  // Quando nao existe usuario nenhum que bata, cria um novo - pra implantador sem e-mail
+  // real, usa um placeholder unico (@pendente.cadastro) pra nao travar por causa da
+  // restricao de e-mail unico; o admin pode corrigir o e-mail de verdade depois, com calma.
+  await pool.query(`
+    UPDATE usuarios u SET eh_gp = TRUE
+    FROM gps g WHERE LOWER(u.email) = LOWER(g.email) AND u.eh_gp = FALSE;
+  `);
+  await pool.query(`
+    INSERT INTO usuarios (nome, email, eh_gp, ativo)
+    SELECT g.nome, g.email, TRUE, TRUE FROM gps g
+    WHERE NOT EXISTS (SELECT 1 FROM usuarios u WHERE LOWER(u.email) = LOWER(g.email));
+  `);
+  await pool.query(`
+    UPDATE usuarios u SET eh_implantador = TRUE
+    FROM implantadores i WHERE LOWER(TRIM(u.nome)) = LOWER(TRIM(i.nome)) AND u.eh_implantador = FALSE;
+  `);
+  await pool.query(`
+    INSERT INTO usuarios (nome, email, eh_implantador, ativo)
+    SELECT i.nome, 'implantador' || i.id || '@pendente.cadastro', TRUE, i.ativo FROM implantadores i
+    WHERE NOT EXISTS (SELECT 1 FROM usuarios u WHERE LOWER(TRIM(u.nome)) = LOWER(TRIM(i.nome)));
+  `);
 }
 
 const ready = (async () => {
