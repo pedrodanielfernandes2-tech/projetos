@@ -743,6 +743,8 @@ input:focus, select:focus, textarea:focus {
 }
 .equipe-gantt-track { min-height: 46px; }
 .equipe-gantt-dia { border-left: 1px solid var(--border); }
+.equipe-gantt-dia.weekend { background: #E9EEF5; }
+.equipe-gantt-cell-header.weekend { background: #E9EEF5; border-radius: 4px; }
 .equipe-gantt-livre { position: absolute; left: 8px; top: 15px; font-size: 12px; color: var(--text-muted); }
 .equipe-gantt-barra {
   position: absolute; border-radius: 6px; color: #fff;

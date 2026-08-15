@@ -3642,9 +3642,11 @@ function paginarImplantadoresPorAltura(implantadoresFiltrados, diasIso, alturaDi
 }
 
 function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, presentacao) {
+  const fimDeSemanaPorDia = dias.map((d) => d.getDay() === 0 || d.getDay() === 6);
+
   let html = `<div class="equipe-gantt-header" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
     <div class="equipe-gantt-cell-header"></div>
-    ${dias.map((d) => `<div class="equipe-gantt-cell-header">${DOWS_CURTOS[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}</div>`).join('')}
+    ${dias.map((d, i) => `<div class="equipe-gantt-cell-header${fimDeSemanaPorDia[i] ? ' weekend' : ''}">${DOWS_CURTOS[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}</div>`).join('')}
   </div>`;
 
   if (implantadoresDaPagina.length === 0) {
@@ -3662,15 +3664,18 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
         ${presentacao ? '' : `<button type="button" class="icon-btn" data-add-demanda="${imp.id}" data-nome="${imp.nome}" title="Adicionar demanda">+</button>`}
       </div>
       <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${alturaTrack}px;">
-        ${dias.map(() => '<div class="equipe-gantt-dia"></div>').join('')}
+        ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
         ${imp.tarefas.length === 0 ? '<span class="equipe-gantt-livre">Livre no período</span>' : ''}
         ${tarefasComIntervalo.map(({ t, idxIni, idxFim, raia }) => {
           const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
-          const cor = sobrecarregado ? 'var(--danger)' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
-          const semPrevisaoTag = !t.data_fim ? ' (sem previsão)' : '';
+          const semPrevisao = !t.data_fim;
+          const cor = sobrecarregado ? 'var(--danger)' : semPrevisao ? '#7C3AED' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
+          const semPrevisaoTag = semPrevisao ? ' (sem previsão)' : '';
+          const semPrevisaoIcone = semPrevisao ? '⏳ ' : '';
+          const bordaSemPrevisao = semPrevisao ? 'border:2px dashed #4C1D95;' : '';
           const clicavel = !presentacao && t.tipo !== 'wbs' ? `data-editar-demanda="${t.id}"` : '';
           const top = PADDING_TRACK_GANTT + raia * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT);
-          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
+          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${bordaSemPrevisao}${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${semPrevisaoIcone}${t.titulo} · ${t.pct_dedicacao}%</div>`;
         }).join('')}
       </div>
     </div>`;
@@ -3686,11 +3691,11 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
     barra.addEventListener('click', () => {
       const id = Number(barra.dataset.editarDemanda);
       let alvo = null, nomeImp = '';
-      data.implantadores.forEach((imp) => {
+      implantadoresDaPagina.forEach((imp) => {
         const achado = imp.tarefas.find((t) => t.id === id && t.tipo !== 'wbs');
         if (achado) { alvo = achado; nomeImp = imp.nome; }
       });
-      if (alvo) abrirModalDemanda(alvo.implantador_id || data.implantadores.find(i => i.tarefas.includes(alvo)).id, nomeImp, alvo);
+      if (alvo) abrirModalDemanda(alvo.implantador_id || implantadoresDaPagina.find(i => i.tarefas.includes(alvo)).id, nomeImp, alvo);
     });
   });
 }
