@@ -4,11 +4,12 @@ const { requireAdminAlways } = require('../adminAuth');
 const { registrarAuditoria } = require('../audit');
 const router = express.Router();
 
-router.get('/', requireAdminAlways, async (req, res) => {
+router.get('/', async (req, res) => {
   const { rows } = await pool.query(`
-    SELECT d.*, p.nome AS projeto_nome
+    SELECT d.*, p.nome AS projeto_nome, i.nome AS implantador_nome
     FROM demandas_avulsas d
     LEFT JOIN projects p ON p.id = d.project_id
+    LEFT JOIN implantadores i ON i.id = d.implantador_id
     ORDER BY d.data_inicio
   `);
   res.json(rows);
