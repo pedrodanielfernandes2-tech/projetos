@@ -404,7 +404,7 @@ function activateTab(btn) {
   // pelo menu, senao ela fica "grudada" embaixo da tela nova.
   document.getElementById('view-wbs').classList.add('hidden');
   if (btn.dataset.tab === 'dashboard') renderDashboard();
-  if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); }
+  if (btn.dataset.tab === 'admin') { renderAuditLog(); refreshUsuarios(); refreshImplantadores(); }
   if (btn.dataset.tab === 'implantacao') refreshImplantacao();
   if (btn.dataset.tab === 'equipe') refreshEquipe();
   document.getElementById('view-equipe').classList.toggle('hidden', btn.dataset.tab !== 'equipe');
@@ -3577,6 +3577,7 @@ document.getElementById('equipe-busca').addEventListener('input', (e) => {
 // ---------- modal de demanda avulsa ----------
 function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
   document.getElementById('demanda-avulsa-titulo').textContent = demandaExistente ? 'Editar demanda' : 'Nova demanda';
+  document.getElementById('demanda-cliente-lista').innerHTML = (state.clientes || []).map((c) => `<option value="${c.nome}"></option>`).join('');
   document.getElementById('demanda-implantador-id').value = implantadorId;
   document.getElementById('demanda-implantador-nome').textContent = `Implantador: ${implantadorNome}`;
   document.getElementById('demanda-id').value = demandaExistente ? demandaExistente.id : '';
@@ -3654,52 +3655,51 @@ document.getElementById('btn-excluir-demanda').addEventListener('click', async (
   }
 });
 
-// ---------- modal de gerenciar implantadores ----------
-async function abrirModalImplantadores() {
-  document.getElementById('modal-implantadores').classList.remove('hidden');
-  await renderListaImplantadores();
-}
-async function renderListaImplantadores() {
-  const implantadores = await api('/implantadores');
-  document.getElementById('lista-implantadores').innerHTML = implantadores.map((i) => `
-    <div class="toolbar" style="justify-content:space-between;">
-      <span style="${i.ativo ? '' : 'text-decoration:line-through;color:var(--text-muted);'}">${i.nome}</span>
-      <div class="toolbar" style="gap:6px;">
-        <button type="button" class="btn" data-toggle-implantador="${i.id}" data-ativo="${i.ativo}">${i.ativo ? 'Desativar' : 'Ativar'}</button>
-        <button type="button" class="btn" data-excluir-implantador="${i.id}" style="color:var(--danger);">Excluir</button>
-      </div>
-    </div>
-  `).join('') || '<p class="muted">Nenhum implantador cadastrado.</p>';
-
-  document.querySelectorAll('[data-toggle-implantador]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const ativo = btn.dataset.ativo === 'true';
-      const nome = btn.closest('.toolbar').querySelector('span').textContent;
-      await api(`/implantadores/${btn.dataset.toggleImplantador}`, { method: 'PUT', body: JSON.stringify({ nome, ativo: !ativo }) });
-      await renderListaImplantadores();
-      if (state.equipeData) refreshEquipe();
-    });
-  });
-  document.querySelectorAll('[data-excluir-implantador]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      if (!confirm('Excluir esse implantador? As demandas avulsas dele também serão apagadas.')) return;
-      await api(`/implantadores/${btn.dataset.excluirImplantador}`, { method: 'DELETE' });
-      await renderListaImplantadores();
-      if (state.equipeData) refreshEquipe();
-    });
+// ---------- Implantadores admin ----------
+function renderImplantadorList() {
+  const el = document.getElementById('implantador-list');
+  if (!el) return;
+  el.innerHTML = '';
+  (state.implantadores || []).forEach(i => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<span${i.ativo ? '' : ' style="text-decoration:line-through;color:var(--text-muted);"'}>${i.nome}</span>
+      <span class="toolbar" style="gap:6px;">
+        <button class="btn" data-toggle>${i.ativo ? 'Desativar' : 'Ativar'}</button>
+        <button class="icon-btn" aria-label="Remover implantador">✕</button>
+      </span>`;
+    row.querySelector('[data-toggle]').onclick = async () => {
+      try {
+        await api(`/implantadores/${i.id}`, { method: 'PUT', body: JSON.stringify({ nome: i.nome, ativo: !i.ativo }) });
+        await refreshImplantadores();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    row.querySelector('.icon-btn').onclick = async () => {
+      if (!confirm(`Excluir "${i.nome}"? As demandas avulsas dele também serão apagadas.`)) return;
+      try {
+        await api(`/implantadores/${i.id}`, { method: 'DELETE' });
+        await refreshImplantadores();
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+    el.appendChild(row);
   });
 }
-document.getElementById('btn-gerenciar-implantadores').addEventListener('click', abrirModalImplantadores);
-document.getElementById('btn-fechar-implantadores').addEventListener('click', () => {
-  document.getElementById('modal-implantadores').classList.add('hidden');
-});
-document.getElementById('btn-add-implantador').addEventListener('click', async () => {
-  const input = document.getElementById('novo-implantador-nome');
+async function refreshImplantadores() {
+  state.implantadores = await api('/implantadores');
+  renderImplantadorList();
+}
+document.getElementById('form-implantador').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('implantador-nome');
   if (!input.value.trim()) return;
   try {
     await api('/implantadores', { method: 'POST', body: JSON.stringify({ nome: input.value.trim() }) });
     input.value = '';
-    await renderListaImplantadores();
+    await refreshImplantadores();
   } catch (err) {
     alert(err.message);
   }

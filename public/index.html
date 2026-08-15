@@ -301,6 +301,16 @@
           </form>
         </div>
 
+        <div class="panel" data-admin-group="cadastros">
+          <h2>Implantadores</h2>
+          <p class="muted">Cadastre os implantadores. Eles aparecem na Visão da Equipe, e o nome deve bater com o "Responsável" usado na WBS.</p>
+          <div id="implantador-list" class="stack tight"></div>
+          <form id="form-implantador" class="form-row" style="margin-top:10px;">
+            <input type="text" id="implantador-nome" placeholder="Nome do implantador" required />
+            <button type="submit" class="btn">Adicionar implantador</button>
+          </form>
+        </div>
+
         <div class="panel" data-admin-group="notificacoes">
           <h2>Destinatários admin</h2>
           <p class="muted">E-mails que recebem o resumo geral, além dos GPs.</p>
@@ -437,7 +447,6 @@
 
       <div class="toolbar" style="margin-top:-6px;">
         <input type="text" id="equipe-busca" placeholder="Buscar por implantador ou cliente..." style="max-width:320px;" />
-        <button class="btn" id="btn-gerenciar-implantadores">Gerenciar implantadores</button>
       </div>
 
       <div class="legend-row" style="margin:10px 0 16px;">
@@ -470,7 +479,8 @@
           </label>
           <div class="form-row">
             <label style="flex:1;font-size:12px;color:var(--text-muted);">Cliente
-              <input type="text" id="demanda-cliente" placeholder="Ex: Boa Jundiaí" />
+              <input type="text" id="demanda-cliente" list="demanda-cliente-lista" placeholder="Selecione ou digite um cliente" autocomplete="off" />
+              <datalist id="demanda-cliente-lista"></datalist>
             </label>
             <label style="flex:1;font-size:12px;color:var(--text-muted);">Nº do chamado
               <input type="text" id="demanda-chamado" placeholder="Ex: 25010" />
@@ -501,20 +511,6 @@
             <button type="submit" class="btn btn-primary">Salvar</button>
           </div>
         </form>
-      </div>
-    </div>
-
-    <div id="modal-implantadores" class="modal-overlay hidden">
-      <div class="modal">
-        <h2>Gerenciar implantadores</h2>
-        <div class="form-row">
-          <input type="text" id="novo-implantador-nome" placeholder="Nome do implantador" class="full-width" />
-          <button type="button" class="btn btn-primary" id="btn-add-implantador">Adicionar</button>
-        </div>
-        <div id="lista-implantadores" class="stack tight" style="margin-top:14px;"></div>
-        <div class="form-actions">
-          <button type="button" class="btn" id="btn-fechar-implantadores">Fechar</button>
-        </div>
       </div>
     </div>
 
