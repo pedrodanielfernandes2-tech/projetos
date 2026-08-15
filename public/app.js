@@ -3329,7 +3329,8 @@ async function populateWbsResponsavelSelect(valorAtual) {
   const sel = document.getElementById('wbs-item-responsavel');
   let nomes = [];
   try {
-    nomes = await api('/usuarios/implantadores');
+    const implantadores = await api('/implantadores');
+    nomes = implantadores.filter(i => i.ativo).map(i => i.nome);
   } catch (e) {
     // silencioso - segue so com a opcao em branco (e o valor atual, se houver)
   }
