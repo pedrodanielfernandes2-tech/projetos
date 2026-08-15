@@ -747,3 +747,12 @@ input:focus, select:focus, textarea:focus {
   overflow: hidden; white-space: nowrap; cursor: pointer;
 }
 .active-tipo { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ---------- KPIs compactos da Visao da Equipe ---------- */
+.equipe-kpis-compactos { display: flex; gap: 10px; flex-wrap: wrap; }
+.equipe-kpi-item {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; display: flex; align-items: baseline; gap: 8px;
+}
+.equipe-kpi-valor { font-size: 22px; font-weight: 800; }
+.equipe-kpi-label { font-size: 12px; color: var(--text-muted); }

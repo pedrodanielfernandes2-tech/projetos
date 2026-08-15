@@ -23,6 +23,7 @@ const state = {
   activeFilter: null,
   gpFilter: null,
   mostrarConcluidos: false,
+  equipePaginaAtual: 0,
   searchText: '',
   sortBy: 'prazo',
   isAdmin: false,
@@ -3485,7 +3486,7 @@ function tarefasNoDia(tarefas, diaIso) {
   });
 }
 
-function renderEquipeKpis(data) {
+function renderEquipeKpisEm(targetId, data) {
   const hojeIso = isoDate(new Date());
   const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim).map(isoDate);
 
@@ -3508,12 +3509,13 @@ function renderEquipeKpis(data) {
     imp.tarefas.forEach((t) => { if (!t.data_fim) semPrevisao++; });
   });
 
-  document.getElementById('equipe-kpis').innerHTML = `
-    <div class="stat-card"><p class="stat-label">Livres hoje</p><p class="stat-value">${livresHoje}</p></div>
-    <div class="stat-card"><p class="stat-label">Sobrecarregados na semana</p><p class="stat-value" style="color:var(--danger);">${sobrecarregados}</p></div>
-    <div class="stat-card"><p class="stat-label">Tarefas sem previsão de fim</p><p class="stat-value" style="color:var(--warning);">${semPrevisao}</p></div>
+  document.getElementById(targetId).innerHTML = `
+    <div class="equipe-kpi-item"><span class="equipe-kpi-valor">${livresHoje}</span><span class="equipe-kpi-label">Livres hoje</span></div>
+    <div class="equipe-kpi-item"><span class="equipe-kpi-valor" style="color:var(--danger);">${sobrecarregados}</span><span class="equipe-kpi-label">Sobrecarregados na semana</span></div>
+    <div class="equipe-kpi-item"><span class="equipe-kpi-valor" style="color:var(--warning);">${semPrevisao}</span><span class="equipe-kpi-label">Sem previsão de fim</span></div>
   `;
 }
+function renderEquipeKpis(data) { renderEquipeKpisEm('equipe-kpis', data); }
 
 function renderEquipeGantt(data) {
   const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim);
@@ -3527,45 +3529,102 @@ function renderEquipeGantt(data) {
   });
 
   const host = document.getElementById('equipe-gantt');
+  const scrollHost = document.getElementById('equipe-gantt-scroll');
+  const alturaDisponivel = Math.max(200, win_innerHeight() - scrollHost.getBoundingClientRect().top - 40 - 34);
+  const paginas = paginarImplantadoresPorAltura(implantadoresFiltrados, diasIso, alturaDisponivel);
+  if (state.equipePaginaAtual >= paginas.length) state.equipePaginaAtual = 0;
+  state.equipeTotalPaginas = paginas.length;
+
+  renderEquipeGanttConteudo(host, paginas[state.equipePaginaAtual] || [], dias, diasIso, false);
+  renderEquipePaginacao(paginas.length);
+}
+function win_innerHeight() { return window.innerHeight; }
+
+function renderEquipePaginacao(totalPaginas) {
+  const el = document.getElementById('equipe-paginacao');
+  if (!el) return;
+  if (totalPaginas <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="btn" id="equipe-pagina-anterior" ${state.equipePaginaAtual === 0 ? 'disabled' : ''}>‹ Anterior</button>
+    <span class="calendar-label">Página ${state.equipePaginaAtual + 1} de ${totalPaginas}</span>
+    <button class="btn" id="equipe-proxima-pagina" ${state.equipePaginaAtual >= totalPaginas - 1 ? 'disabled' : ''}>Próxima ›</button>
+  `;
+  document.getElementById('equipe-pagina-anterior').addEventListener('click', () => {
+    state.equipePaginaAtual = Math.max(0, state.equipePaginaAtual - 1);
+    renderEquipeGantt(state.equipeData);
+  });
+  document.getElementById('equipe-proxima-pagina').addEventListener('click', () => {
+    state.equipePaginaAtual = state.equipePaginaAtual + 1;
+    renderEquipeGantt(state.equipeData);
+  });
+}
+
+const ALTURA_BARRA_GANTT = 26, GAP_BARRA_GANTT = 4, PADDING_TRACK_GANTT = 6, ALTURA_NOME_MIN = 46;
+
+function calcularRaiasImplantador(imp, diasIso) {
+  const tarefasComIntervalo = imp.tarefas.map((t) => {
+    const iniClip = t.data_inicio < diasIso[0] ? diasIso[0] : t.data_inicio;
+    const fimT = t.data_fim || t.data_inicio;
+    const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
+    const idxIni = diasIso.indexOf(iniClip);
+    const idxFim = diasIso.indexOf(fimClip);
+    return { t, idxIni, idxFim };
+  }).filter((x) => x.idxIni !== -1 && x.idxFim !== -1)
+    .sort((a, b) => a.idxIni - b.idxIni);
+
+  const fimPorRaia = [];
+  tarefasComIntervalo.forEach((x) => {
+    let raia = fimPorRaia.findIndex((fimOcupado) => fimOcupado < x.idxIni);
+    if (raia === -1) { raia = fimPorRaia.length; }
+    fimPorRaia[raia] = x.idxFim;
+    x.raia = raia;
+  });
+  const totalRaias = Math.max(1, fimPorRaia.length);
+  const alturaTrack = Math.max(ALTURA_NOME_MIN, totalRaias * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT) + PADDING_TRACK_GANTT);
+  return { tarefasComIntervalo, totalRaias, alturaTrack };
+}
+
+// Monta as paginas de implantadores com base no espaco vertical disponivel na tela -
+// cada pessoa pode ocupar uma altura diferente (dependendo de quantas tarefas em
+// paralelo ela tem), entao a paginacao "empacota" pessoas ate encher o espaco.
+function paginarImplantadoresPorAltura(implantadoresFiltrados, diasIso, alturaDisponivel) {
+  const alturasLinhas = implantadoresFiltrados.map((imp) => calcularRaiasImplantador(imp, diasIso).alturaTrack + 1);
+  const paginas = [];
+  let paginaAtual = [];
+  let alturaUsada = 0;
+  implantadoresFiltrados.forEach((imp, i) => {
+    const alturaLinha = alturasLinhas[i];
+    if (paginaAtual.length > 0 && alturaUsada + alturaLinha > alturaDisponivel) {
+      paginas.push(paginaAtual);
+      paginaAtual = [];
+      alturaUsada = 0;
+    }
+    paginaAtual.push(imp);
+    alturaUsada += alturaLinha;
+  });
+  if (paginaAtual.length > 0) paginas.push(paginaAtual);
+  return paginas.length > 0 ? paginas : [[]];
+}
+
+function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, presentacao) {
   let html = `<div class="equipe-gantt-header" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
     <div class="equipe-gantt-cell-header"></div>
     ${dias.map((d) => `<div class="equipe-gantt-cell-header">${DOWS_CURTOS[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}</div>`).join('')}
   </div>`;
 
-  if (implantadoresFiltrados.length === 0) {
+  if (implantadoresDaPagina.length === 0) {
     html += '<p class="muted" style="padding:16px;">Nenhum implantador encontrado.</p>';
   }
 
-  implantadoresFiltrados.forEach((imp) => {
-    const cargaPorDia = diasIso.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
-
-    // Calcula em qual "raia" (linha vertical) cada tarefa entra, pra tarefas que se
-    // cruzam no tempo nao ficarem uma em cima da outra (sen esconder tudo menos a ultima).
-    const tarefasComIntervalo = imp.tarefas.map((t) => {
-      const iniClip = t.data_inicio < diasIso[0] ? diasIso[0] : t.data_inicio;
-      const fimT = t.data_fim || t.data_inicio;
-      const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
-      const idxIni = diasIso.indexOf(iniClip);
-      const idxFim = diasIso.indexOf(fimClip);
-      return { t, idxIni, idxFim };
-    }).filter((x) => x.idxIni !== -1 && x.idxFim !== -1)
-      .sort((a, b) => a.idxIni - b.idxIni);
-
-    const fimPorRaia = [];
-    tarefasComIntervalo.forEach((x) => {
-      let raia = fimPorRaia.findIndex((fimOcupado) => fimOcupado < x.idxIni);
-      if (raia === -1) { raia = fimPorRaia.length; }
-      fimPorRaia[raia] = x.idxFim;
-      x.raia = raia;
-    });
-    const totalRaias = Math.max(1, fimPorRaia.length);
-    const alturaBarra = 26, gapBarra = 4, paddingTrack = 6;
-    const alturaTrack = totalRaias * (alturaBarra + gapBarra) + paddingTrack;
+  implantadoresDaPagina.forEach((imp) => {
+    const diasIsoLocal = diasIso;
+    const cargaPorDia = diasIsoLocal.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
+    const { tarefasComIntervalo, alturaTrack } = calcularRaiasImplantador(imp, diasIsoLocal);
 
     html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
       <div class="equipe-gantt-nome">
         <span>${imp.nome}</span>
-        <button type="button" class="icon-btn" data-add-demanda="${imp.id}" data-nome="${imp.nome}" title="Adicionar demanda">+</button>
+        ${presentacao ? '' : `<button type="button" class="icon-btn" data-add-demanda="${imp.id}" data-nome="${imp.nome}" title="Adicionar demanda">+</button>`}
       </div>
       <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${alturaTrack}px;">
         ${dias.map(() => '<div class="equipe-gantt-dia"></div>').join('')}
@@ -3574,15 +3633,16 @@ function renderEquipeGantt(data) {
           const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
           const cor = sobrecarregado ? 'var(--danger)' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
           const semPrevisaoTag = !t.data_fim ? ' (sem previsão)' : '';
-          const clicavel = t.tipo === 'wbs' ? '' : `data-editar-demanda="${t.id}"`;
-          const top = paddingTrack + raia * (alturaBarra + gapBarra);
-          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${alturaBarra}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
+          const clicavel = !presentacao && t.tipo !== 'wbs' ? `data-editar-demanda="${t.id}"` : '';
+          const top = PADDING_TRACK_GANTT + raia * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT);
+          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${t.titulo} · ${t.pct_dedicacao}%</div>`;
         }).join('')}
       </div>
     </div>`;
   });
 
   host.innerHTML = html;
+  if (presentacao) return;
 
   host.querySelectorAll('[data-add-demanda]').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalDemanda(btn.dataset.addDemanda, btn.dataset.nome, null));
@@ -3603,25 +3663,140 @@ function renderEquipeGantt(data) {
 document.getElementById('equipe-semana-anterior').addEventListener('click', () => {
   state.equipeInicio.setDate(state.equipeInicio.getDate() - 7);
   state.equipeFim.setDate(state.equipeFim.getDate() - 7);
+  state.equipePaginaAtual = 0;
   loadEquipeData();
 });
 document.getElementById('equipe-proxima-semana').addEventListener('click', () => {
   state.equipeInicio.setDate(state.equipeInicio.getDate() + 7);
   state.equipeFim.setDate(state.equipeFim.getDate() + 7);
+  state.equipePaginaAtual = 0;
   loadEquipeData();
 });
 document.getElementById('equipe-hoje').addEventListener('click', () => {
   state.equipeInicio = segundaFeiraDe(new Date());
   state.equipeFim = new Date(state.equipeInicio);
   state.equipeFim.setDate(state.equipeFim.getDate() + 6);
+  state.equipePaginaAtual = 0;
   loadEquipeData();
 });
 document.getElementById('equipe-busca').addEventListener('input', (e) => {
   state.equipeBusca = e.target.value;
+  state.equipePaginaAtual = 0;
   if (state.equipeData) renderEquipeGantt(state.equipeData);
 });
 
 // ---------- modal de demanda avulsa ----------
+// ---------- modo apresentacao da Visao da Equipe (pensado pra TV) ----------
+let equipePresentationInterval = null;
+let equipePresentationPaginaInterval = null;
+let equipePresentationWakeLock = null;
+let equipePresentationPaginaAtual = 0;
+
+function carregarConfigEquipePresentacao() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem('equipePresentationConfig') || '{}');
+    return {
+      refreshMin: Number(salvo.refreshMin) > 0 ? Number(salvo.refreshMin) : 5,
+      paginaSeg: Number(salvo.paginaSeg) > 0 ? Number(salvo.paginaSeg) : 20,
+    };
+  } catch (e) {
+    return { refreshMin: 5, paginaSeg: 20 };
+  }
+}
+function salvarConfigEquipePresentacao(cfg) {
+  try { localStorage.setItem('equipePresentationConfig', JSON.stringify(cfg)); } catch (e) { /* segue sem salvar */ }
+}
+let equipePresentationConfig = carregarConfigEquipePresentacao();
+
+async function abrirEquipePresentacao() {
+  document.getElementById('equipe-presentation-overlay').classList.remove('hidden');
+  equipePresentationPaginaAtual = 0;
+  await refreshEquipePresentacao();
+
+  if (document.documentElement.requestFullscreen) {
+    document.documentElement.requestFullscreen().catch(() => {});
+  }
+  if (navigator.wakeLock) {
+    try { equipePresentationWakeLock = await navigator.wakeLock.request('screen'); } catch (e) { /* falha silenciosa */ }
+  }
+  document.getElementById('equipe-presentation-cfg-refresh').value = equipePresentationConfig.refreshMin;
+  document.getElementById('equipe-presentation-cfg-pagina').value = equipePresentationConfig.paginaSeg;
+  reiniciarIntervalosEquipePresentacao();
+}
+
+function reiniciarIntervalosEquipePresentacao() {
+  if (equipePresentationInterval) clearInterval(equipePresentationInterval);
+  equipePresentationInterval = setInterval(refreshEquipePresentacao, equipePresentationConfig.refreshMin * 60 * 1000);
+  if (equipePresentationPaginaInterval) clearInterval(equipePresentationPaginaInterval);
+  equipePresentationPaginaInterval = setInterval(avancarPaginaEquipePresentacao, equipePresentationConfig.paginaSeg * 1000);
+}
+
+function fecharEquipePresentacao() {
+  document.getElementById('equipe-presentation-overlay').classList.add('hidden');
+  document.getElementById('equipe-presentation-config-painel').classList.add('hidden');
+  if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(() => {});
+  }
+  if (equipePresentationInterval) { clearInterval(equipePresentationInterval); equipePresentationInterval = null; }
+  if (equipePresentationPaginaInterval) { clearInterval(equipePresentationPaginaInterval); equipePresentationPaginaInterval = null; }
+  if (equipePresentationWakeLock) { equipePresentationWakeLock.release().catch(() => {}); equipePresentationWakeLock = null; }
+}
+
+async function refreshEquipePresentacao() {
+  try {
+    if (!state.equipeInicio) {
+      state.equipeInicio = segundaFeiraDe(new Date());
+      state.equipeFim = new Date(state.equipeInicio);
+      state.equipeFim.setDate(state.equipeFim.getDate() + 6);
+    }
+    const inicio = isoDate(state.equipeInicio);
+    const fim = isoDate(state.equipeFim);
+    const data = await api(`/visao-equipe?inicio=${inicio}&fim=${fim}`);
+    state.equipePresentationData = data;
+    const fmt = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    document.getElementById('equipe-presentation-periodo').textContent = `${fmt(state.equipeInicio)} — ${fmt(state.equipeFim)}`;
+    renderEquipeKpisEm('equipe-presentation-kpis', data);
+    renderPaginaEquipePresentacao();
+  } catch (err) {
+    document.getElementById('equipe-presentation-gantt').innerHTML = `<p class="muted">Falha ao atualizar: ${err.message}</p>`;
+  }
+}
+
+function renderPaginaEquipePresentacao() {
+  const data = state.equipePresentationData;
+  if (!data) return;
+  const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim);
+  const diasIso = dias.map(isoDate);
+  const host = document.getElementById('equipe-presentation-gantt');
+  const alturaDisponivel = Math.max(200, window.innerHeight - host.getBoundingClientRect().top - 40);
+  const paginas = paginarImplantadoresPorAltura(data.implantadores, diasIso, alturaDisponivel);
+  if (equipePresentationPaginaAtual >= paginas.length) equipePresentationPaginaAtual = 0;
+  renderEquipeGanttConteudo(host, paginas[equipePresentationPaginaAtual] || [], dias, diasIso, true);
+}
+function avancarPaginaEquipePresentacao() {
+  equipePresentationPaginaAtual++;
+  renderPaginaEquipePresentacao();
+}
+
+document.getElementById('btn-equipe-apresentacao').addEventListener('click', abrirEquipePresentacao);
+document.getElementById('btn-equipe-sair-apresentacao').addEventListener('click', fecharEquipePresentacao);
+document.getElementById('btn-equipe-presentation-config').addEventListener('click', () => {
+  document.getElementById('equipe-presentation-config-painel').classList.toggle('hidden');
+});
+document.getElementById('btn-equipe-presentation-config-salvar').addEventListener('click', () => {
+  const refreshMin = Math.max(1, Number(document.getElementById('equipe-presentation-cfg-refresh').value) || 5);
+  const paginaSeg = Math.max(5, Number(document.getElementById('equipe-presentation-cfg-pagina').value) || 20);
+  equipePresentationConfig = { refreshMin, paginaSeg };
+  salvarConfigEquipePresentacao(equipePresentationConfig);
+  reiniciarIntervalosEquipePresentacao();
+  document.getElementById('equipe-presentation-config-painel').classList.add('hidden');
+});
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !document.getElementById('equipe-presentation-overlay').classList.contains('hidden')) {
+    fecharEquipePresentacao();
+  }
+});
+
 function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
   document.getElementById('demanda-avulsa-titulo').textContent = demandaExistente ? `Editar demanda de ${implantadorNome}` : `Nova demanda para ${implantadorNome}`;
   document.getElementById('demanda-cliente-lista').innerHTML = (state.clientes || []).map((c) => `<option value="${c.nome}"></option>`).join('');

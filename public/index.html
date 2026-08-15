@@ -437,13 +437,14 @@
         <h1>Visão da Equipe</h1>
       </div>
 
-      <div class="stats-grid" id="equipe-kpis" style="margin-bottom:16px;"></div>
+      <div class="equipe-kpis-compactos" id="equipe-kpis" style="margin-bottom:12px;"></div>
 
       <div class="toolbar" style="margin-top:-6px;">
         <button class="btn" id="equipe-semana-anterior">‹ Semana anterior</button>
         <button class="btn" id="equipe-hoje">Hoje</button>
         <button class="btn" id="equipe-proxima-semana">Próxima semana ›</button>
         <span id="equipe-periodo-label" class="calendar-label" style="margin-left:8px;"></span>
+        <button class="btn" id="btn-equipe-apresentacao" style="margin-left:auto;">🖥️ Modo Apresentação</button>
       </div>
 
       <div class="toolbar" style="margin-top:-6px;">
@@ -461,8 +462,37 @@
         <div id="equipe-gantt-scroll" style="overflow-x:auto;">
           <div id="equipe-gantt"></div>
         </div>
+        <div id="equipe-paginacao" class="toolbar" style="justify-content:center;margin-top:10px;"></div>
       </div>
     </section>
+
+    <div id="equipe-presentation-overlay" class="calendar-presentation hidden">
+      <div class="calendar-presentation-header">
+        <div>
+          <h1>Visão da Equipe</h1>
+          <p id="equipe-presentation-periodo" class="calendar-presentation-subtitulo"></p>
+        </div>
+        <div class="calendar-presentation-acoes">
+          <button type="button" id="btn-equipe-presentation-config" class="btn" aria-label="Configurações da apresentação">⚙️</button>
+          <button type="button" id="btn-equipe-sair-apresentacao" class="btn">✕ Sair</button>
+        </div>
+      </div>
+      <div id="equipe-presentation-config-painel" class="cal-presentation-config hidden">
+        <label>
+          Atualizar dados a cada
+          <input type="number" id="equipe-presentation-cfg-refresh" min="1" max="60" />
+          minuto(s)
+        </label>
+        <label>
+          Trocar de página a cada
+          <input type="number" id="equipe-presentation-cfg-pagina" min="5" max="120" />
+          segundo(s)
+        </label>
+        <button type="button" id="btn-equipe-presentation-config-salvar" class="btn btn-primary">Salvar</button>
+      </div>
+      <div class="equipe-kpis-compactos" id="equipe-presentation-kpis" style="margin-bottom:14px;"></div>
+      <div id="equipe-presentation-gantt"></div>
+    </div>
 
     <div id="modal-demanda-avulsa" class="modal-overlay hidden">
       <div class="modal">
