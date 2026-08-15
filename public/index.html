@@ -535,6 +535,11 @@
               <input type="number" id="demanda-pct" min="1" max="100" value="100" required />
             </label>
           </div>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);margin:-4px 0 12px;">
+            <input type="checkbox" id="demanda-trabalha-fds" style="width:auto;" />
+            Essa tarefa também roda no fim de semana (plantão/suporte urgente)
+          </label>
+          <p class="muted" style="font-size:11.5px;margin:-8px 0 12px;">Por padrão, sábado e domingo não contam como dias de trabalho — a barra na Equipe fica "pausada" nesses dias e eles não entram no cálculo de carga.</p>
           <label style="font-size:12px;color:var(--text-muted);">Projeto vinculado (opcional)
             <select id="demanda-projeto"><option value="">Nenhum</option></select>
           </label>

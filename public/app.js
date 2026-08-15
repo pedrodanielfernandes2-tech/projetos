@@ -3463,12 +3463,39 @@ function renderEquipePeriodoLabel() {
   document.getElementById('equipe-periodo-label').textContent = `${fmt(state.equipeInicio)} — ${fmt(state.equipeFim)}`;
 }
 
+function ehFimDeSemanaIso(diaIso) {
+  const dow = new Date(diaIso + 'T00:00:00').getDay();
+  return dow === 0 || dow === 6;
+}
 function tarefasNoDia(tarefas, diaIso) {
+  const fds = ehFimDeSemanaIso(diaIso);
   return tarefas.filter((t) => {
     const ini = t.data_inicio;
     const fimT = t.data_fim || t.data_inicio;
-    return ini <= diaIso && fimT >= diaIso;
+    if (ini > diaIso || fimT < diaIso) return false;
+    // sabado/domingo nao conta como dia de trabalho, a menos que a tarefa seja
+    // marcada como excecao (plantao/suporte que realmente roda no fim de semana)
+    if (fds && !t.trabalha_fim_semana) return false;
+    return true;
   });
+}
+// Quebra um intervalo de dias em pedacos so com dias uteis (pulando sabado/domingo),
+// a nao ser que a tarefa seja excecao - usado pra desenhar a barra do Gantt "pausada"
+// no fim de semana, em vez de continua.
+function segmentosUteis(idxIni, idxFim, diasIso, trabalhaFimSemana) {
+  if (trabalhaFimSemana) return [{ idxIni, idxFim }];
+  const segmentos = [];
+  let inicioSegmento = null;
+  for (let i = idxIni; i <= idxFim; i++) {
+    if (!ehFimDeSemanaIso(diasIso[i])) {
+      if (inicioSegmento === null) inicioSegmento = i;
+    } else if (inicioSegmento !== null) {
+      segmentos.push({ idxIni: inicioSegmento, idxFim: i - 1 });
+      inicioSegmento = null;
+    }
+  }
+  if (inicioSegmento !== null) segmentos.push({ idxIni: inicioSegmento, idxFim });
+  return segmentos;
 }
 
 function renderEquipeKpisEm(targetId, data) {
@@ -3616,7 +3643,7 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
       <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${alturaTrack}px;">
         ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
         ${imp.tarefas.length === 0 ? '<span class="equipe-gantt-livre">Livre no período</span>' : ''}
-        ${tarefasComIntervalo.map(({ t, idxIni, idxFim, raia }) => {
+        ${tarefasComIntervalo.flatMap(({ t, idxIni, idxFim, raia }) => {
           const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
           const semPrevisao = !t.data_fim;
           const cor = sobrecarregado ? 'var(--danger)' : semPrevisao ? '#7C3AED' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
@@ -3625,7 +3652,12 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
           const bordaSemPrevisao = semPrevisao ? 'border:2px dashed #4C1D95;' : '';
           const clicavel = !presentacao && t.tipo !== 'wbs' ? `data-editar-demanda="${t.id}"` : '';
           const top = PADDING_TRACK_GANTT + raia * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT);
-          return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${bordaSemPrevisao}${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}">${semPrevisaoIcone}${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''} · ${t.pct_dedicacao}%</div>`;
+          const titleCompleto = `${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}${t.trabalha_fim_semana ? ' · roda também no fim de semana' : ''}`;
+          const segmentos = segmentosUteis(idxIni, idxFim, diasIso, t.trabalha_fim_semana);
+          return segmentos.map((seg, idx) => {
+            const label = idx === 0 ? `${semPrevisaoIcone}${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''} · ${t.pct_dedicacao}%` : '';
+            return `<div class="equipe-gantt-barra" style="top:${top}px;height:${ALTURA_BARRA_GANTT}px;left:calc(${(seg.idxIni / dias.length) * 100}% + 2px);width:calc(${((seg.idxFim - seg.idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};${bordaSemPrevisao}${presentacao ? 'cursor:default;' : ''}" ${clicavel} title="${titleCompleto}">${label}</div>`;
+          });
         }).join('')}
       </div>
     </div>`;
@@ -3800,6 +3832,7 @@ function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
   document.getElementById('demanda-fim').value = demandaExistente ? (demandaExistente.data_fim || '') : '';
   document.getElementById('demanda-horas').value = demandaExistente ? demandaExistente.horas_esforco || '' : '';
   document.getElementById('demanda-pct').value = demandaExistente ? demandaExistente.pct_dedicacao : 100;
+  document.getElementById('demanda-trabalha-fds').checked = demandaExistente ? !!demandaExistente.trabalha_fim_semana : false;
   document.getElementById('btn-excluir-demanda').classList.toggle('hidden', !demandaExistente);
 
   const selectProjeto = document.getElementById('demanda-projeto');
@@ -3840,6 +3873,7 @@ document.getElementById('form-demanda-avulsa').addEventListener('submit', async 
     pct_dedicacao: Number(document.getElementById('demanda-pct').value),
     tipo: document.getElementById('form-demanda-avulsa').dataset.tipo || 'demanda',
     project_id: document.getElementById('demanda-projeto').value || null,
+    trabalha_fim_semana: document.getElementById('demanda-trabalha-fds').checked,
     status: 'Pendente',
   };
   try {
