@@ -1624,6 +1624,7 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
         area: `👤 ${d.implantador_nome || 'Implantador'}`,
         nome: d.titulo, chamado: d.chamado_numero, status: d.status,
         cliente_nome: d.cliente_nome, gerente_nome: '', semPrevisao: !d.data_fim,
+        isDemanda: true, pct: d.pct_dedicacao,
       });
     }
   });
@@ -1648,7 +1649,12 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
     html += `
       <div class="calendar-day${isHoje ? ' today' : ''}${isFimDeSemana ? ' weekend' : ''}${itens.length > 0 ? ' has-items' : ''}" data-dia="${dia}">
         <span class="calendar-day-num">${dia}</span>
-        ${visiveis.map(it => `<span class="calendar-item badge ${statusClass(it.status)}${it.semPrevisao ? ' sem-previsao' : ''}" title="${it.area} — ${it.nome} (${it.status})${it.semPrevisao ? ' · sem previsão de término' : ''}">${it.semPrevisao ? '⏳ ' : ''}${it.area}${it.chamado ? ' · ' + it.chamado : ''}</span>`).join('')}
+        ${visiveis.map(it => {
+          const textoPrincipal = it.isDemanda
+            ? `${it.cliente_nome ? it.cliente_nome + ' - ' : ''}${it.nome}${it.pct ? ' - ' + Math.round(it.pct) + '%' : ''}`
+            : `${it.area}${it.chamado ? ' · ' + it.chamado : ''}`;
+          return `<span class="calendar-item badge ${statusClass(it.status)}${it.semPrevisao ? ' sem-previsao' : ''}" title="${it.area} — ${it.nome} (${it.status})${it.cliente_nome ? ' · Cliente: ' + it.cliente_nome : ''}${it.semPrevisao ? ' · sem previsão de término' : ''}">${it.semPrevisao ? '⏳ ' : ''}${textoPrincipal}</span>`;
+        }).join('')}
         ${extra > 0 ? `<span class="calendar-more">+${extra} mais</span>` : ''}
       </div>
     `;
