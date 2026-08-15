@@ -3530,7 +3530,7 @@ function renderEquipeGantt(data) {
 
   const host = document.getElementById('equipe-gantt');
   const scrollHost = document.getElementById('equipe-gantt-scroll');
-  const alturaDisponivel = Math.max(200, win_innerHeight() - scrollHost.getBoundingClientRect().top - 40 - 34);
+  const alturaDisponivel = Math.max(200, win_innerHeight() - scrollHost.getBoundingClientRect().top - 55);
   const paginas = paginarImplantadoresPorAltura(implantadoresFiltrados, diasIso, alturaDisponivel);
   if (state.equipePaginaAtual >= paginas.length) state.equipePaginaAtual = 0;
   state.equipeTotalPaginas = paginas.length;
@@ -3768,7 +3768,7 @@ function renderPaginaEquipePresentacao() {
   const dias = diasDoPeriodo(state.equipeInicio, state.equipeFim);
   const diasIso = dias.map(isoDate);
   const host = document.getElementById('equipe-presentation-gantt');
-  const alturaDisponivel = Math.max(200, window.innerHeight - host.getBoundingClientRect().top - 40);
+  const alturaDisponivel = Math.max(200, window.innerHeight - host.getBoundingClientRect().top - 16);
   const paginas = paginarImplantadoresPorAltura(data.implantadores, diasIso, alturaDisponivel);
   if (equipePresentationPaginaAtual >= paginas.length) equipePresentationPaginaAtual = 0;
   renderEquipeGanttConteudo(host, paginas[equipePresentationPaginaAtual] || [], dias, diasIso, true);
