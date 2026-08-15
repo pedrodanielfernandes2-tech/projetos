@@ -4,7 +4,7 @@ const { requireAdminAlways } = require('../adminAuth');
 const { registrarAuditoria } = require('../audit');
 const router = express.Router();
 
-router.get('/', requireAdminAlways, async (req, res) => {
+router.get('/', async (req, res) => {
   const { rows } = await pool.query('SELECT * FROM implantadores ORDER BY nome');
   res.json(rows);
 });

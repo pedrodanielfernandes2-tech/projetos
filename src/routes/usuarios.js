@@ -1,17 +1,9 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireAdminAlways } = require('../adminAuth');
-const { gerarTokenSenha, hashSenha, requirePermissao } = require('../usuariosAuth');
+const { gerarTokenSenha, hashSenha } = require('../usuariosAuth');
 const { sendMail } = require('../email');
 const router = express.Router();
-
-// Lista leve (so os nomes) dos implantadores cadastrados e ativos - usada pra sugerir
-// nomes no campo "Responsável" da WBS. Acessivel a qualquer um com acesso a Projetos,
-// nao so ao Admin, ja que quem monta a WBS normalmente e um GP, nao necessariamente admin.
-router.get('/implantadores', requirePermissao('pode_projetos'), async (req, res) => {
-  const { rows } = await pool.query('SELECT nome FROM usuarios WHERE pode_implantacao = TRUE AND ativo = TRUE ORDER BY nome');
-  res.json(rows.map(r => r.nome));
-});
 
 router.get('/', requireAdminAlways, async (req, res) => {
   const { rows } = await pool.query(`
