@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get('/', requireAdminAlways, async (req, res) => {
   const { rows } = await pool.query(`
-    SELECT id, nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, ativo, criado_em,
+    SELECT id, nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, ativo, criado_em,
       (senha_hash IS NOT NULL) AS senha_definida
     FROM usuarios ORDER BY nome
   `);
@@ -15,7 +15,7 @@ router.get('/', requireAdminAlways, async (req, res) => {
 });
 
 router.post('/', requireAdminAlways, async (req, res) => {
-  const { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, senha } = req.body;
+  const { nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, senha } = req.body;
   if (!nome || !nome.trim() || !email || !email.trim()) {
     return res.status(400).json({ error: 'nome e e-mail são obrigatórios' });
   }
@@ -27,8 +27,8 @@ router.post('/', requireAdminAlways, async (req, res) => {
   try {
     const senhaHash = senha ? await hashSenha(senha) : null;
     const { rows } = await pool.query(
-      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, senha_hash) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao, !!pode_chamados, !!pode_admin, senhaHash]
+      'INSERT INTO usuarios (nome, email, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, senha_hash) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [nome.trim(), email.toLowerCase().trim(), !!pode_projetos, !!pode_implantacao, !!pode_chamados, !!pode_admin, !!pode_equipe, senhaHash]
     );
     usuario = rows[0];
   } catch (e) {
@@ -65,7 +65,7 @@ router.patch('/:id', requireAdminAlways, async (req, res) => {
   const campos = [];
   const valores = [];
   let i = 1;
-  ['nome', 'pode_projetos', 'pode_implantacao', 'pode_chamados', 'pode_admin', 'ativo'].forEach(campo => {
+  ['nome', 'pode_projetos', 'pode_implantacao', 'pode_chamados', 'pode_admin', 'pode_equipe', 'ativo'].forEach(campo => {
     if (req.body[campo] !== undefined) {
       campos.push(`${campo} = $${i++}`);
       valores.push(req.body[campo]);
