@@ -1624,7 +1624,7 @@ function renderCalendar(targetGridId = 'cal-grid', targetLabelId = 'cal-label') 
         area: `👤 ${d.implantador_nome || 'Implantador'}`,
         nome: d.titulo, chamado: d.chamado_numero, status: d.status,
         cliente_nome: d.cliente_nome, gerente_nome: '', semPrevisao: !d.data_fim,
-        isDemanda: true, pct: d.pct_dedicacao,
+        isDemanda: true, pct: d.pct_dedicacao, raw: d,
       });
     }
   });
@@ -1674,16 +1674,27 @@ function openDayModal(dia, itens) {
   const monthNames = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   document.getElementById('day-modal-title').textContent = `Entregas em ${dia} de ${monthNames[state.calendarMonth]} (${itens.length})`;
   const list = document.getElementById('day-modal-list');
-  list.innerHTML = itens.map(it => `
+  list.innerHTML = itens.map((it, i) => `
     <div class="deadline-row">
       <div>
         <p class="deadline-name">${it.nome}${it.chamado ? ' · Chamado ' + it.chamado : ''}</p>
         <p class="deadline-meta">${it.area}${it.cliente_nome ? ' · Cliente: ' + it.cliente_nome : ''}${it.gerente_nome ? ' · GP: ' + it.gerente_nome : ''}</p>
       </div>
       <span class="badge ${statusClass(it.status)}">${it.status}</span>
+      ${it.isDemanda ? `<button type="button" class="btn" data-editar-demanda-calendario="${i}">✎ Editar</button>` : ''}
     </div>
   `).join('');
   document.getElementById('modal-day-details').classList.remove('hidden');
+
+  list.querySelectorAll('[data-editar-demanda-calendario]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const it = itens[Number(btn.dataset.editarDemandaCalendario)];
+      document.getElementById('modal-day-details').classList.add('hidden');
+      const abrir = () => abrirModalDemanda(it.raw.implantador_id, it.raw.implantador_nome || 'Implantador', it.raw);
+      if (!state.isAdmin) { requestAdminLogin(abrir); return; }
+      abrir();
+    });
+  });
 }
 document.getElementById('btn-close-day-modal').addEventListener('click', () => {
   document.getElementById('modal-day-details').classList.add('hidden');
@@ -3470,6 +3481,11 @@ async function refreshEquipe() {
 }
 
 async function loadEquipeData() {
+  if (!state.equipeInicio) {
+    state.equipeInicio = segundaFeiraDe(new Date());
+    state.equipeFim = new Date(state.equipeInicio);
+    state.equipeFim.setDate(state.equipeFim.getDate() + 6);
+  }
   const inicio = isoDate(state.equipeInicio);
   const fim = isoDate(state.equipeFim);
   const data = await api(`/visao-equipe?inicio=${inicio}&fim=${fim}`);
@@ -3477,6 +3493,19 @@ async function loadEquipeData() {
   renderEquipePeriodoLabel();
   renderEquipeKpis(data);
   renderEquipeGantt(data);
+}
+
+// Recarrega o calendario de entregas (Dashboard) se ele ja tiver sido aberto nesta
+// sessao - assim, editar/excluir uma demanda de qualquer lugar (Equipe ou Calendario)
+// sempre deixa as duas telas em dia, mesmo sem precisar visitar a outra tela de novo.
+async function refreshCalendarioSeAberto() {
+  if (!state.calendarProjects) return; // calendario nunca foi carregado nesta sessao
+  try {
+    state.calendarDemandas = await api('/demandas-avulsas');
+  } catch (e) {
+    state.calendarDemandas = state.calendarDemandas || [];
+  }
+  renderCalendar();
 }
 
 function renderEquipePeriodoLabel() {
@@ -3866,6 +3895,7 @@ document.getElementById('form-demanda-avulsa').addEventListener('submit', async 
     }
     document.getElementById('modal-demanda-avulsa').classList.add('hidden');
     await loadEquipeData();
+    await refreshCalendarioSeAberto();
   } catch (err) {
     alert(err.message);
   }
@@ -3878,6 +3908,7 @@ document.getElementById('btn-excluir-demanda').addEventListener('click', async (
     await api(`/demandas-avulsas/${id}`, { method: 'DELETE' });
     document.getElementById('modal-demanda-avulsa').classList.add('hidden');
     await loadEquipeData();
+    await refreshCalendarioSeAberto();
   } catch (err) {
     alert(err.message);
   }

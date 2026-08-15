@@ -422,7 +422,10 @@ input:focus, select:focus, textarea:focus {
   font-size: 10.5px; padding: 2px 5px; border-radius: 5px; line-height: 1.3;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default;
 }
-.calendar-item.sem-previsao { border: 2px dashed var(--warning); background: #FCEFDC; color: #7A4F0F; font-weight: 700; }
+.calendar-item.sem-previsao {
+  border-width: 2px; border-style: dashed; border-color: var(--warning);
+  background: #FCEFDC; color: #7A4F0F; font-weight: 700;
+}
 .calendar-more { font-size: 10.5px; color: var(--text-muted); padding: 0 5px; }
 
 @media (max-width: 780px) {
