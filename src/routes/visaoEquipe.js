@@ -46,6 +46,7 @@ router.get('/', async (req, res) => {
         status: it.status,
         projeto_id: it.projeto_id,
         projeto_nome: it.projeto_nome,
+        turno: 'diurno',
       }));
 
     const tarefasAvulsas = demandas
@@ -64,6 +65,7 @@ router.get('/', async (req, res) => {
         projeto_id: d.project_id,
         projeto_nome: d.projeto_nome,
         trabalha_fim_semana: !!d.trabalha_fim_semana,
+        turno: d.turno === 'noturno' ? 'noturno' : 'diurno',
       }));
 
     return { id: imp.id, nome: imp.nome, tarefas: [...tarefasWbs, ...tarefasAvulsas] };

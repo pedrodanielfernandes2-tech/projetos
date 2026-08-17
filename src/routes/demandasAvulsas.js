@@ -15,7 +15,7 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { implantador_id, titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana } = req.body;
+  const { implantador_id, titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana, turno } = req.body;
   if (!implantador_id) return res.status(400).json({ error: 'implantador_id obrigatorio' });
   if (!titulo || !titulo.trim()) return res.status(400).json({ error: 'titulo obrigatorio' });
   if (!data_inicio) return res.status(400).json({ error: 'data_inicio obrigatoria' });
@@ -24,10 +24,11 @@ router.post('/', async (req, res) => {
 
   const { rows } = await pool.query(
     `INSERT INTO demandas_avulsas
-      (implantador_id, titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      (implantador_id, titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana, turno)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
     [implantador_id, titulo.trim(), cliente_nome || '', chamado_numero || '', data_inicio, data_fim || null,
-     horas_esforco || 0, pct, status || 'Pendente', tipo === 'ausencia' ? 'ausencia' : 'demanda', project_id || null, !!trabalha_fim_semana]
+     horas_esforco || 0, pct, status || 'Pendente', tipo === 'ausencia' ? 'ausencia' : 'demanda', project_id || null, !!trabalha_fim_semana,
+     turno === 'noturno' ? 'noturno' : 'diurno']
   );
   await registrarAuditoria({
     entidade: 'demanda_avulsa', entidade_id: rows[0].id, acao: 'criado',
@@ -37,15 +38,16 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana } = req.body;
+  const { titulo, cliente_nome, chamado_numero, data_inicio, data_fim, horas_esforco, pct_dedicacao, status, tipo, project_id, trabalha_fim_semana, turno } = req.body;
   const pct = Number(pct_dedicacao);
   if (!pct || pct <= 0 || pct > 100) return res.status(400).json({ error: 'pct_dedicacao deve estar entre 1 e 100' });
   await pool.query(
     `UPDATE demandas_avulsas SET titulo=$1, cliente_nome=$2, chamado_numero=$3, data_inicio=$4, data_fim=$5,
-       horas_esforco=$6, pct_dedicacao=$7, status=$8, tipo=$9, project_id=$10, trabalha_fim_semana=$11
-     WHERE id=$12`,
+       horas_esforco=$6, pct_dedicacao=$7, status=$8, tipo=$9, project_id=$10, trabalha_fim_semana=$11, turno=$12
+     WHERE id=$13`,
     [titulo, cliente_nome || '', chamado_numero || '', data_inicio, data_fim || null,
-     horas_esforco || 0, pct, status, tipo === 'ausencia' ? 'ausencia' : 'demanda', project_id || null, !!trabalha_fim_semana, req.params.id]
+     horas_esforco || 0, pct, status, tipo === 'ausencia' ? 'ausencia' : 'demanda', project_id || null, !!trabalha_fim_semana,
+     turno === 'noturno' ? 'noturno' : 'diurno', req.params.id]
   );
   res.json({ ok: true });
 });
