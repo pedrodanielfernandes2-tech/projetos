@@ -3509,7 +3509,7 @@ function ehFimDeSemanaIso(diaIso) {
   const dow = new Date(diaIso + 'T00:00:00').getDay();
   return dow === 0 || dow === 6;
 }
-function tarefasNoDia(tarefas, diaIso) {
+function tarefasNoDia(tarefas, diaIso, turno) {
   const fds = ehFimDeSemanaIso(diaIso);
   return tarefas.filter((t) => {
     const ini = t.data_inicio;
@@ -3518,6 +3518,9 @@ function tarefasNoDia(tarefas, diaIso) {
     // sabado/domingo nao conta como dia de trabalho, a menos que a tarefa seja
     // marcada como excecao (plantao/suporte que realmente roda no fim de semana)
     if (fds && !t.trabalha_fim_semana) return false;
+    // se um turno especifico foi pedido (diurno/noturno), filtra so por ele - os
+    // dois turnos sao "baldes" de carga separados, nao competem entre si
+    if (turno && (t.turno || 'diurno') !== turno) return false;
     return true;
   });
 }
@@ -3555,8 +3558,9 @@ function renderEquipeKpisEm(targetId, data) {
 
     let teveSobrecarga = false;
     dias.forEach((diaIso) => {
-      const carga = tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0);
-      if (carga > 100) teveSobrecarga = true;
+      const cargaDiurna = tarefasNoDia(imp.tarefas, diaIso, 'diurno').reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0);
+      const cargaNoturna = tarefasNoDia(imp.tarefas, diaIso, 'noturno').reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0);
+      if (cargaDiurna > 100 || cargaNoturna > 100) teveSobrecarga = true;
     });
     if (teveSobrecarga) sobrecarregados++;
 
@@ -3674,7 +3678,8 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
 
   implantadoresDaPagina.forEach((imp) => {
     const diasIsoLocal = diasIso;
-    const cargaPorDia = diasIsoLocal.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso).reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
+    const cargaDiurnaPorDia = diasIsoLocal.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso, 'diurno').reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
+    const cargaNoturnaPorDia = diasIsoLocal.map((diaIso) => tarefasNoDia(imp.tarefas, diaIso, 'noturno').reduce((s, t) => s + Number(t.pct_dedicacao || 0), 0));
     const { tarefasComIntervalo, alturaTrack } = calcularRaiasImplantador(imp, diasIsoLocal);
 
     html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:190px repeat(${dias.length},minmax(90px,1fr));min-width:${190 + dias.length * 90}px;">
@@ -3686,15 +3691,17 @@ function renderEquipeGanttConteudo(host, implantadoresDaPagina, dias, diasIso, p
         ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
         ${imp.tarefas.length === 0 ? '<span class="equipe-gantt-livre">Livre no período</span>' : ''}
         ${tarefasComIntervalo.flatMap(({ t, idxIni, idxFim, raia }) => {
-          const sobrecarregado = cargaPorDia.slice(idxIni, idxFim + 1).some((c) => c > 100);
+          const cargaDoTurno = t.turno === 'noturno' ? cargaNoturnaPorDia : cargaDiurnaPorDia;
+          const sobrecarregado = cargaDoTurno.slice(idxIni, idxFim + 1).some((c) => c > 100);
           const semPrevisao = !t.data_fim;
-          const cor = sobrecarregado ? 'var(--danger)' : semPrevisao ? '#7C3AED' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
+          const ehNoturno = t.turno === 'noturno';
+          const cor = sobrecarregado ? 'var(--danger)' : semPrevisao ? '#7C3AED' : ehNoturno ? '#1E1B4B' : (t.tipo === 'wbs' ? '#1B63AC' : t.tipo === 'ausencia' ? '#94a3b8' : '#E0A526');
           const semPrevisaoTag = semPrevisao ? ' (sem previsão)' : '';
-          const semPrevisaoIcone = semPrevisao ? '⏳ ' : '';
+          const semPrevisaoIcone = semPrevisao ? '⏳ ' : ehNoturno ? '🌙 ' : '';
           const bordaSemPrevisao = semPrevisao ? 'border:2px dashed #4C1D95;' : '';
           const clicavel = !presentacao && t.tipo !== 'wbs' ? `data-editar-demanda="${t.id}"` : '';
           const top = PADDING_TRACK_GANTT + raia * (ALTURA_BARRA_GANTT + GAP_BARRA_GANTT);
-          const titleCompleto = `${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}${t.trabalha_fim_semana ? ' · roda também no fim de semana' : ''}`;
+          const titleCompleto = `${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''}${t.chamado_numero ? ' · Chamado ' + t.chamado_numero : ''} · ${t.pct_dedicacao}%${semPrevisaoTag}${ehNoturno ? ' · turno noturno' : ''}${t.trabalha_fim_semana ? ' · roda também no fim de semana' : ''}`;
           const segmentos = segmentosUteis(idxIni, idxFim, diasIso, t.trabalha_fim_semana);
           return segmentos.map((seg, idx) => {
             const label = idx === 0 ? `${semPrevisaoIcone}${t.titulo}${t.cliente_nome ? ' · ' + t.cliente_nome : ''} · ${t.pct_dedicacao}%` : '';
@@ -3886,6 +3893,11 @@ function abrirModalDemanda(implantadorId, implantadorNome, demandaExistente) {
   document.getElementById('demanda-tipo-ausencia').classList.toggle('active-tipo', tipoAtual === 'ausencia');
   document.getElementById('form-demanda-avulsa').dataset.tipo = tipoAtual;
 
+  const turnoAtual = demandaExistente ? (demandaExistente.turno || 'diurno') : 'diurno';
+  document.getElementById('demanda-turno-diurno').classList.toggle('active-tipo', turnoAtual === 'diurno');
+  document.getElementById('demanda-turno-noturno').classList.toggle('active-tipo', turnoAtual === 'noturno');
+  document.getElementById('form-demanda-avulsa').dataset.turno = turnoAtual;
+
   document.getElementById('modal-demanda-avulsa').classList.remove('hidden');
 }
 document.getElementById('demanda-tipo-demanda').addEventListener('click', () => {
@@ -3897,6 +3909,16 @@ document.getElementById('demanda-tipo-ausencia').addEventListener('click', () =>
   document.getElementById('form-demanda-avulsa').dataset.tipo = 'ausencia';
   document.getElementById('demanda-tipo-ausencia').classList.add('active-tipo');
   document.getElementById('demanda-tipo-demanda').classList.remove('active-tipo');
+});
+document.getElementById('demanda-turno-diurno').addEventListener('click', () => {
+  document.getElementById('form-demanda-avulsa').dataset.turno = 'diurno';
+  document.getElementById('demanda-turno-diurno').classList.add('active-tipo');
+  document.getElementById('demanda-turno-noturno').classList.remove('active-tipo');
+});
+document.getElementById('demanda-turno-noturno').addEventListener('click', () => {
+  document.getElementById('form-demanda-avulsa').dataset.turno = 'noturno';
+  document.getElementById('demanda-turno-noturno').classList.add('active-tipo');
+  document.getElementById('demanda-turno-diurno').classList.remove('active-tipo');
 });
 document.getElementById('btn-cancel-demanda-avulsa').addEventListener('click', () => {
   document.getElementById('modal-demanda-avulsa').classList.add('hidden');
@@ -3916,6 +3938,7 @@ document.getElementById('form-demanda-avulsa').addEventListener('submit', async 
     tipo: document.getElementById('form-demanda-avulsa').dataset.tipo || 'demanda',
     project_id: document.getElementById('demanda-projeto').value || null,
     trabalha_fim_semana: document.getElementById('demanda-trabalha-fds').checked,
+    turno: document.getElementById('form-demanda-avulsa').dataset.turno || 'diurno',
     status: 'Pendente',
   };
   try {
