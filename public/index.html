@@ -374,6 +374,14 @@
         <div class="panel" data-admin-group="acesso">
           <h2>Usuários</h2>
           <p class="muted">Cadastre quem pode acessar o sistema, com e-mail empresarial e permissão por menu. Se você já definir uma senha aqui, a pessoa já pode entrar direto (avise ela por fora). Se deixar em branco, o sistema tenta mandar um e-mail com o link pra ela mesma definir.</p>
+          <input type="text" id="usuarios-busca" placeholder="Buscar por nome ou e-mail..." class="full-width" style="margin-bottom:10px;" />
+          <div class="chip-row" id="usuarios-filtros" style="margin-bottom:12px;">
+            <button type="button" class="chip selected" data-filtro-usuario="todos">Todos</button>
+            <button type="button" class="chip" data-filtro-usuario="pode_projetos">Acessa Projetos</button>
+            <button type="button" class="chip" data-filtro-usuario="pode_implantacao">Acessa Implantação</button>
+            <button type="button" class="chip" data-filtro-usuario="eh_gp">É GP</button>
+            <button type="button" class="chip" data-filtro-usuario="eh_implantador">É Implantador</button>
+          </div>
           <div id="usuarios-list" class="stack tight"></div>
           <form id="form-usuario" class="form" style="margin-top:10px;">
             <div class="form-row">

@@ -1403,15 +1403,33 @@ document.getElementById('audit-apenas-datas').addEventListener('change', renderA
 // ---------- Usuarios admin ----------
 async function refreshUsuarios() {
   const host = document.getElementById('usuarios-list');
-  let usuarios;
   try {
-    usuarios = await api('/usuarios');
+    state.usuariosCache = await api('/usuarios');
   } catch (err) {
     host.innerHTML = `<p class="muted">${err.message}</p>`;
     return;
   }
-  if (usuarios.length === 0) {
+  renderUsuariosListFiltrada();
+}
+
+function renderUsuariosListFiltrada() {
+  const host = document.getElementById('usuarios-list');
+  const todos = state.usuariosCache || [];
+  if (todos.length === 0) {
     host.innerHTML = '<p class="muted">Nenhum usuário cadastrado ainda.</p>';
+    return;
+  }
+
+  const buscaTexto = (state.usuariosBusca || '').trim().toLowerCase();
+  const filtroAtivo = state.usuariosFiltroAtivo || 'todos';
+  const usuarios = todos.filter(u => {
+    if (buscaTexto && !u.nome.toLowerCase().includes(buscaTexto) && !u.email.toLowerCase().includes(buscaTexto)) return false;
+    if (filtroAtivo !== 'todos' && !u[filtroAtivo]) return false;
+    return true;
+  });
+
+  if (usuarios.length === 0) {
+    host.innerHTML = '<p class="muted">Nenhum usuário encontrado com esse filtro.</p>';
     return;
   }
   host.innerHTML = '';
@@ -1504,6 +1522,18 @@ async function refreshUsuarios() {
     host.appendChild(row);
   });
 }
+
+document.getElementById('usuarios-busca').addEventListener('input', (e) => {
+  state.usuariosBusca = e.target.value;
+  renderUsuariosListFiltrada();
+});
+document.getElementById('usuarios-filtros').addEventListener('click', (e) => {
+  const chip = e.target.closest('[data-filtro-usuario]');
+  if (!chip) return;
+  state.usuariosFiltroAtivo = chip.dataset.filtroUsuario;
+  document.querySelectorAll('#usuarios-filtros [data-filtro-usuario]').forEach(c => c.classList.toggle('selected', c === chip));
+  renderUsuariosListFiltrada();
+});
 
 document.getElementById('form-usuario').addEventListener('submit', async (e) => {
   e.preventDefault();
