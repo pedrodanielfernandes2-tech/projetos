@@ -4084,24 +4084,33 @@ async function loadSemanalData() {
   }
 }
 
-function filtrarProjetosSemanal(projetos, busca) {
-  if (!busca) return projetos;
+function filtrarProjetosSemanal(projetos, busca, mostrarImplantacao) {
+  let resultado = projetos;
+  // Por padrao, essa visao e pensada pra tarefas de desenvolvimento - a area de
+  // Implantacao (que ja tem tela propria) fica de fora, a nao ser que a pessoa
+  // marque explicitamente que quer ve-la aqui tambem.
+  if (!mostrarImplantacao) {
+    resultado = resultado
+      .map(p => ({ ...p, itens: p.itens.filter(it => (it.area || '').toLowerCase().trim() !== 'implantação' && (it.area || '').toLowerCase().trim() !== 'implantacao') }))
+      .filter(p => p.itens.length > 0);
+  }
+  if (!busca) return resultado;
   const b = busca.toLowerCase();
-  return projetos.map(p => {
+  return resultado.map(p => {
     const projetoBate = (p.nome || '').toLowerCase().includes(b) || (p.cliente_nome || '').toLowerCase().includes(b) || (p.chamado || '').toLowerCase().includes(b);
     const itens = projetoBate ? p.itens : p.itens.filter(it => (it.area || '').toLowerCase().includes(b));
     return { ...p, itens };
   }).filter(p => p.itens.length > 0);
 }
 
-const ALTURA_HEADER_PROJETO_SEMANAL = 34, ALTURA_LINHA_TAREFA_SEMANAL = 40;
+const ALTURA_LINHA_TAREFA_SEMANAL = 46;
 
 function paginarProjetosSemanalPorAltura(projetos, alturaDisponivel) {
   const paginas = [];
   let paginaAtual = [];
   let alturaUsada = 0;
   projetos.forEach((p) => {
-    const alturaBloco = ALTURA_HEADER_PROJETO_SEMANAL + p.itens.length * ALTURA_LINHA_TAREFA_SEMANAL;
+    const alturaBloco = p.itens.length * ALTURA_LINHA_TAREFA_SEMANAL;
     if (paginaAtual.length > 0 && alturaUsada + alturaBloco > alturaDisponivel) {
       paginas.push(paginaAtual);
       paginaAtual = [];
@@ -4121,7 +4130,7 @@ function renderSemanalGantt() {
   const diasIso = dias.map(isoDate);
   const fimDeSemanaPorDia = dias.map((d) => d.getDay() === 0 || d.getDay() === 6);
 
-  const projetosFiltrados = filtrarProjetosSemanal(data.projetos, (state.semanalBusca || '').trim());
+  const projetosFiltrados = filtrarProjetosSemanal(data.projetos, (state.semanalBusca || '').trim(), !!state.semanalMostrarImplantacao);
 
   const host = document.getElementById('semanal-gantt');
   const scrollHost = document.getElementById('semanal-gantt-scroll');
@@ -4140,11 +4149,6 @@ function renderSemanalGantt() {
   }
 
   projetosDaPagina.forEach((p) => {
-    html += `<div style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;border-top:1px solid var(--border);">
-      <div style="padding:8px 10px 8px 6px;font-weight:700;font-size:13px;grid-column:1/-1;background:var(--surface-alt);">
-        ${p.nome}${p.chamado ? ' · ' + p.chamado : ''}${p.cliente_nome ? ' · ' + p.cliente_nome : '' }
-      </div>
-    </div>`;
     p.itens.forEach((it) => {
       const iniClip = it.inicio < diasIso[0] ? diasIso[0] : it.inicio;
       const fimT = it.fim;
@@ -4152,9 +4156,11 @@ function renderSemanalGantt() {
       const idxIni = diasIso.indexOf(iniClip);
       const idxFim = diasIso.indexOf(fimClip);
       const cor = corDaArea(it.area);
+      const projetoLabel = `${p.nome}${p.chamado ? ' · ' + p.chamado : ''}`;
       html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;">
-        <div class="equipe-gantt-nome" style="font-size:12.5px;">
-          <span title="${it.area}">${it.area || 'Sem área definida'}</span>
+        <div class="equipe-gantt-nome" style="font-size:12px;line-height:1.35;display:block;padding-top:6px;padding-bottom:6px;">
+          <span title="${projetoLabel} — ${it.area || 'Sem área'}" style="display:block;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${projetoLabel}</span>
+          <span style="display:block;color:var(--text-muted);font-size:11px;">${it.area || 'Sem área definida'}</span>
         </div>
         <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${ALTURA_LINHA_TAREFA_SEMANAL}px;">
           ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
@@ -4207,6 +4213,11 @@ document.getElementById('semanal-hoje').addEventListener('click', () => {
 });
 document.getElementById('semanal-busca').addEventListener('input', (e) => {
   state.semanalBusca = e.target.value;
+  state.semanalPaginaAtual = 0;
+  if (state.semanalData) renderSemanalGantt();
+});
+document.getElementById('semanal-mostrar-implantacao').addEventListener('change', (e) => {
+  state.semanalMostrarImplantacao = e.target.checked;
   state.semanalPaginaAtual = 0;
   if (state.semanalData) renderSemanalGantt();
 });
