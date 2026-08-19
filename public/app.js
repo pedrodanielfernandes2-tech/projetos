@@ -24,6 +24,7 @@ const state = {
   gpFilter: null,
   mostrarConcluidos: false,
   equipePaginaAtual: 0,
+  semanalPaginaAtual: 0,
   searchText: '',
   sortBy: 'prazo',
   isAdmin: false,
@@ -2153,6 +2154,7 @@ function renderEsquecidos(projects) {
 function activateDashPage(key) {
   document.querySelectorAll('.dash-subnav-btn').forEach(b => b.classList.toggle('active', b.dataset.dash === key));
   document.querySelectorAll('.dash-page').forEach(p => p.classList.toggle('hidden', p.id !== `dash-page-${key}`));
+  if (key === 'semanal') refreshSemanal();
 }
 document.querySelectorAll('.dash-subnav-btn').forEach(btn => {
   btn.addEventListener('click', () => activateDashPage(btn.dataset.dash));
@@ -4044,4 +4046,155 @@ document.getElementById('form-implantador').addEventListener('submit', async (e)
   } catch (err) {
     alert(err.message);
   }
+});
+
+// ---------- Calendario Semanal (Dashboard) ----------
+async function refreshSemanal() {
+  if (!state.semanalInicio) {
+    state.semanalInicio = segundaFeiraDe(new Date());
+    state.semanalFim = new Date(state.semanalInicio);
+    state.semanalFim.setDate(state.semanalFim.getDate() + 6);
+  }
+  await loadSemanalData();
+}
+
+async function loadSemanalData() {
+  const inicio = isoDate(state.semanalInicio);
+  const fim = isoDate(state.semanalFim);
+  try {
+    const data = await api(`/wbs-calendario?inicio=${inicio}&fim=${fim}`);
+    state.semanalData = data;
+    const fmt = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    document.getElementById('semanal-periodo-label').textContent = `${fmt(state.semanalInicio)} — ${fmt(state.semanalFim)}`;
+    renderSemanalGantt();
+  } catch (err) {
+    document.getElementById('semanal-gantt').innerHTML = `<p class="muted">Falha ao carregar: ${err.message}</p>`;
+  }
+}
+
+function filtrarProjetosSemanal(projetos, busca) {
+  if (!busca) return projetos;
+  const b = busca.toLowerCase();
+  return projetos.map(p => {
+    const projetoBate = (p.nome || '').toLowerCase().includes(b) || (p.cliente_nome || '').toLowerCase().includes(b) || (p.chamado || '').toLowerCase().includes(b);
+    const itens = projetoBate ? p.itens : p.itens.filter(it => (it.area || '').toLowerCase().includes(b) || (it.responsavel || '').toLowerCase().includes(b));
+    return { ...p, itens };
+  }).filter(p => p.itens.length > 0);
+}
+
+const ALTURA_HEADER_PROJETO_SEMANAL = 34, ALTURA_LINHA_TAREFA_SEMANAL = 40;
+
+function paginarProjetosSemanalPorAltura(projetos, alturaDisponivel) {
+  const paginas = [];
+  let paginaAtual = [];
+  let alturaUsada = 0;
+  projetos.forEach((p) => {
+    const alturaBloco = ALTURA_HEADER_PROJETO_SEMANAL + p.itens.length * ALTURA_LINHA_TAREFA_SEMANAL;
+    if (paginaAtual.length > 0 && alturaUsada + alturaBloco > alturaDisponivel) {
+      paginas.push(paginaAtual);
+      paginaAtual = [];
+      alturaUsada = 0;
+    }
+    paginaAtual.push(p);
+    alturaUsada += alturaBloco;
+  });
+  if (paginaAtual.length > 0) paginas.push(paginaAtual);
+  return paginas.length > 0 ? paginas : [[]];
+}
+
+function renderSemanalGantt() {
+  const data = state.semanalData;
+  if (!data) return;
+  const dias = diasDoPeriodo(state.semanalInicio, state.semanalFim);
+  const diasIso = dias.map(isoDate);
+  const fimDeSemanaPorDia = dias.map((d) => d.getDay() === 0 || d.getDay() === 6);
+
+  const projetosFiltrados = filtrarProjetosSemanal(data.projetos, (state.semanalBusca || '').trim());
+
+  const host = document.getElementById('semanal-gantt');
+  const scrollHost = document.getElementById('semanal-gantt-scroll');
+  const alturaDisponivel = Math.max(200, window.innerHeight - scrollHost.getBoundingClientRect().top - 55);
+  const paginas = paginarProjetosSemanalPorAltura(projetosFiltrados, alturaDisponivel);
+  if (!(state.semanalPaginaAtual >= 0) || state.semanalPaginaAtual >= paginas.length) state.semanalPaginaAtual = 0;
+  const projetosDaPagina = paginas[state.semanalPaginaAtual] || [];
+
+  let html = `<div class="equipe-gantt-header" style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;">
+    <div class="equipe-gantt-cell-header"></div>
+    ${dias.map((d, i) => `<div class="equipe-gantt-cell-header${fimDeSemanaPorDia[i] ? ' weekend' : ''}">${DOWS_CURTOS[d.getDay()]} ${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}</div>`).join('')}
+  </div>`;
+
+  if (projetosDaPagina.length === 0) {
+    html += '<p class="muted" style="padding:16px;">Nenhum projeto com entrega nessa semana.</p>';
+  }
+
+  projetosDaPagina.forEach((p) => {
+    html += `<div style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;border-top:1px solid var(--border);">
+      <div style="padding:8px 10px 8px 6px;font-weight:700;font-size:13px;grid-column:1/-1;background:var(--surface-alt);">
+        ${p.nome}${p.chamado ? ' · ' + p.chamado : ''}${p.cliente_nome ? ' · ' + p.cliente_nome : '' }
+      </div>
+    </div>`;
+    p.itens.forEach((it) => {
+      const iniClip = it.data_inicio < diasIso[0] ? diasIso[0] : it.data_inicio;
+      const fimT = it.data_fim;
+      const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
+      const idxIni = diasIso.indexOf(iniClip);
+      const idxFim = diasIso.indexOf(fimClip);
+      const cor = corDaArea(it.area);
+      html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;">
+        <div class="equipe-gantt-nome" style="font-size:12.5px;">
+          <span title="${it.titulo}">${it.titulo}${it.responsavel ? ' · ' + it.responsavel : ''}</span>
+        </div>
+        <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${ALTURA_LINHA_TAREFA_SEMANAL}px;">
+          ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
+          ${idxIni !== -1 && idxFim !== -1 ? `<div class="equipe-gantt-barra" style="top:7px;height:26px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" title="${it.titulo}${it.area ? ' · ' + it.area : ''}${it.responsavel ? ' · ' + it.responsavel : ''} · ${it.status}">${it.area || it.titulo}</div>` : ''}
+        </div>
+      </div>`;
+    });
+  });
+
+  host.innerHTML = html;
+  renderSemanalPaginacao(paginas.length);
+}
+
+function renderSemanalPaginacao(totalPaginas) {
+  const el = document.getElementById('semanal-paginacao');
+  if (totalPaginas <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="btn" id="semanal-pagina-anterior" ${state.semanalPaginaAtual === 0 ? 'disabled' : ''}>‹ Anterior</button>
+    <span class="calendar-label">Página ${state.semanalPaginaAtual + 1} de ${totalPaginas}</span>
+    <button class="btn" id="semanal-proxima-pagina" ${state.semanalPaginaAtual >= totalPaginas - 1 ? 'disabled' : ''}>Próxima ›</button>
+  `;
+  document.getElementById('semanal-pagina-anterior').addEventListener('click', () => {
+    state.semanalPaginaAtual = Math.max(0, state.semanalPaginaAtual - 1);
+    renderSemanalGantt();
+  });
+  document.getElementById('semanal-proxima-pagina').addEventListener('click', () => {
+    state.semanalPaginaAtual++;
+    renderSemanalGantt();
+  });
+}
+
+document.getElementById('semanal-anterior').addEventListener('click', () => {
+  state.semanalInicio.setDate(state.semanalInicio.getDate() - 7);
+  state.semanalFim.setDate(state.semanalFim.getDate() - 7);
+  state.semanalPaginaAtual = 0;
+  loadSemanalData();
+});
+document.getElementById('semanal-proxima').addEventListener('click', () => {
+  state.semanalInicio.setDate(state.semanalInicio.getDate() + 7);
+  state.semanalFim.setDate(state.semanalFim.getDate() + 7);
+  state.semanalPaginaAtual = 0;
+  loadSemanalData();
+});
+document.getElementById('semanal-hoje').addEventListener('click', () => {
+  state.semanalInicio = segundaFeiraDe(new Date());
+  state.semanalFim = new Date(state.semanalInicio);
+  state.semanalFim.setDate(state.semanalFim.getDate() + 6);
+  state.semanalPaginaAtual = 0;
+  loadSemanalData();
+});
+document.getElementById('semanal-busca').addEventListener('input', (e) => {
+  state.semanalBusca = e.target.value;
+  state.semanalPaginaAtual = 0;
+  if (state.semanalData) renderSemanalGantt();
 });

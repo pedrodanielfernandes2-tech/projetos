@@ -122,6 +122,7 @@
         <button class="dash-subnav-btn" data-dash="gp">Por GP</button>
         <button class="dash-subnav-btn" data-dash="cliente">Por cliente</button>
         <button class="dash-subnav-btn" data-dash="calendario">Calendário</button>
+        <button class="dash-subnav-btn" data-dash="semanal">Calendário semanal</button>
         <button class="dash-subnav-btn" data-dash="velocimetro">Velocímetro</button>
         <button class="dash-subnav-btn" data-dash="linha-tempo">Linha do tempo</button>
         <button class="dash-subnav-btn" data-dash="tendencia">Tendência</button>
@@ -178,6 +179,25 @@
           <div id="cal-area-filters" class="chip-row" style="margin-bottom:12px;"></div>
           <p class="muted" style="font-size:12px;margin:-6px 0 10px;">⏳ borda tracejada = sem previsão de término · dias com fundo mais escuro = sábado/domingo</p>
           <div id="cal-grid" class="calendar-grid"></div>
+        </div>
+      </div>
+
+      <div id="dash-page-semanal" class="dash-page hidden">
+        <div class="toolbar">
+          <button class="btn" id="semanal-anterior">‹ Semana anterior</button>
+          <button class="btn" id="semanal-hoje">Hoje</button>
+          <button class="btn" id="semanal-proxima">Próxima semana ›</button>
+          <span id="semanal-periodo-label" class="calendar-label" style="margin-left:8px;"></span>
+        </div>
+        <div class="toolbar" style="margin-top:-6px;">
+          <input type="text" id="semanal-busca" placeholder="Buscar por projeto, área, responsável ou cliente..." style="max-width:360px;" />
+        </div>
+        <p class="muted" style="font-size:12px;margin:-6px 0 10px;">Cada linha é uma tarefa da WBS. Um projeto só aparece se tiver alguma tarefa passando por essa semana.</p>
+        <div class="chart-panel">
+          <div id="semanal-gantt-scroll" style="overflow-x:auto;">
+            <div id="semanal-gantt"></div>
+          </div>
+          <div id="semanal-paginacao" class="toolbar" style="justify-content:center;margin-top:10px;"></div>
         </div>
       </div>
 
