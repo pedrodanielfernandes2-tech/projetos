@@ -44,6 +44,7 @@ app.use('/api/gps', gateProjetos, require('./routes/gps'));
 app.use('/api/implantadores', gateProjetos, require('./routes/implantadores'));
 app.use('/api/demandas-avulsas', gateEquipe, require('./routes/demandasAvulsas'));
 app.use('/api/visao-equipe', gateEquipe, require('./routes/visaoEquipe'));
+app.use('/api/wbs-calendario', gateProjetos, require('./routes/wbsCalendario'));
 app.use('/api/admin-emails', gateProjetos, require('./routes/adminEmails'));
 app.use('/api/projects', gateProjetos, require('./routes/projects'));
 app.use('/api/email-config', gateProjetos, require('./routes/emailConfig'));
