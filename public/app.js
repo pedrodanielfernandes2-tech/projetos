@@ -4062,8 +4062,20 @@ async function loadSemanalData() {
   const inicio = isoDate(state.semanalInicio);
   const fim = isoDate(state.semanalFim);
   try {
-    const data = await api(`/wbs-calendario?inicio=${inicio}&fim=${fim}`);
-    state.semanalData = data;
+    const projects = await api('/projects');
+    // Monta os "projetos" do calendario semanal a partir das AREAS do card do projeto
+    // (o mesmo prazo por area que ja aparece no card e no calendario mensal) - nao da WBS.
+    // Um projeto so entra se tiver pelo menos uma area com inicio/fim cruzando a semana.
+    const projetos = projects
+      .map((p) => ({
+        project_id: p.id,
+        nome: p.nome,
+        chamado: p.chamado,
+        cliente_nome: p.cliente_nome,
+        itens: (p.tarefas || []).filter((t) => t.inicio && t.fim && t.inicio <= fim && t.fim >= inicio),
+      }))
+      .filter((p) => p.itens.length > 0);
+    state.semanalData = { projetos };
     const fmt = (d) => d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
     document.getElementById('semanal-periodo-label').textContent = `${fmt(state.semanalInicio)} — ${fmt(state.semanalFim)}`;
     renderSemanalGantt();
@@ -4077,7 +4089,7 @@ function filtrarProjetosSemanal(projetos, busca) {
   const b = busca.toLowerCase();
   return projetos.map(p => {
     const projetoBate = (p.nome || '').toLowerCase().includes(b) || (p.cliente_nome || '').toLowerCase().includes(b) || (p.chamado || '').toLowerCase().includes(b);
-    const itens = projetoBate ? p.itens : p.itens.filter(it => (it.area || '').toLowerCase().includes(b) || (it.responsavel || '').toLowerCase().includes(b));
+    const itens = projetoBate ? p.itens : p.itens.filter(it => (it.area || '').toLowerCase().includes(b));
     return { ...p, itens };
   }).filter(p => p.itens.length > 0);
 }
@@ -4134,19 +4146,19 @@ function renderSemanalGantt() {
       </div>
     </div>`;
     p.itens.forEach((it) => {
-      const iniClip = it.data_inicio < diasIso[0] ? diasIso[0] : it.data_inicio;
-      const fimT = it.data_fim;
+      const iniClip = it.inicio < diasIso[0] ? diasIso[0] : it.inicio;
+      const fimT = it.fim;
       const fimClip = fimT > diasIso[diasIso.length - 1] ? diasIso[diasIso.length - 1] : fimT;
       const idxIni = diasIso.indexOf(iniClip);
       const idxFim = diasIso.indexOf(fimClip);
       const cor = corDaArea(it.area);
       html += `<div class="equipe-gantt-row" style="display:grid;grid-template-columns:230px repeat(${dias.length},minmax(90px,1fr));min-width:${230 + dias.length * 90}px;">
         <div class="equipe-gantt-nome" style="font-size:12.5px;">
-          <span title="${it.titulo}">${it.titulo}${it.responsavel ? ' · ' + it.responsavel : ''}</span>
+          <span title="${it.area}">${it.area || 'Sem área definida'}</span>
         </div>
         <div class="equipe-gantt-track" style="grid-column: span ${dias.length}; position:relative; display:grid; grid-template-columns:repeat(${dias.length},1fr); min-height:${ALTURA_LINHA_TAREFA_SEMANAL}px;">
           ${dias.map((d, i) => `<div class="equipe-gantt-dia${fimDeSemanaPorDia[i] ? ' weekend' : ''}"></div>`).join('')}
-          ${idxIni !== -1 && idxFim !== -1 ? `<div class="equipe-gantt-barra" style="top:7px;height:26px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" title="${it.titulo}${it.area ? ' · ' + it.area : ''}${it.responsavel ? ' · ' + it.responsavel : ''} · ${it.status}">${it.area || it.titulo}</div>` : ''}
+          ${idxIni !== -1 && idxFim !== -1 ? `<div class="equipe-gantt-barra" style="top:7px;height:26px;left:calc(${(idxIni / dias.length) * 100}% + 2px);width:calc(${((idxFim - idxIni + 1) / dias.length) * 100}% - 4px);background:${cor};" title="${it.area || 'Sem área'} · ${it.status}">${it.area || ''} · ${it.status}</div>` : ''}
         </div>
       </div>`;
     });
