@@ -1739,7 +1739,7 @@ function AprovadasPorMesPage({ chamados, onEditar }) {
                         >
                           <td className="px-3 py-2 font-mono text-xs text-slate-400">#{c.numero}</td>
                           <td className="px-3 py-2 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
-                          <td className="px-3 py-2 text-slate-500 max-w-[200px] truncate">{c.descricao || "—"}</td>
+                          <td className="px-3 py-2 text-slate-500 max-w-[340px] truncate" title={c.descricao || ""}>{c.descricao || "—"}</td>
                           <td className="px-3 py-2 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
                           <td className="px-3 py-2">
                             <span
@@ -2091,7 +2091,7 @@ function PropostasEnviadasPage({ chamados, onEditar }) {
                   >
                     <td className="px-4 py-2.5 font-mono text-xs text-slate-400">#{c.numero}</td>
                     <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
-                    <td className="px-4 py-2.5 text-slate-500 max-w-[240px] truncate">{c.descricao || "—"}</td>
+                    <td className="px-4 py-2.5 text-slate-500 max-w-[340px] truncate" title={c.descricao || ""}>{c.descricao || "—"}</td>
                     <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
                     <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtData(c.data_envio_proposta)}</td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
@@ -2251,7 +2251,7 @@ function CargaPorAnalistaPage({ chamados, analistas, onEditar }) {
                       <div className="flex items-center gap-3 min-w-0">
                         <span className="font-mono text-xs text-slate-400 shrink-0">#{c.numero}</span>
                         <span className="text-sm text-slate-700 font-medium shrink-0">{c.cliente_nome}</span>
-                        <span className="text-sm text-slate-500 truncate">{c.descricao || "—"}</span>
+                        <span className="text-sm text-slate-500 truncate" title={c.descricao || ""}>{c.descricao || "—"}</span>
                       </div>
                       <div className="flex items-center gap-4 shrink-0">
                         <span className="text-xs text-slate-400">{fmtData(c.data_abertura)}</span>
@@ -2381,7 +2381,7 @@ function BacklogPorClientePage({ chamados, onEditar }) {
                       >
                         <div className="flex items-center gap-3 min-w-0">
                           <span className="font-mono text-xs text-slate-400 shrink-0">#{c.numero}</span>
-                          <span className="text-sm text-slate-600 truncate">{c.descricao || "—"}</span>
+                          <span className="text-sm text-slate-600 truncate" title={c.descricao || ""}>{c.descricao || "—"}</span>
                         </div>
                         <div className="flex items-center gap-4 shrink-0">
                           <span className="text-xs text-slate-400">{c.analista_nome || "—"}</span>
@@ -2556,7 +2556,7 @@ function ChamadosListaPage({ chamados, analistas, onEditar }) {
                 >
                   <td className="px-4 py-2.5 font-mono text-xs text-slate-400">#{c.numero}</td>
                   <td className="px-4 py-2.5 text-slate-700 font-medium whitespace-nowrap">{c.cliente_nome}</td>
-                  <td className="px-4 py-2.5 text-slate-500 max-w-[240px] truncate">{c.descricao || "—"}</td>
+                  <td className="px-4 py-2.5 text-slate-500 max-w-[340px] truncate" title={c.descricao || ""}>{c.descricao || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{c.analista_nome || "—"}</td>
                   <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">{fmtData(c.data_abertura)}</td>
                   <td className="px-4 py-2.5">
@@ -3152,7 +3152,7 @@ function ChamadosDashboard() {
         <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={() => setMenuMobileAberto(false)} />
       )}
       <aside
-        className={`${menuColapsado ? "md:w-16" : "w-64"} shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-all duration-200 relative ${
+        className={`w-64 ${menuColapsado ? "md:w-16" : "md:w-64"} shrink-0 bg-[#1F3F66] text-slate-200 flex flex-col fixed md:static inset-y-0 left-0 z-40 transition-all duration-200 relative ${
           menuMobileAberto ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
