@@ -852,6 +852,44 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
               <>
                 <LinhaCalculada label="Valor Base (soma por papel)" value={fmtMoeda(calcFinal.valorBase)} />
                 <div className="h-px bg-slate-200 my-2" />
+                {(() => {
+                  const somaHorasPorRecurso = recursosHorasArray.reduce((s, r) => s + (Number(r.horas) || 0), 0);
+                  return (
+                    <>
+                      <div className="flex items-center justify-between py-1.5 gap-2">
+                        <span className="text-xs text-slate-400">Total de Horas (soma por papel)</span>
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={totalGeralManual}
+                            onChange={(e) => setTotalGeralManual(e.target.value)}
+                            placeholder={String(somaHorasPorRecurso)}
+                            className="w-20 text-sm text-right tabular-nums border border-slate-200 rounded px-2 py-1"
+                            style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                            title="Ajuste manual - por exemplo, arredondar pra um múltiplo de 8. Deixe em branco pra usar a soma automática."
+                          />
+                          <span className="text-sm">h</span>
+                          {totalGeralManual !== "" && (
+                            <button
+                              type="button"
+                              onClick={() => setTotalGeralManual("")}
+                              className="text-[11px] text-slate-400 underline hover:text-slate-600"
+                              title="Voltar para a soma automática"
+                            >
+                              automático
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {totalGeralManual !== "" && Number(totalGeralManual) !== somaHorasPorRecurso && (
+                        <p className="text-[11px] text-amber-600 -mt-1 mb-1">Ajustado manualmente (soma seria {somaHorasPorRecurso}h)</p>
+                      )}
+                    </>
+                  );
+                })()}
+                <div className="h-px bg-slate-200 my-2" />
               </>
             ) : null}
             {modoPrecificacao !== "valor_fixo" && (
