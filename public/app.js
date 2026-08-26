@@ -4221,3 +4221,99 @@ document.getElementById('semanal-mostrar-implantacao').addEventListener('change'
   state.semanalPaginaAtual = 0;
   if (state.semanalData) renderSemanalGantt();
 });
+
+// ---------- Importar WBS de planilha (.xlsx) ----------
+let wbsImportarPreviaAtual = null;
+
+function abrirModalWbsImportar() {
+  document.getElementById('wbs-importar-input-arquivo').value = '';
+  document.getElementById('wbs-importar-etapa-arquivo').classList.remove('hidden');
+  document.getElementById('wbs-importar-etapa-previa').classList.add('hidden');
+  wbsImportarPreviaAtual = null;
+  document.getElementById('modal-wbs-importar').classList.remove('hidden');
+}
+function fecharModalWbsImportar() {
+  document.getElementById('modal-wbs-importar').classList.add('hidden');
+}
+
+function renderWbsImportarArvore(itens) {
+  const porPai = {};
+  itens.forEach((it) => {
+    const chave = it.paiTempId === null || it.paiTempId === undefined ? 'raiz' : it.paiTempId;
+    if (!porPai[chave]) porPai[chave] = [];
+    porPai[chave].push(it);
+  });
+  function render(paiChave, nivel) {
+    return (porPai[paiChave] || []).map((it) => {
+      const semData = !it.data_inicio && !it.data_fim ? ' <span style="color:var(--text-muted);">(sem data)</span>' : '';
+      return `<div style="padding:3px 0 3px ${nivel * 18}px;font-size:13px;${it.ehGrupo ? 'font-weight:700;' : ''}">
+        ${it.ehGrupo ? '📁' : '·'} ${it.titulo} <span style="color:var(--text-muted);font-size:12px;">— ${it.esforco}h${semData}</span>
+        <span class="badge ${wbsStatusClass(it.status)}" style="margin-left:6px;font-size:10px;">${it.status}</span>
+      </div>${render(it.tempId, nivel + 1)}`;
+    }).join('');
+  }
+  return render('raiz', 0);
+}
+
+document.getElementById('btn-wbs-importar-planilha').addEventListener('click', abrirModalWbsImportar);
+document.getElementById('btn-fechar-wbs-importar').addEventListener('click', fecharModalWbsImportar);
+document.getElementById('btn-wbs-importar-voltar').addEventListener('click', () => {
+  document.getElementById('wbs-importar-etapa-arquivo').classList.remove('hidden');
+  document.getElementById('wbs-importar-etapa-previa').classList.add('hidden');
+});
+
+document.getElementById('btn-wbs-importar-enviar').addEventListener('click', async () => {
+  const input = document.getElementById('wbs-importar-input-arquivo');
+  const arquivo = input.files[0];
+  if (!arquivo) { alert('Escolha um arquivo .xlsx primeiro.'); return; }
+  const btn = document.getElementById('btn-wbs-importar-enviar');
+  btn.disabled = true;
+  btn.textContent = 'Lendo...';
+  try {
+    const formData = new FormData();
+    formData.append('arquivo', arquivo);
+    const headers = {};
+    if (state.usuarioToken) headers['Authorization'] = 'Bearer ' + state.usuarioToken;
+    if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
+    const res = await fetch(`/api/projects/${state.currentWbsProject.id}/wbs/importar-preview`, {
+      method: 'POST', headers, body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'falha ao ler a planilha');
+
+    wbsImportarPreviaAtual = data.itens;
+    document.getElementById('wbs-importar-resumo').textContent = `${data.itens.length} item(ns) encontrados.`;
+    document.getElementById('wbs-importar-avisos').innerHTML = (data.avisos || []).map(a =>
+      `<p style="background:#FCEFDC;border:1px solid var(--warning);border-radius:6px;padding:8px 10px;font-size:12.5px;color:#7A4F0F;margin-bottom:10px;">⚠️ ${a}</p>`
+    ).join('');
+    document.getElementById('wbs-importar-arvore').innerHTML = renderWbsImportarArvore(data.itens);
+    document.getElementById('wbs-importar-etapa-arquivo').classList.add('hidden');
+    document.getElementById('wbs-importar-etapa-previa').classList.remove('hidden');
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ler planilha';
+  }
+});
+
+document.getElementById('btn-wbs-importar-confirmar').addEventListener('click', async () => {
+  if (!wbsImportarPreviaAtual) return;
+  const btn = document.getElementById('btn-wbs-importar-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Criando...';
+  try {
+    const resultado = await api(`/projects/${state.currentWbsProject.id}/wbs/importar-confirmar`, {
+      method: 'POST',
+      body: JSON.stringify({ itens: wbsImportarPreviaAtual }),
+    });
+    fecharModalWbsImportar();
+    await loadWbsData();
+    alert(`${resultado.itensCriados} item(ns) importado(s) com sucesso.`);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Confirmar e criar itens';
+  }
+});

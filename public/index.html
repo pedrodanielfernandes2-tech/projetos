@@ -644,6 +644,7 @@
             <button id="btn-wbs-apresentacao" class="btn">🖥️ Modo Apresentação</button>
             <button id="btn-wbs-salvar-modelo" class="btn">💾 Salvar como modelo</button>
             <button id="btn-wbs-aplicar-modelo" class="btn">📥 Aplicar modelo</button>
+            <button id="btn-wbs-importar-planilha" class="btn">📤 Importar WBS</button>
             <button id="btn-wbs-exportar-pdf" class="btn">📄 Exportar PDF</button>
             <button id="btn-wbs-novo-item" class="btn btn-primary">+ Novo item</button>
           </div>
@@ -885,6 +886,31 @@
       <div id="wbs-templates-list" class="stack tight" style="margin-bottom:16px;"></div>
       <div class="form-actions">
         <button type="button" id="btn-close-wbs-templates" class="btn">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-wbs-importar" class="modal-overlay hidden">
+    <div class="modal" style="max-width:640px;">
+      <h2>Importar WBS de uma planilha</h2>
+      <p class="muted">Aceita uma exportação no formato Atividade / Esforço / Início / Fim / Status (ex: exportado de um MS Project). O Responsável fica em branco — você atribui depois. Linhas marcadas como "Pacote de Trabalho" viram itens-pai, agrupando os itens de baixo.</p>
+
+      <div id="wbs-importar-etapa-arquivo">
+        <input type="file" id="wbs-importar-input-arquivo" accept=".xlsx" class="full-width" />
+        <div class="form-actions">
+          <button type="button" id="btn-fechar-wbs-importar" class="btn">Cancelar</button>
+          <button type="button" id="btn-wbs-importar-enviar" class="btn btn-primary">Ler planilha</button>
+        </div>
+      </div>
+
+      <div id="wbs-importar-etapa-previa" class="hidden">
+        <div id="wbs-importar-avisos"></div>
+        <p class="field-label" id="wbs-importar-resumo"></p>
+        <div id="wbs-importar-arvore" style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:10px;"></div>
+        <div class="form-actions">
+          <button type="button" id="btn-wbs-importar-voltar" class="btn">‹ Escolher outro arquivo</button>
+          <button type="button" id="btn-wbs-importar-confirmar" class="btn btn-primary">Confirmar e criar itens</button>
+        </div>
       </div>
     </div>
   </div>
