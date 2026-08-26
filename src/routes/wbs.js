@@ -215,3 +215,96 @@ router.post('/aplicar-modelo', requireAdminIfSetting('restringir_edicao_prazos')
 });
 
 module.exports = router;
+
+// ---------- importar WBS de uma planilha (.xlsx) ----------
+const multer = require('multer');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const { lerPlanilhaWbs, reconstruirHierarquia } = require('../wbsImportar');
+
+const uploadWbs = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 15 * 1024 * 1024 }, // 15MB e mais que suficiente pra uma WBS
+});
+
+// So le e devolve uma previa (arvore reconstruida) - nao cria nada no banco ainda.
+// A pessoa confere/ajusta na tela antes de confirmar de verdade.
+router.post('/importar-preview', requireAdminIfSetting('restringir_edicao_prazos'), uploadWbs.single('arquivo'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'nenhum arquivo enviado' });
+  try {
+    const linhas = await lerPlanilhaWbs(req.file.path);
+    const { itens, avisos } = reconstruirHierarquia(linhas);
+    res.json({ itens, avisos });
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message });
+  } finally {
+    fs.unlink(req.file.path, () => {});
+  }
+});
+
+// Cria de verdade os itens da previa (ja revisada/ajustada pela pessoa, se precisou).
+// Cria pai antes de filho, respeitando a hierarquia (tempId/paiTempId vindos da previa).
+router.post('/importar-confirmar', requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const { itens } = req.body;
+  if (!Array.isArray(itens) || itens.length === 0) return res.status(400).json({ error: 'nenhum item pra importar' });
+
+  const { rows: maxRows } = await pool.query(
+    'SELECT COALESCE(MAX(ordem), -1) AS maxordem FROM wbs_items WHERE project_id = $1 AND parent_id IS NULL',
+    [req.params.id]
+  );
+  let ordemRaiz = maxRows[0].maxordem + 1;
+
+  const idReal = {}; // tempId (da previa) -> id de verdade no banco
+  let criados = 0;
+
+  // ordena pra garantir que todo pai e processado antes dos filhos, mesmo que a
+  // lista venha fora de ordem (segue a mesma logica de "sem pai primeiro")
+  const pendentes = [...itens];
+  const processados = new Set();
+  let progresso = true;
+  while (pendentes.length > 0 && progresso) {
+    progresso = false;
+    for (let i = pendentes.length - 1; i >= 0; i--) {
+      const item = pendentes[i];
+      const paiPronto = item.paiTempId === null || item.paiTempId === undefined || idReal[item.paiTempId] !== undefined;
+      if (!paiPronto) continue;
+
+      const parentIdReal = item.paiTempId !== null && item.paiTempId !== undefined ? idReal[item.paiTempId] : null;
+      const ordem = parentIdReal === null ? ordemRaiz++ : 0;
+
+      const { rows } = await pool.query(
+        `INSERT INTO wbs_items (project_id, parent_id, titulo, status, data_inicio, data_fim, horas_esforco, ordem)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [req.params.id, parentIdReal, item.titulo, item.status || 'Pendente', item.data_inicio || null, item.data_fim || null, item.esforco || 0, ordem]
+      );
+      idReal[item.tempId] = rows[0].id;
+      criados++;
+      pendentes.splice(i, 1);
+      progresso = true;
+    }
+  }
+
+  if (pendentes.length > 0) {
+    // sobrou algum item cujo "pai" nao existe na lista (referencia quebrada) -
+    // insere como item de primeiro nivel, pra nao perder o dado
+    for (const item of pendentes) {
+      const { rows } = await pool.query(
+        `INSERT INTO wbs_items (project_id, parent_id, titulo, status, data_inicio, data_fim, horas_esforco, ordem)
+         VALUES ($1, NULL, $2, $3, $4, $5, $6, $7) RETURNING id`,
+        [req.params.id, item.titulo, item.status || 'Pendente', item.data_inicio || null, item.data_fim || null, item.esforco || 0, ordemRaiz++]
+      );
+      idReal[item.tempId] = rows[0].id;
+      criados++;
+    }
+  }
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', projeto_id: Number(req.params.id),
+    acao: 'criado', autor: getAutor(req), detalhes: `WBS importada de planilha (${criados} item(ns) criados)`,
+  });
+
+  res.json({ ok: true, itensCriados: criados });
+});
+
+module.exports = router;
