@@ -44,13 +44,20 @@ async function carregarChamadosCalculados() {
     LIMIT 1000
   `);
   return rows.map(r => {
-    // horas_qa/gerencial/total_horas/etc so fazem sentido no modo "unico" (sao sempre
-    // calculados ao vivo, nao gravados); no modo "por_recurso" ficam nulos, ja que o
-    // conceito de "um total de horas" nao existe do mesmo jeito.
+    // horas_qa/gerencial/total_horas so fazem sentido no modo "unico" (calculados ao
+    // vivo, nao gravados). Ja o "total geral" de horas faz sentido nos dois modos: no
+    // "unico" vem da formula de QA/Gerencial/Margem; no "por_recurso" e a soma das horas
+    // de cada papel informado (sem formula em cima, ja que cada papel ja vem pronto).
+    // O ajuste manual (total_geral_manual) vale pros dois modos igualmente.
     // Ja o valor financeiro final usa sempre o campo "_real" gravado, que e a fonte de
     // verdade (pode ter sido ajustado manualmente e nao bater 100% com a formula pura).
     let extras = { qa: null, gerencial: null, total_horas: null, horas_margem: null, total_geral: null, total_geral_calculado: null };
-    if (r.modo_precificacao !== 'por_recurso') {
+    if (r.modo_precificacao === 'por_recurso') {
+      const somaHoras = (r.recursos_horas || []).reduce((soma, item) => soma + (Number(item.horas) || 0), 0);
+      const manual = r.total_geral_manual;
+      const totalGeral = (manual !== null && manual !== undefined) ? Number(manual) : somaHoras;
+      extras = { qa: null, gerencial: null, total_horas: somaHoras, horas_margem: null, total_geral: totalGeral, total_geral_calculado: somaHoras };
+    } else {
       const calcAoVivo = calcularChamado({
         horasDev: r.horas_dev,
         pctMargem: r.pct_margem,
