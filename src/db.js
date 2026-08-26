@@ -282,6 +282,7 @@ async function init() {
       valor_projeto_real NUMERIC,
       desconto_negociado_real NUMERIC,
       valor_total_projeto_real NUMERIC,
+      total_geral_manual NUMERIC,
       criado_em TIMESTAMP DEFAULT NOW(),
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
@@ -418,6 +419,7 @@ async function init() {
   }
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS desconto_negociado_real NUMERIC;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_total_projeto_real NUMERIC;');
+  await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS total_geral_manual NUMERIC;');
   // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas
   // tem numeros de chamado legitimamente repetidos entre si.
   await pool.query('ALTER TABLE chamados DROP CONSTRAINT IF EXISTS chamados_numero_key;');

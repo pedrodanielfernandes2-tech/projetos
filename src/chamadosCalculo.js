@@ -21,7 +21,7 @@ function arredondarABNT(valor, casas = 1) {
   return resultado / fator;
 }
 
-function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pctGerencialAplicado, valorHoraAplicado }) {
+function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pctGerencialAplicado, valorHoraAplicado, totalGeralManual }) {
   const dev = Number(horasDev) || 0;
   const pctQA = Number(pctQaAplicado) || 0;
   const pctGerencial = Number(pctGerencialAplicado) || 0;
@@ -31,7 +31,13 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pct
   const gerencial = arredondarABNT((dev + qa) * pctGerencial, 0);
   const totalHoras = arredondarABNT(dev + qa + gerencial, 0);
   const horasMargem = arredondarABNT(totalHoras * (Number(pctMargem) || 0), 0);
-  const totalGeral = arredondarABNT(totalHoras + horasMargem, 0);
+  const totalGeralCalculado = arredondarABNT(totalHoras + horasMargem, 0);
+  // Se alguem ajustou manualmente o Total Geral (ex: arredondar 35h pra 40h, multiplo de
+  // 8), usa esse valor daqui pra frente - inclusive pro calculo do valor financeiro.
+  const totalGeralAjustado = totalGeralManual !== null && totalGeralManual !== undefined && totalGeralManual !== ''
+    ? Number(totalGeralManual)
+    : null;
+  const totalGeral = totalGeralAjustado !== null && !isNaN(totalGeralAjustado) ? totalGeralAjustado : totalGeralCalculado;
   const valorProjeto = totalGeral * valorHora;
   const descontoNegociado = valorProjeto * (Number(pctNegociado) || 0);
   const valorTotalProjeto = valorProjeto - descontoNegociado;
@@ -42,6 +48,7 @@ function calcularChamado({ horasDev, pctMargem, pctNegociado, pctQaAplicado, pct
     total_horas: totalHoras,
     horas_margem: horasMargem,
     total_geral: totalGeral,
+    total_geral_calculado: totalGeralCalculado,
     valor_projeto: valorProjeto,
     desconto_negociado: descontoNegociado,
     valor_total_projeto: valorTotalProjeto,
