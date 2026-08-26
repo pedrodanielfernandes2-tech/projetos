@@ -253,25 +253,37 @@ router.post('/importar-confirmar', requireAdminIfSetting('restringir_edicao_praz
     'SELECT COALESCE(MAX(ordem), -1) AS maxordem FROM wbs_items WHERE project_id = $1 AND parent_id IS NULL',
     [req.params.id]
   );
-  let ordemRaiz = maxRows[0].maxordem + 1;
+  const ordemRaizBase = maxRows[0].maxordem + 1;
+
+  // Calcula a posicao de cada item ENTRE OS IRMAOS (mesmo pai) na ordem original da
+  // planilha, de cima pra baixo - isso precisa ser feito antes de criar qualquer
+  // coisa no banco, pra nao depender da ordem em que os itens sao processados
+  // (que segue a hierarquia: pai antes de filho, nao a sequencia visual da planilha).
+  const ordemEntreIrmaos = {};
+  const contadorPorPai = {};
+  itens.forEach((item) => {
+    const chave = item.paiTempId === null || item.paiTempId === undefined ? 'raiz' : item.paiTempId;
+    const posicao = contadorPorPai[chave] || 0;
+    ordemEntreIrmaos[item.tempId] = posicao;
+    contadorPorPai[chave] = posicao + 1;
+  });
 
   const idReal = {}; // tempId (da previa) -> id de verdade no banco
   let criados = 0;
 
-  // ordena pra garantir que todo pai e processado antes dos filhos, mesmo que a
-  // lista venha fora de ordem (segue a mesma logica de "sem pai primeiro")
+  // processa em ordem topologica (pai sempre antes do filho) - a ORDEM DE EXIBICAO
+  // ja foi calculada acima e nao depende da sequencia de processamento daqui.
   const pendentes = [...itens];
-  const processados = new Set();
   let progresso = true;
   while (pendentes.length > 0 && progresso) {
     progresso = false;
-    for (let i = pendentes.length - 1; i >= 0; i--) {
+    for (let i = 0; i < pendentes.length; i++) {
       const item = pendentes[i];
       const paiPronto = item.paiTempId === null || item.paiTempId === undefined || idReal[item.paiTempId] !== undefined;
       if (!paiPronto) continue;
 
       const parentIdReal = item.paiTempId !== null && item.paiTempId !== undefined ? idReal[item.paiTempId] : null;
-      const ordem = parentIdReal === null ? ordemRaiz++ : 0;
+      const ordem = ordemEntreIrmaos[item.tempId] + (parentIdReal === null ? ordemRaizBase : 0);
 
       const { rows } = await pool.query(
         `INSERT INTO wbs_items (project_id, parent_id, titulo, status, data_inicio, data_fim, horas_esforco, ordem)
@@ -281,6 +293,7 @@ router.post('/importar-confirmar', requireAdminIfSetting('restringir_edicao_praz
       idReal[item.tempId] = rows[0].id;
       criados++;
       pendentes.splice(i, 1);
+      i--;
       progresso = true;
     }
   }
@@ -289,10 +302,11 @@ router.post('/importar-confirmar', requireAdminIfSetting('restringir_edicao_praz
     // sobrou algum item cujo "pai" nao existe na lista (referencia quebrada) -
     // insere como item de primeiro nivel, pra nao perder o dado
     for (const item of pendentes) {
+      const ordem = ordemEntreIrmaos[item.tempId] + ordemRaizBase;
       const { rows } = await pool.query(
         `INSERT INTO wbs_items (project_id, parent_id, titulo, status, data_inicio, data_fim, horas_esforco, ordem)
          VALUES ($1, NULL, $2, $3, $4, $5, $6, $7) RETURNING id`,
-        [req.params.id, item.titulo, item.status || 'Pendente', item.data_inicio || null, item.data_fim || null, item.esforco || 0, ordemRaiz++]
+        [req.params.id, item.titulo, item.status || 'Pendente', item.data_inicio || null, item.data_fim || null, item.esforco || 0, ordem]
       );
       idReal[item.tempId] = rows[0].id;
       criados++;
