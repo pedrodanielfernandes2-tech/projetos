@@ -225,18 +225,22 @@ function arredondarABNT(valor, casas = 1) {
   return resultado / fator;
 }
 
-function calcularChamado({ horasDev, pctMargem, pctNegociado, config }) {
+function calcularChamado({ horasDev, pctMargem, pctNegociado, config, totalGeralManual }) {
   const cfg = config || CONFIG_PADRAO;
   const dev = Number(horasDev) || 0;
   const qa = arredondarABNT(dev * cfg.pctQA, 0);
   const gerencial = arredondarABNT((dev + qa) * cfg.pctGerencial, 0);
   const totalHoras = arredondarABNT(dev + qa + gerencial, 0);
   const horasMargem = arredondarABNT(totalHoras * (Number(pctMargem) || 0), 0);
-  const totalGeral = arredondarABNT(totalHoras + horasMargem, 0);
+  const totalGeralCalculado = arredondarABNT(totalHoras + horasMargem, 0);
+  const totalGeralAjustado = totalGeralManual !== null && totalGeralManual !== undefined && totalGeralManual !== ''
+    ? Number(totalGeralManual)
+    : null;
+  const totalGeral = totalGeralAjustado !== null && !isNaN(totalGeralAjustado) ? totalGeralAjustado : totalGeralCalculado;
   const valorProjeto = totalGeral * cfg.valorHora;
   const descontoNegociado = valorProjeto * (Number(pctNegociado) || 0);
   const valorTotalProjeto = valorProjeto - descontoNegociado;
-  return { qa, gerencial, totalHoras, horasMargem, totalGeral, valorProjeto, descontoNegociado, valorTotalProjeto };
+  return { qa, gerencial, totalHoras, horasMargem, totalGeral, totalGeralCalculado, valorProjeto, descontoNegociado, valorTotalProjeto };
 }
 
 function calcularChamadoPorRecurso({ recursosHoras, pctMargem, pctNegociado }) {
@@ -352,6 +356,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
   const [dataEnvioProposta, setDataEnvioProposta] = useState("");
   const [dataAprovacao, setDataAprovacao] = useState("");
   const [horasDev, setHorasDev] = useState("");
+  const [totalGeralManual, setTotalGeralManual] = useState("");
   const [pctMargem, setPctMargem] = useState("10");
   const [pctNegociado, setPctNegociado] = useState("0");
   const [modeloParcelamentoId, setModeloParcelamentoId] = useState("");
@@ -376,6 +381,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setDataEnvioProposta(chamadoExistente.data_envio_proposta || "");
       setDataAprovacao(chamadoExistente.data_aprovacao || "");
       setHorasDev(String(chamadoExistente.horas_dev ?? ""));
+      setTotalGeralManual(chamadoExistente.total_geral_manual !== null && chamadoExistente.total_geral_manual !== undefined ? String(chamadoExistente.total_geral_manual) : "");
       setPctMargem(String(Number(chamadoExistente.pct_margem || 0) * 100));
       setPctNegociado(String(Number(chamadoExistente.pct_negociado || 0) * 100));
       setModeloParcelamentoId(chamadoExistente.modelo_parcelamento_id ? String(chamadoExistente.modelo_parcelamento_id) : "");
@@ -405,6 +411,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       setDataEnvioProposta("");
       setDataAprovacao("");
       setHorasDev("");
+      setTotalGeralManual("");
       setPctMargem("10");
       setPctNegociado("0");
       setModeloParcelamentoId(modelosParcelamento.find((m) => m.nome.includes("Padrão"))?.id ? String(modelosParcelamento.find((m) => m.nome.includes("Padrão")).id) : "");
@@ -437,6 +444,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
     pctMargem: Number(pctMargem) / 100,
     pctNegociado: Number(pctNegociado) / 100,
     config: cfgCalculo,
+    totalGeralManual,
   });
 
   const tabelaRecursoSelecionada = tabelasRecurso.find((t) => String(t.id) === tabelaRecursoId);
@@ -478,6 +486,7 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
       dataEnvioProposta: dataEnvioProposta || null,
       dataAprovacao: dataAprovacao || null,
       horasDev: Number(horasDev),
+      totalGeralManual: totalGeralManual === "" ? "" : Number(totalGeralManual),
       pctMargem: Number(pctMargem) / 100,
       pctNegociado: Number(pctNegociado) / 100,
       modeloParcelamentoId: modeloParcelamentoId || null,
@@ -807,7 +816,36 @@ function ChamadoFormModal({ aberto, onFechar, onSalvar, salvando, onExcluir, exc
                 <LinhaCalculada label="Total Horas" value={`${fmt(calc.totalHoras)}h`} />
                 <div className="h-px bg-slate-200 my-2" />
                 <LinhaCalculada label="Horas Margem" value={`${fmt(calc.horasMargem)}h`} />
-                <LinhaCalculada label="Total Geral (h)" value={`${fmt(calc.totalGeral)}h`} />
+                <div className="flex items-center justify-between py-1.5 gap-2">
+                  <span className="text-xs text-slate-400">Total Geral (h)</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={totalGeralManual}
+                      onChange={(e) => setTotalGeralManual(e.target.value)}
+                      placeholder={String(calc.totalGeralCalculado)}
+                      className="w-20 text-sm text-right tabular-nums border border-slate-200 rounded px-2 py-1"
+                      style={{ fontFamily: "'IBM Plex Mono', monospace" }}
+                      title="Ajuste manual - por exemplo, arredondar pra um múltiplo de 8. Deixe em branco pra usar o cálculo automático."
+                    />
+                    <span className="text-sm">h</span>
+                    {totalGeralManual !== "" && (
+                      <button
+                        type="button"
+                        onClick={() => setTotalGeralManual("")}
+                        className="text-[11px] text-slate-400 underline hover:text-slate-600"
+                        title="Voltar para o valor calculado automaticamente"
+                      >
+                        automático
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {totalGeralManual !== "" && Number(totalGeralManual) !== calc.totalGeralCalculado && (
+                  <p className="text-[11px] text-amber-600 -mt-1 mb-1">Ajustado manualmente (calculado seria {fmt(calc.totalGeralCalculado)}h)</p>
+                )}
                 <div className="h-px bg-slate-200 my-2" />
               </>
             ) : modoPrecificacao === "por_recurso" ? (
@@ -2747,6 +2785,7 @@ function ChamadosDashboard() {
         tabela_recurso_id: registro.tabelaRecursoId || null,
         recursos_horas: registro.recursosHoras || null,
         valor_fixo: registro.valorFixo || 0,
+        total_geral_manual: registro.totalGeralManual === "" || registro.totalGeralManual === undefined ? null : registro.totalGeralManual,
       };
 
       if (editando) {
