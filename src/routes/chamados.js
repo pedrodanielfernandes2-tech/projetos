@@ -26,6 +26,7 @@ function calcularPorModo(dados) {
     pctQaAplicado: dados.pct_qa_aplicado,
     pctGerencialAplicado: dados.pct_gerencial_aplicado,
     valorHoraAplicado: dados.valor_hora_aplicado,
+    totalGeralManual: dados.total_geral_manual,
   });
 }
 
@@ -48,7 +49,7 @@ async function carregarChamadosCalculados() {
     // conceito de "um total de horas" nao existe do mesmo jeito.
     // Ja o valor financeiro final usa sempre o campo "_real" gravado, que e a fonte de
     // verdade (pode ter sido ajustado manualmente e nao bater 100% com a formula pura).
-    let extras = { qa: null, gerencial: null, total_horas: null, horas_margem: null, total_geral: null };
+    let extras = { qa: null, gerencial: null, total_horas: null, horas_margem: null, total_geral: null, total_geral_calculado: null };
     if (r.modo_precificacao !== 'por_recurso') {
       const calcAoVivo = calcularChamado({
         horasDev: r.horas_dev,
@@ -57,6 +58,7 @@ async function carregarChamadosCalculados() {
         pctQaAplicado: r.pct_qa_aplicado,
         pctGerencialAplicado: r.pct_gerencial_aplicado,
         valorHoraAplicado: r.valor_hora_aplicado,
+        totalGeralManual: r.total_geral_manual,
       });
       extras = {
         qa: calcAoVivo.qa,
@@ -64,6 +66,7 @@ async function carregarChamadosCalculados() {
         total_horas: calcAoVivo.total_horas,
         horas_margem: calcAoVivo.horas_margem,
         total_geral: calcAoVivo.total_geral,
+        total_geral_calculado: calcAoVivo.total_geral_calculado,
       };
     }
     return {
@@ -99,9 +102,9 @@ router.post('/', requireChamadosAuth, async (req, res) => {
         (numero, cliente_id, analista_id, descricao, status, data_abertura, grupo_trabalho, complexidade, proposta_status,
          data_envio_proposta, data_aprovacao, horas_dev, pct_margem, pct_negociado, qtd_parcelas, modelo_parcelamento_id,
          pct_qa_aplicado, pct_gerencial_aplicado, valor_hora_aplicado,
-         modo_precificacao, tabela_recurso_id, recursos_horas, valor_fixo,
+         modo_precificacao, tabela_recurso_id, recursos_horas, valor_fixo, total_geral_manual,
          valor_projeto_real, desconto_negociado_real, valor_total_projeto_real)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24,$25,$26)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22::jsonb,$23,$24,$25,$26,$27)
        RETURNING *`,
       [
         b.numero, b.cliente_id || null, b.analista_id || null, b.descricao || '', b.status || '',
@@ -110,6 +113,7 @@ router.post('/', requireChamadosAuth, async (req, res) => {
         b.horas_dev || 0, b.pct_margem || 0, b.pct_negociado || 0, b.qtd_parcelas || 1, b.modelo_parcelamento_id || null,
         b.pct_qa_aplicado || 0, b.pct_gerencial_aplicado || 0, b.valor_hora_aplicado || 0,
         b.modo_precificacao || 'unico', b.tabela_recurso_id || null, JSON.stringify(b.recursos_horas || null), b.valor_fixo || 0,
+        b.total_geral_manual === '' || b.total_geral_manual === undefined ? null : b.total_geral_manual,
         calc.valor_projeto, calc.desconto_negociado, calc.valor_total_projeto,
       ]
     );
@@ -128,7 +132,7 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
     'numero', 'descricao', 'status', 'analista_id', 'grupo_trabalho', 'complexidade', 'proposta_status',
     'data_envio_proposta', 'data_aprovacao', 'horas_dev', 'pct_margem', 'pct_negociado', 'qtd_parcelas', 'modelo_parcelamento_id',
     'pct_qa_aplicado', 'pct_gerencial_aplicado', 'valor_hora_aplicado', 'cliente_id', 'data_abertura',
-    'modo_precificacao', 'tabela_recurso_id', 'recursos_horas', 'valor_fixo',
+    'modo_precificacao', 'tabela_recurso_id', 'recursos_horas', 'valor_fixo', 'total_geral_manual',
   ];
   // mescla o que ja existia com o que veio no corpo, pra recalcular o valor financeiro com os dados completos
   const mesclado = { ...antigo };
