@@ -1450,6 +1450,7 @@ function renderUsuariosListFiltrada() {
           <span style="color:var(--border);">|</span>
           <label style="display:flex;align-items:center;gap:5px;" title="Papel (não é acesso ao sistema)"><input type="checkbox" data-permissao="eh_gp" style="width:auto;" ${u.eh_gp ? 'checked' : ''}/> É GP</label>
           <label style="display:flex;align-items:center;gap:5px;" title="Papel (não é acesso ao sistema)"><input type="checkbox" data-permissao="eh_implantador" style="width:auto;" ${u.eh_implantador ? 'checked' : ''}/> É Implantador</label>
+          <label style="display:flex;align-items:center;gap:5px;" title="Papel (não é acesso ao sistema)"><input type="checkbox" data-permissao="eh_desenvolvedor" style="width:auto;" ${u.eh_desenvolvedor ? 'checked' : ''}/> É Desenvolvedor</label>
           <span class="permissao-status" style="font-size:11.5px;opacity:0;transition:opacity 0.2s;">✓ Salvo</span>
         </div>
       </div>
@@ -1548,13 +1549,14 @@ document.getElementById('form-usuario').addEventListener('submit', async (e) => 
   const pode_admin = document.getElementById('usuario-pode-admin').checked;
   const eh_gp = document.getElementById('usuario-eh-gp').checked;
   const eh_implantador = document.getElementById('usuario-eh-implantador').checked;
+  const eh_desenvolvedor = document.getElementById('usuario-eh-desenvolvedor').checked;
   if (!nome || !email) return;
   if (senha && senha.length < 6) {
     alert('A senha precisa ter pelo menos 6 caracteres (ou deixe em branco pra convidar por e-mail).');
     return;
   }
   try {
-    const body = { nome, email, pode_projetos, pode_implantacao, pode_equipe, pode_chamados, pode_admin, eh_gp, eh_implantador };
+    const body = { nome, email, pode_projetos, pode_implantacao, pode_equipe, pode_chamados, pode_admin, eh_gp, eh_implantador, eh_desenvolvedor };
     if (senha) body.senha = senha;
     const resultado = await api('/usuarios', { method: 'POST', body: JSON.stringify(body) });
     e.target.reset();
