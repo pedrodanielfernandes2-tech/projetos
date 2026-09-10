@@ -300,7 +300,8 @@ async function init() {
       ativo BOOLEAN DEFAULT TRUE,
       criado_em TIMESTAMP DEFAULT NOW(),
       eh_gp BOOLEAN DEFAULT FALSE,
-      eh_implantador BOOLEAN DEFAULT FALSE
+      eh_implantador BOOLEAN DEFAULT FALSE,
+      eh_desenvolvedor BOOLEAN DEFAULT FALSE
     );
 
     CREATE TABLE IF NOT EXISTS usuarios_tokens (
@@ -431,6 +432,7 @@ async function init() {
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pode_equipe BOOLEAN DEFAULT FALSE;');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eh_gp BOOLEAN DEFAULT FALSE;');
   await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eh_implantador BOOLEAN DEFAULT FALSE;');
+  await pool.query('ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eh_desenvolvedor BOOLEAN DEFAULT FALSE;');
 
   // Migracao (idempotente, pode rodar em todo start sem duplicar nada): traz os cadastros
   // antigos de GPs e Implantadores pra dentro de Usuarios, marcando os papeis certos.
