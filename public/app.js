@@ -2932,8 +2932,10 @@ function buildWbsNode(item, depth, forceExpandIds) {
     <span class="wbs-col-status"><span class="badge ${wbsStatusClass(item.status)}">${item.status}</span></span>
     <span class="wbs-col-criticidade">${wbsCriticidadeBadge(item)}</span>
     <div class="wbs-actions">
-      <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima" title="Mover para cima">↑</button>
-      <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo" title="Mover para baixo">↓</button>
+      <button class="icon-btn" data-wbs-up type="button" aria-label="Mover para cima" title="Mover para cima (entre os irmãos)">↑</button>
+      <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo" title="Mover para baixo (entre os irmãos)">↓</button>
+      <button class="icon-btn" data-wbs-promover type="button" aria-label="Promover um nível" title="Promover: vira irmão do próprio pai (sobe um nível)">⬅</button>
+      <button class="icon-btn" data-wbs-rebaixar type="button" aria-label="Rebaixar um nível" title="Rebaixar: vira filho do item anterior (desce um nível)">➡</button>
       <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item" title="Adicionar sub-item">+</button>
       <button class="icon-btn" data-wbs-duplicar type="button" aria-label="Duplicar item" title="Duplicar item (com os sub-itens)">⧉</button>
       <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item" title="Editar item">✎</button>
@@ -2991,6 +2993,22 @@ function buildWbsNode(item, depth, forceExpandIds) {
   row.querySelector('[data-wbs-down]').onclick = async () => {
     await api(`/wbs/${item.id}/mover`, { method: 'POST', body: JSON.stringify({ direcao: 'down' }) });
     await loadWbsData();
+  };
+  row.querySelector('[data-wbs-promover]').onclick = async () => {
+    try {
+      await api(`/wbs/${item.id}/promover`, { method: 'POST' });
+      await loadWbsData();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+  row.querySelector('[data-wbs-rebaixar]').onclick = async () => {
+    try {
+      await api(`/wbs/${item.id}/rebaixar`, { method: 'POST' });
+      await loadWbsData();
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   return wrapper;
