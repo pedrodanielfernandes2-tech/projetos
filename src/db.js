@@ -59,7 +59,8 @@ async function init() {
       criado_em TIMESTAMP DEFAULT NOW(),
       ultimo_status_notificado TEXT,
       priorizacao_ativa BOOLEAN DEFAULT FALSE,
-      concluido_em TIMESTAMP
+      concluido_em TIMESTAMP,
+      wbs_publico_token TEXT UNIQUE
     );
 
     CREATE TABLE IF NOT EXISTS implantadores (
@@ -329,6 +330,7 @@ async function init() {
   // o contador de dias de atraso no valor que ele tinha naquele momento, em vez de
   // continuar contando pra sempre usando a data de hoje.
   await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS concluido_em TIMESTAMP;');
+  await pool.query('ALTER TABLE projects ADD COLUMN IF NOT EXISTS wbs_publico_token TEXT UNIQUE;');
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS impacto NUMERIC DEFAULT 0;');
   await pool.query('ALTER TABLE wbs_items ADD COLUMN IF NOT EXISTS esforco NUMERIC DEFAULT 0;');
   // Guarda o momento exato em que um item foi marcado como Concluido - usado pra
