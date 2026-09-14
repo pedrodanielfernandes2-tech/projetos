@@ -2922,7 +2922,7 @@ function buildWbsNode(item, depth, forceExpandIds) {
   row.innerHTML = `
     ${temFilhos ? `<button class="wbs-toggle" type="button">${colapsado ? '▸' : '▾'}</button>` : '<span class="wbs-toggle-spacer"></span>'}
     <span class="wbs-numero">${item.numero}</span>
-    <span class="wbs-titulo" style="padding-left:${depth * 20}px" title="${item.titulo}">${item.titulo}</span>
+    <span class="wbs-titulo" title="${item.titulo}"><span class="wbs-titulo-indent" style="width:${Math.min(depth, 6) * 14}px"></span><span class="wbs-titulo-texto">${item.titulo}</span></span>
     <span class="wbs-col-area">${item.area ? `<span class="area-tag">${item.area}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-col-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : '<span class="wbs-empty-cell">—</span>'}</span>
     <span class="wbs-responsavel">${item.responsavel || '<span class="wbs-empty-cell">—</span>'}</span>
@@ -2945,7 +2945,7 @@ function buildWbsNode(item, depth, forceExpandIds) {
   if (item.observacao) {
     const obs = document.createElement('p');
     obs.className = 'wbs-observacao';
-    obs.style.paddingLeft = (84 + depth * 20) + 'px';
+    obs.style.paddingLeft = (84 + Math.min(depth, 6) * 14) + 'px';
     obs.textContent = '💬 ' + item.observacao;
     wrapper.appendChild(obs);
   }
@@ -3022,7 +3022,7 @@ function buildWbsPresentationNode(item, depth) {
 
   row.innerHTML = `
     <span class="wbs-pres-numero">${item.numero}</span>
-    <span class="wbs-pres-titulo" style="padding-left:${depth * 22}px" title="${item.titulo}">${item.titulo}</span>
+    <span class="wbs-pres-titulo" title="${item.titulo}"><span class="wbs-pres-titulo-indent" style="width:${Math.min(depth, 6) * 16}px"></span><span class="wbs-pres-titulo-texto">${item.titulo}</span></span>
     <span class="wbs-pres-area">${item.area ? `<span class="area-tag">${item.area}</span>` : vazio}</span>
     <span class="wbs-pres-acao">${item.acao ? `<span class="wbs-tag-acao">${item.acao}</span>` : vazio}</span>
     <span class="wbs-pres-responsavel">${item.responsavel ? `👤 ${item.responsavel}` : vazio}</span>
@@ -4258,6 +4258,20 @@ function renderWbsImportarArvore(itens) {
 }
 
 document.getElementById('btn-wbs-importar-planilha').addEventListener('click', abrirModalWbsImportar);
+document.getElementById('btn-wbs-link-publico').addEventListener('click', async () => {
+  try {
+    const resultado = await api(`/projects/${state.currentWbsProject.id}/wbs/link-publico`);
+    const link = `${window.location.origin}/wbs-publico.html?token=${resultado.token}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      alert(`Link copiado pra área de transferência:\n\n${link}\n\nQualquer pessoa com esse link vê a WBS completa (sem editar), sem precisar de login.`);
+    } catch (e) {
+      prompt('Copie o link abaixo (qualquer pessoa com ele vê a WBS completa, sem editar, sem precisar de login):', link);
+    }
+  } catch (err) {
+    alert(err.message);
+  }
+});
 document.getElementById('btn-fechar-wbs-importar').addEventListener('click', fecharModalWbsImportar);
 document.getElementById('btn-wbs-importar-voltar').addEventListener('click', () => {
   document.getElementById('wbs-importar-etapa-arquivo').classList.remove('hidden');
