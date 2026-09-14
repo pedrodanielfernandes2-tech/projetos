@@ -14,6 +14,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/adminAuth')); // login do Admin em si (senha unica)
 app.use('/api/chamados-auth', require('./routes/chamadosLogin')); // login do Chamados (senha unica)
 app.use('/api/cron', require('./routes/cron')); // protegido por token proprio (CRON_SECRET), nao por login
+app.use('/api/wbs-publico', require('./routes/wbsPublico')); // acesso publico via token, sem login
 
 // Rota leve, sem tocar no banco de dados, feita pra um servico externo (tipo
 // cron-job.org ou UptimeRobot) chamar periodicamente e manter o Render acordado
