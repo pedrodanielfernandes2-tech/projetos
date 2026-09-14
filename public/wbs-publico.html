@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WBS - Acesso público</title>
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  body { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; background: var(--surface-alt); }
+  .wbs-publico-header { margin-bottom: 20px; }
+  .wbs-publico-header p { color: var(--text-muted); font-size: 13px; margin: 2px 0 0; }
+  .wbs-publico-selo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; margin-top: 8px; }
+  #conteudo-wbs-publico { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 0; }
+  .wbs-publico-vazio, .wbs-publico-erro { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+</style>
+</head>
+<body>
+  <div class="wbs-publico-header">
+    <h1 id="wbs-publico-titulo">Carregando...</h1>
+    <p id="wbs-publico-subtitulo"></p>
+    <span class="wbs-publico-selo">🔒 Link de visualização — somente leitura</span>
+  </div>
+  <div id="conteudo-wbs-publico"><p class="wbs-publico-vazio">Carregando a WBS...</p></div>
+
+  <script>
+    function statusClass(status) {
+      const chave = (status || '').toLowerCase().replace(/\s+/g, '-').replace(/[íÍ]/g, 'i').replace(/[óÓ]/g, 'o');
+      return `badge-wbs-${chave}`;
+    }
+
+    function renderNo(item, depth) {
+      const indentPx = Math.min(depth, 6) * 14;
+      let html = `
+        <div class="wbs-row">
+          <span class="wbs-numero">${item.numero}</span>
+          <span class="wbs-titulo" title="${item.titulo}">
+            <span class="wbs-titulo-indent" style="width:${indentPx}px"></span>
+            <span class="wbs-titulo-texto">${item.titulo}</span>
+          </span>
+          <span class="badge ${statusClass(item.status)}">${item.status || 'Pendente'}</span>
+          <span style="font-size:12px;color:var(--text-muted);min-width:110px;text-align:right;">${item.area || ''}</span>
+          <span style="font-size:12px;color:var(--text-muted);min-width:110px;text-align:right;">${item.responsavel || ''}</span>
+          <span style="font-size:12px;color:var(--text-muted);min-width:150px;text-align:right;">${item.data_inicio ? item.data_inicio.slice(0,10) : '?'} → ${item.data_fim ? item.data_fim.slice(0,10) : '?'}</span>
+        </div>`;
+      if (item.observacao) {
+        html += `<p class="wbs-observacao" style="padding-left:${84 + indentPx}px;">💬 ${item.observacao}</p>`;
+      }
+      (item.filhos || []).forEach((filho) => { html += renderNo(filho, depth + 1); });
+      return html;
+    }
+
+    async function carregar() {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('token');
+      const host = document.getElementById('conteudo-wbs-publico');
+      if (!token) {
+        document.getElementById('wbs-publico-titulo').textContent = 'Link inválido';
+        host.innerHTML = '<p class="wbs-publico-erro">Esse link não tem um token válido.</p>';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/wbs-publico/${token}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'falha ao carregar');
+
+        document.getElementById('wbs-publico-titulo').textContent = data.projeto.nome;
+        document.getElementById('wbs-publico-subtitulo').textContent =
+          [data.projeto.chamado ? 'Chamado ' + data.projeto.chamado : '', data.projeto.cliente_nome || ''].filter(Boolean).join(' · ');
+
+        if (data.tree.length === 0) {
+          host.innerHTML = '<p class="wbs-publico-vazio">Esse projeto ainda não tem itens na WBS.</p>';
+          return;
+        }
+        host.innerHTML = data.tree.map((item) => renderNo(item, 0)).join('');
+      } catch (err) {
+        document.getElementById('wbs-publico-titulo').textContent = 'Não foi possível carregar';
+        host.innerHTML = `<p class="wbs-publico-erro">${err.message}</p>`;
+      }
+    }
+    carregar();
+  </script>
+</body>
+</html>

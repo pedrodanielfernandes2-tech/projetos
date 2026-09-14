@@ -486,7 +486,9 @@ input:focus, select:focus, textarea:focus {
 .wbs-pres-vazio { color: var(--text-muted); opacity: 0.5; }
 .wbs-pres-node:first-child > .wbs-pres-row { border-top: none; }
 .wbs-pres-numero { color: var(--text-muted); font-size: 13px; }
-.wbs-pres-titulo { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbs-pres-titulo { font-weight: 700; display: flex; align-items: center; min-width: 0; }
+.wbs-pres-titulo-indent { flex-shrink: 0; }
+.wbs-pres-titulo-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wbs-pres-responsavel { color: var(--text-muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wbs-pres-datas { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
 .wbs-pres-esforco { color: var(--text-muted); font-size: 14px; white-space: nowrap; }
@@ -526,7 +528,9 @@ input:focus, select:focus, textarea:focus {
 }
 .wbs-toggle-spacer { width: 18px; display: inline-block; }
 .wbs-numero { color: var(--text-muted); font-size: 12px; }
-.wbs-titulo { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wbs-titulo { font-weight: 600; display: flex; align-items: center; min-width: 0; }
+.wbs-titulo-indent { flex-shrink: 0; }
+.wbs-titulo-texto { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .wbs-col-area, .wbs-col-acao { overflow: hidden; }
 .wbs-tag-acao { font-size: 12px; padding: 3px 9px; border-radius: 6px; background: var(--surface-alt); color: var(--text-muted); }
 .wbs-responsavel { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
