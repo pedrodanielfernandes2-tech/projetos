@@ -6,45 +6,64 @@
 <title>WBS - Acesso público</title>
 <link rel="stylesheet" href="/styles.css" />
 <style>
-  body { max-width: 900px; margin: 0 auto; padding: 24px 16px 60px; background: var(--surface-alt); }
-  .wbs-publico-header { margin-bottom: 20px; }
-  .wbs-publico-header p { color: var(--text-muted); font-size: 13px; margin: 2px 0 0; }
-  .wbs-publico-selo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; margin-top: 8px; }
-  #conteudo-wbs-publico { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px 0; }
-  .wbs-publico-vazio, .wbs-publico-erro { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+  /* Layout proprio dessa pagina, de proposito NAO reaproveitando .wbs-row (que no
+     app principal e um grid de 11 colunas fixas, pensado pra tela de edicao) - assim
+     essa pagina publica fica independente e nao quebra se o grid interno mudar. */
+  body { max-width: 880px; margin: 0 auto; padding: 24px 16px 60px; background: var(--surface-alt); font-family: 'Inter', sans-serif; }
+  .wbsp-header { margin-bottom: 20px; }
+  .wbsp-header h1 { font-size: 22px; margin: 0; }
+  .wbsp-header p { color: var(--text-muted); font-size: 13px; margin: 4px 0 0; }
+  .wbsp-selo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 10px; margin-top: 10px; }
+  #wbsp-conteudo { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 6px 0; }
+  .wbsp-vazio, .wbsp-erro { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+
+  .wbsp-item { border-top: 1px solid var(--border); padding: 10px 16px; }
+  .wbsp-item:first-child { border-top: none; }
+  .wbsp-linha1 { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .wbsp-numero { font-size: 11px; color: var(--text-muted); font-weight: 600; flex-shrink: 0; }
+  .wbsp-titulo { font-weight: 600; font-size: 14px; flex: 1; min-width: 140px; }
+  .wbsp-meta { margin-top: 4px; font-size: 12px; color: var(--text-muted); display: flex; gap: 14px; flex-wrap: wrap; }
+  .wbsp-meta span strong { color: var(--text-secondary, #475569); font-weight: 600; }
+  .wbsp-observacao { margin: 6px 0 0; font-size: 12.5px; color: var(--text-muted); background: var(--surface-alt); border-radius: 6px; padding: 6px 10px; }
 </style>
 </head>
 <body>
-  <div class="wbs-publico-header">
-    <h1 id="wbs-publico-titulo">Carregando...</h1>
-    <p id="wbs-publico-subtitulo"></p>
-    <span class="wbs-publico-selo">🔒 Link de visualização — somente leitura</span>
+  <div class="wbsp-header">
+    <h1 id="wbsp-titulo">Carregando...</h1>
+    <p id="wbsp-subtitulo"></p>
+    <span class="wbsp-selo">🔒 Link de visualização — somente leitura</span>
   </div>
-  <div id="conteudo-wbs-publico"><p class="wbs-publico-vazio">Carregando a WBS...</p></div>
+  <div id="wbsp-conteudo"><p class="wbsp-vazio">Carregando a WBS...</p></div>
 
   <script>
-    function statusClass(status) {
-      const chave = (status || '').toLowerCase().replace(/\s+/g, '-').replace(/[íÍ]/g, 'i').replace(/[óÓ]/g, 'o');
-      return `badge-wbs-${chave}`;
-    }
+    // Mesmo mapeamento de cor por status usado no app principal (wbsStatusClass em app.js).
+    const MAPA_STATUS = {
+      'Pendente': 'badge-wbs-pendente',
+      'Em Andamento': 'badge-em-andamento',
+      'Em Elaboração': 'badge-wbs-em-elaboracao',
+      'Homolog./Cliente': 'badge-wbs-homolog-cliente',
+      'Concluído': 'badge-wbs-concluido',
+      'Suspensa': 'badge-wbs-suspensa',
+    };
+    function statusClass(status) { return MAPA_STATUS[status] || 'badge-planejamento'; }
 
     function renderNo(item, depth) {
-      const indentPx = Math.min(depth, 6) * 14;
+      const indentPx = Math.min(depth, 6) * 18;
+      const temData = item.data_inicio || item.data_fim;
       let html = `
-        <div class="wbs-row">
-          <span class="wbs-numero">${item.numero}</span>
-          <span class="wbs-titulo" title="${item.titulo}">
-            <span class="wbs-titulo-indent" style="width:${indentPx}px"></span>
-            <span class="wbs-titulo-texto">${item.titulo}</span>
-          </span>
-          <span class="badge ${statusClass(item.status)}">${item.status || 'Pendente'}</span>
-          <span style="font-size:12px;color:var(--text-muted);min-width:110px;text-align:right;">${item.area || ''}</span>
-          <span style="font-size:12px;color:var(--text-muted);min-width:110px;text-align:right;">${item.responsavel || ''}</span>
-          <span style="font-size:12px;color:var(--text-muted);min-width:150px;text-align:right;">${item.data_inicio ? item.data_inicio.slice(0,10) : '?'} → ${item.data_fim ? item.data_fim.slice(0,10) : '?'}</span>
+        <div class="wbsp-item" style="padding-left:${16 + indentPx}px;">
+          <div class="wbsp-linha1">
+            <span class="wbsp-numero">${item.numero}</span>
+            <span class="wbsp-titulo" title="${item.titulo}">${item.titulo}</span>
+            <span class="badge ${statusClass(item.status)}">${item.status || 'Pendente'}</span>
+          </div>
+          <div class="wbsp-meta">
+            ${item.area ? `<span><strong>Área:</strong> ${item.area}</span>` : ''}
+            ${item.responsavel ? `<span><strong>Responsável:</strong> ${item.responsavel}</span>` : ''}
+            ${temData ? `<span><strong>Prazo:</strong> ${item.data_inicio ? item.data_inicio.slice(0, 10) : '?'} → ${item.data_fim ? item.data_fim.slice(0, 10) : '?'}</span>` : ''}
+          </div>
+          ${item.observacao ? `<p class="wbsp-observacao">💬 ${item.observacao}</p>` : ''}
         </div>`;
-      if (item.observacao) {
-        html += `<p class="wbs-observacao" style="padding-left:${84 + indentPx}px;">💬 ${item.observacao}</p>`;
-      }
       (item.filhos || []).forEach((filho) => { html += renderNo(filho, depth + 1); });
       return html;
     }
@@ -52,10 +71,10 @@
     async function carregar() {
       const params = new URLSearchParams(window.location.search);
       const token = params.get('token');
-      const host = document.getElementById('conteudo-wbs-publico');
+      const host = document.getElementById('wbsp-conteudo');
       if (!token) {
-        document.getElementById('wbs-publico-titulo').textContent = 'Link inválido';
-        host.innerHTML = '<p class="wbs-publico-erro">Esse link não tem um token válido.</p>';
+        document.getElementById('wbsp-titulo').textContent = 'Link inválido';
+        host.innerHTML = '<p class="wbsp-erro">Esse link não tem um token válido.</p>';
         return;
       }
       try {
@@ -63,18 +82,18 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'falha ao carregar');
 
-        document.getElementById('wbs-publico-titulo').textContent = data.projeto.nome;
-        document.getElementById('wbs-publico-subtitulo').textContent =
+        document.getElementById('wbsp-titulo').textContent = data.projeto.nome;
+        document.getElementById('wbsp-subtitulo').textContent =
           [data.projeto.chamado ? 'Chamado ' + data.projeto.chamado : '', data.projeto.cliente_nome || ''].filter(Boolean).join(' · ');
 
         if (data.tree.length === 0) {
-          host.innerHTML = '<p class="wbs-publico-vazio">Esse projeto ainda não tem itens na WBS.</p>';
+          host.innerHTML = '<p class="wbsp-vazio">Esse projeto ainda não tem itens na WBS.</p>';
           return;
         }
         host.innerHTML = data.tree.map((item) => renderNo(item, 0)).join('');
       } catch (err) {
-        document.getElementById('wbs-publico-titulo').textContent = 'Não foi possível carregar';
-        host.innerHTML = `<p class="wbs-publico-erro">${err.message}</p>`;
+        document.getElementById('wbsp-titulo').textContent = 'Não foi possível carregar';
+        host.innerHTML = `<p class="wbsp-erro">${err.message}</p>`;
       }
     }
     carregar();
