@@ -48,6 +48,22 @@ function buildStats(rows) {
   }));
 }
 
+// Gera (ou devolve o ja existente) um token permanente pra acesso publico e
+// somente-leitura da WBS desse projeto - qualquer um com o link ve a WBS
+// completa, sem precisar de login. So quem ja tem acesso ao projeto pode
+// gerar/revelar esse link (fica atras do mesmo gate de permissao do resto da WBS).
+router.get('/link-publico', async (req, res) => {
+  const crypto = require('crypto');
+  const { rows } = await pool.query('SELECT wbs_publico_token FROM projects WHERE id = $1', [req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: 'projeto não encontrado' });
+  let token = rows[0].wbs_publico_token;
+  if (!token) {
+    token = crypto.randomBytes(24).toString('hex');
+    await pool.query('UPDATE projects SET wbs_publico_token = $1 WHERE id = $2', [token, req.params.id]);
+  }
+  res.json({ token });
+});
+
 // conta quantos itens-folha (sem sub-itens) ainda nao tem impacto/esforco preenchidos
 function contarPendentesPriorizacao(tree) {
   let count = 0;
