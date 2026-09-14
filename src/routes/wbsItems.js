@@ -167,4 +167,44 @@ router.post('/:itemId/rebaixar', requireItemWbsDoProprioGp(), requireAdminIfSett
   res.json({ ok: true });
 });
 
+// Achata uma "cadeia reta" (item que so tem UM filho, que so tem UM filho, e assim
+// por diante) - todos viram irmaos do item inicial, no nivel dele. Resolve de uma vez
+// so o caso de itens que foram encaixados fundo demais varias vezes seguidas (ex:
+// clicar em "adicionar sub-item" repetidamente no ultimo item criado por engano).
+router.post('/:itemId/achatar-cadeia', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const inicial = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
+  if (!inicial) return res.status(404).json({ error: 'item nao encontrado' });
+
+  const novoParentId = inicial.parent_id;
+
+  // anda pela cadeia: so continua enquanto o item atual tiver EXATAMENTE um filho
+  // (mais de um filho quebra a cadeia reta, e a gente para ali)
+  const cadeia = [inicial];
+  let atual = inicial;
+  while (true) {
+    const { rows: filhos } = await pool.query('SELECT * FROM wbs_items WHERE parent_id = $1 ORDER BY ordem', [atual.id]);
+    if (filhos.length !== 1) break;
+    cadeia.push(filhos[0]);
+    atual = filhos[0];
+  }
+
+  if (cadeia.length <= 1) return res.json({ ok: true, itensAchatados: 0 });
+
+  const ordemBase = inicial.ordem;
+  await pool.query(
+    `UPDATE wbs_items SET ordem = ordem + $1 WHERE project_id = $2 AND parent_id IS NOT DISTINCT FROM $3 AND ordem > $4`,
+    [cadeia.length - 1, inicial.project_id, novoParentId, ordemBase]
+  );
+  for (let i = 1; i < cadeia.length; i++) {
+    await pool.query('UPDATE wbs_items SET parent_id = $1, ordem = $2 WHERE id = $3', [novoParentId, ordemBase + i, cadeia[i].id]);
+  }
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', entidade_id: inicial.id, projeto_id: inicial.project_id,
+    acao: 'editado', autor: getAutor(req),
+    detalhes: `Cadeia a partir de "${inicial.titulo}" achatada: ${cadeia.length - 1} item(ns) viraram irmãos no mesmo nível`,
+  });
+  res.json({ ok: true, itensAchatados: cadeia.length - 1 });
+});
+
 module.exports = router;
