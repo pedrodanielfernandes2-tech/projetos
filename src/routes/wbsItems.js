@@ -120,4 +120,51 @@ router.post('/:itemId/duplicar', requireItemWbsDoProprioGp(), requireAdminIfSett
   res.status(201).json({ ok: true, id: novoIdRaiz });
 });
 
+// Promove o item pra um nivel acima: ele passa a ser irmao do proprio pai (em vez
+// de filho dele), entrando logo depois dele entre os novos irmaos. Resolve o caso
+// de itens que foram encaixados fundo demais sem querer.
+router.post('/:itemId/promover', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const atual = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
+  if (!atual) return res.status(404).json({ error: 'item nao encontrado' });
+  if (atual.parent_id === null) return res.json({ ok: true }); // ja esta no nivel mais alto, nada a fazer
+
+  const pai = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [atual.parent_id])).rows[0];
+  const novoParentId = pai.parent_id; // pode ser null (o item vira raiz)
+
+  await pool.query(
+    `UPDATE wbs_items SET ordem = ordem + 1 WHERE project_id = $1 AND parent_id IS NOT DISTINCT FROM $2 AND ordem > $3`,
+    [atual.project_id, novoParentId, pai.ordem]
+  );
+  await pool.query('UPDATE wbs_items SET parent_id = $1, ordem = $2 WHERE id = $3', [novoParentId, pai.ordem + 1, atual.id]);
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', entidade_id: atual.id, projeto_id: atual.project_id,
+    acao: 'editado', autor: getAutor(req), detalhes: `Item WBS "${atual.titulo}" promovido pra um nível acima`,
+  });
+  res.json({ ok: true });
+});
+
+// Rebaixa o item: ele vira filho do irmao imediatamente anterior (o de cima, no
+// mesmo nivel), entrando como o ultimo filho dele.
+router.post('/:itemId/rebaixar', requireItemWbsDoProprioGp(), requireAdminIfSetting('restringir_edicao_prazos'), async (req, res) => {
+  const atual = (await pool.query('SELECT * FROM wbs_items WHERE id = $1', [req.params.itemId])).rows[0];
+  if (!atual) return res.status(404).json({ error: 'item nao encontrado' });
+
+  const { rows: anteriores } = await pool.query(
+    `SELECT * FROM wbs_items WHERE project_id = $1 AND parent_id IS NOT DISTINCT FROM $2 AND ordem < $3 ORDER BY ordem DESC LIMIT 1`,
+    [atual.project_id, atual.parent_id, atual.ordem]
+  );
+  const novoPai = anteriores[0];
+  if (!novoPai) return res.status(400).json({ error: 'esse item já é o primeiro do nível dele, não tem um irmão de cima pra virar filho' });
+
+  const { rows: maxRows } = await pool.query('SELECT COALESCE(MAX(ordem), -1) AS maxordem FROM wbs_items WHERE parent_id = $1', [novoPai.id]);
+  await pool.query('UPDATE wbs_items SET parent_id = $1, ordem = $2 WHERE id = $3', [novoPai.id, maxRows[0].maxordem + 1, atual.id]);
+
+  await registrarAuditoria({
+    entidade: 'wbs_item', entidade_id: atual.id, projeto_id: atual.project_id,
+    acao: 'editado', autor: getAutor(req), detalhes: `Item WBS "${atual.titulo}" rebaixado, virou filho de "${novoPai.titulo}"`,
+  });
+  res.json({ ok: true });
+});
+
 module.exports = router;
