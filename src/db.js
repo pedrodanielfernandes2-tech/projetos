@@ -460,6 +460,20 @@ async function init() {
     SELECT i.nome, 'implantador' || i.id || '@pendente.cadastro', TRUE, i.ativo FROM implantadores i
     WHERE NOT EXISTS (SELECT 1 FROM usuarios u WHERE LOWER(TRIM(u.nome)) = LOWER(TRIM(i.nome)));
   `);
+
+  // ---------------------------------------------------------------------------
+  // CONTA DE RECUPERACAO TEMPORARIA - remova esse bloco depois de recuperar o
+  // acesso (ou pelo menos troque a senha dela pra uma sua, pelo proprio Admin).
+  // Roda em todo start do servidor: garante que essa conta exista com admin
+  // total e com a senha abaixo, mesmo que alguem tenha mexido nela sem querer.
+  // Login: recuperacao@sistema.local | Senha: Recovery-9256de26!
+  // ---------------------------------------------------------------------------
+  await pool.query(`
+    INSERT INTO usuarios (nome, email, senha_hash, pode_projetos, pode_implantacao, pode_chamados, pode_admin, pode_equipe, ativo)
+    VALUES ('Recuperação (temporário)', 'recuperacao@sistema.local', '$2b$10$GBfFrA8GnAc/r0eCXXkvnemjLtrVncKZIE2.sA1fA6y0z64xyyj/.', TRUE, TRUE, TRUE, TRUE, TRUE, TRUE)
+    ON CONFLICT (email) DO UPDATE SET
+      senha_hash = EXCLUDED.senha_hash, pode_admin = TRUE, ativo = TRUE;
+  `);
 }
 
 const ready = (async () => {
