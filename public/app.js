@@ -3310,9 +3310,36 @@ document.addEventListener('keydown', (e) => {
 });
 
 document.getElementById('btn-wbs-novo-item').addEventListener('click', () => openWbsItemModal(null, null));
-document.getElementById('btn-wbs-exportar-pdf').addEventListener('click', () => {
+document.getElementById('btn-wbs-exportar-pdf').addEventListener('click', async () => {
   if (!state.currentWbsProject) return;
-  window.open(`/api/projects/${state.currentWbsProject.id}/wbs/pdf`, '_blank');
+  const btn = document.getElementById('btn-wbs-exportar-pdf');
+  const textoOriginal = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Gerando...';
+  try {
+    const headers = {};
+    if (state.usuarioToken) headers['Authorization'] = 'Bearer ' + state.usuarioToken;
+    if (state.adminPassword) headers['x-admin-password'] = state.adminPassword;
+    const res = await fetch(`/api/projects/${state.currentWbsProject.id}/wbs/pdf`, { headers });
+    if (!res.ok) {
+      const erro = await res.json().catch(() => ({ error: 'Falha ao gerar o PDF.' }));
+      throw new Error(erro.error || 'Falha ao gerar o PDF.');
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `WBS-${(state.currentWbsProject.nome || 'projeto').replace(/[^a-z0-9]+/gi, '-')}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = textoOriginal;
+  }
 });
 
 document.getElementById('btn-wbs-salvar-modelo').addEventListener('click', async () => {
