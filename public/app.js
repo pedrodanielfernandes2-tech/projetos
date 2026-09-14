@@ -2936,6 +2936,7 @@ function buildWbsNode(item, depth, forceExpandIds) {
       <button class="icon-btn" data-wbs-down type="button" aria-label="Mover para baixo" title="Mover para baixo (entre os irmãos)">↓</button>
       <button class="icon-btn" data-wbs-promover type="button" aria-label="Promover um nível" title="Promover: vira irmão do próprio pai (sobe um nível)">⬅</button>
       <button class="icon-btn" data-wbs-rebaixar type="button" aria-label="Rebaixar um nível" title="Rebaixar: vira filho do item anterior (desce um nível)">➡</button>
+      ${item.filhos && item.filhos.length === 1 ? '<button class="icon-btn" data-wbs-achatar type="button" aria-label="Achatar cadeia" title="Achatar cadeia: se esse item tem uma sequência de sub-itens encadeados (um dentro do outro), traz todos pro mesmo nível dele de uma vez">🧹</button>' : ''}
       <button class="icon-btn" data-wbs-add-child type="button" aria-label="Adicionar sub-item" title="Adicionar sub-item">+</button>
       <button class="icon-btn" data-wbs-duplicar type="button" aria-label="Duplicar item" title="Duplicar item (com os sub-itens)">⧉</button>
       <button class="icon-btn" data-wbs-edit type="button" aria-label="Editar item" title="Editar item">✎</button>
@@ -3010,6 +3011,21 @@ function buildWbsNode(item, depth, forceExpandIds) {
       alert(err.message);
     }
   };
+  const btnAchatar = row.querySelector('[data-wbs-achatar]');
+  if (btnAchatar) {
+    btnAchatar.onclick = async () => {
+      if (!confirm(`Achatar a cadeia de sub-itens a partir de "${item.titulo}"? Todos os itens encadeados (um dentro do outro) vão virar irmãos, no mesmo nível de "${item.titulo}".`)) return;
+      try {
+        const resultado = await api(`/wbs/${item.id}/achatar-cadeia`, { method: 'POST' });
+        await loadWbsData();
+        if (resultado.itensAchatados > 0) {
+          alert(`${resultado.itensAchatados} item(ns) trazido(s) pro mesmo nível.`);
+        }
+      } catch (err) {
+        alert(err.message);
+      }
+    };
+  }
 
   return wrapper;
 }
