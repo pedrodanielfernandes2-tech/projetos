@@ -90,6 +90,8 @@ const LayoutGrid = (p) => <Icon {...p} path={<><rect x="3" y="3" width="7" heigh
 const Ticket = (p) => <Icon {...p} path={<><path d="M3 8a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-2a2 2 0 0 0 0-4Z"/></>} />;
 const Users = (p) => <Icon {...p} path={<><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.5 3-6 6.5-6s6.5 2.5 6.5 6"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15 14c2.8.4 5 2.6 5 6"/></>} />;
 const FileText = (p) => <Icon {...p} path={<><path d="M6 2h8l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z"/><path d="M9 12h6M9 16h6M14 2v5h5"/></>} />;
+const Eye = (p) => <Icon {...p} path={<><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>} />;
+const EyeOff = (p) => <Icon {...p} path={<><path d="M17.9 17.9A10.6 10.6 0 0 1 12 19c-6.5 0-10-7-10-7a18 18 0 0 1 4.1-5M9.9 5.2A9.7 9.7 0 0 1 12 5c6.5 0 10 7 10 7a18 18 0 0 1-2.2 3.2"/><path d="M14.1 14.1a3 3 0 0 1-4.2-4.2M2 2l20 20"/></>} />;
 const Wallet = (p) => <Icon {...p} path={<><path d="M3 7a2 2 0 0 1 2-2h13a1 1 0 0 1 1 1v3H5"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1V10a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2Z"/><circle cx="16" cy="14" r="1.4"/></>} />;
 const ClipboardList = (p) => <Icon {...p} path={<><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 2h6v4H9z"/><path d="M8 11h8M8 14h8M8 17h5"/></>} />;
 const ChevronRight = (p) => <Icon {...p} path={<path d="M9 6l6 6-6 6"/>} />;
@@ -2694,6 +2696,16 @@ function ChamadosDashboard() {
   });
   const [modalAberto, setModalAberto] = useState(false);
   const [exportandoPdf, setExportandoPdf] = useState(false);
+  // Olho: quando fechado, valores em R$ da Visão Geral ficam embaçados (lembra a escolha neste navegador)
+  const [mostrarValores, setMostrarValores] = useState(() => {
+    try { return localStorage.getItem("chamados_mostrar_valores") !== "0"; } catch (e) { return true; }
+  });
+  const alternarValores = () => setMostrarValores((v) => {
+    const n = !v;
+    try { localStorage.setItem("chamados_mostrar_valores", n ? "1" : "0"); } catch (e) {}
+    return n;
+  });
+  const blurValor = mostrarValores ? "" : "blur-md select-none pointer-events-none";
   const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
   const [configAberto, setConfigAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -3185,6 +3197,26 @@ function ChamadosDashboard() {
       .slice(0, 10);
   }, [chamadosVisiveis, anoFocoAtual]);
 
+  // Ranking completo por cliente - propostas Aprovadas no ano corrente (valor em R$ cheio)
+  const rankingClientesAprovados = useMemo(() => {
+    const dados = {};
+    chamadosVisiveis.forEach((c) => {
+      if (c.proposta_status !== "Aprovado" || !c.data_aprovacao) return;
+      const data = parseDataLocal(c.data_aprovacao);
+      if (!data || data.getFullYear() !== anoFocoAtual) return;
+      const nome = c.cliente_nome || "Sem Cliente";
+      if (!dados[nome]) dados[nome] = { quantidade: 0, valor: 0 };
+      dados[nome].quantidade++;
+      dados[nome].valor += Number(c.valor_total_projeto || 0);
+    });
+    return Object.entries(dados)
+      .map(([nome, d]) => ({ nome, quantidade: d.quantidade, valor: d.valor }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 15);
+  }, [chamadosVisiveis, anoFocoAtual]);
+  const rankingMax = rankingClientesAprovados.length ? rankingClientesAprovados[0].valor : 0;
+  const rankingTotalValor = rankingClientesAprovados.reduce((a, r) => a + r.valor, 0);
+
   // Propostas Bonificadas por Cliente, no ano corrente (usa data de aprovacao ou, na falta, abertura; exclui Cancelado/Encerrado)
   const bonificadasPorCliente = useMemo(() => {
     const dados = {};
@@ -3311,6 +3343,16 @@ function ChamadosDashboard() {
           <div className="flex items-center gap-2">
             {ativo === "visao-geral" && (
               <button
+                onClick={alternarValores}
+                title={mostrarValores ? "Ocultar valores" : "Mostrar valores"}
+                className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 px-3 md:px-4 py-2 md:py-2.5 rounded-lg"
+              >
+                {mostrarValores ? <Eye size={16} /> : <EyeOff size={16} />}
+                <span className="hidden sm:inline">{mostrarValores ? "Valores" : "Ocultos"}</span>
+              </button>
+            )}
+            {ativo === "visao-geral" && (
+              <button
                 onClick={exportarVisaoGeralPdf}
                 disabled={exportandoPdf}
                 className="shrink-0 flex items-center gap-1.5 text-sm font-medium text-slate-700 bg-white border border-slate-200 px-3 md:px-4 py-2 md:py-2.5 rounded-lg disabled:opacity-50"
@@ -3357,7 +3399,7 @@ function ChamadosDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Total de Chamados" value={kpis.total} accent="#0F172A" />
             <KpiCard label="Horas Totais" value={`${Math.round(kpis.totalHoras).toLocaleString("pt-BR")}h`} accent="#3A6EA5" />
-            <KpiCard label="Valor Total" value={formatMoeda(kpis.totalValor)} accent="#0F8A6B" />
+            <KpiCard label="Valor Total" value={<span className={blurValor}>{formatMoeda(kpis.totalValor)}</span>} accent="#0F8A6B" />
             <KpiCard label="Taxa de Conclusão" value={kpis.total ? `${Math.round(((kpis.concluidos + kpis.encerrados) / kpis.total) * 100)}%` : "—"} sub={`${kpis.concluidos + kpis.encerrados} de ${kpis.total}`} accent="#7C3AED" />
           </div>
 
@@ -3377,8 +3419,9 @@ function ChamadosDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-5">
             <h2 className="text-sm font-semibold text-slate-800" style={{fontFamily:"'Poppins', sans-serif"}}>📈 Panorama do Ano — Projetos Aprovados {anoFocoAtual}</h2>
             <p className="text-2xl font-bold text-slate-800 mb-3 mt-1" style={{fontFamily:"'Poppins', sans-serif"}}>
-              {formatMoeda(totalAprovadoAno.valorK * 1000)} <span className="text-sm font-normal text-slate-500">· {totalAprovadoAno.quantidade} projeto(s) no ano</span>
+              <span className={blurValor}>{formatMoeda(totalAprovadoAno.valorK * 1000)}</span> <span className="text-sm font-normal text-slate-500">· {totalAprovadoAno.quantidade} projeto(s) no ano</span>
             </p>
+            <div className={blurValor}>
             <ResponsiveContainer width="100%" height={260}>
               <ComposedChart data={aprovadosPorMes}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -3391,6 +3434,35 @@ function ChamadosDashboard() {
                 <Line yAxisId="right" type="monotone" dataKey="acumulado" name="Acumulado no ano (R$ mil)" stroke="#0F8A6B" strokeWidth={2} dot={{ r: 3 }} />
               </ComposedChart>
             </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-lg p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+              <h2 className="text-sm font-semibold text-slate-800" style={{fontFamily:"'Poppins', sans-serif"}}>🏆 Ranking de Clientes — Propostas Aprovadas {anoFocoAtual}</h2>
+              <span className="text-xs text-slate-500">{rankingClientesAprovados.length} cliente(s) · <span className={blurValor}>{formatMoeda(rankingTotalValor)}</span></span>
+            </div>
+            {rankingClientesAprovados.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-10">Nenhuma proposta aprovada em {anoFocoAtual}.</p>
+            ) : (
+              <div className="space-y-2">
+                {rankingClientesAprovados.map((r, i) => {
+                  const pct = rankingMax > 0 ? Math.max(2, (r.valor / rankingMax) * 100) : 2;
+                  const part = rankingTotalValor > 0 ? (r.valor / rankingTotalValor) * 100 : 0;
+                  return (
+                    <div key={r.nome} className="flex items-center gap-3">
+                      <div className="w-7 text-center text-sm font-bold" style={{ color: i === 0 ? "#E0A526" : i === 1 ? "#94A3B8" : i === 2 ? "#C4573D" : "#94A3B8" }}>{i + 1}º</div>
+                      <div className="w-32 sm:w-44 text-sm text-slate-700 truncate" title={r.nome}>{r.nome}</div>
+                      <div className="flex-1 min-w-0 bg-slate-100 rounded h-5 overflow-hidden">
+                        <div className={`h-full rounded ${blurValor}`} style={{ width: `${pct}%`, backgroundColor: i === 0 ? "#E0A526" : "#3A6EA5" }} />
+                      </div>
+                      <div className={`w-28 text-right text-sm font-semibold text-slate-800 tabular-nums ${blurValor}`}>{formatMoeda(r.valor)}</div>
+                      <div className="hidden sm:block w-24 text-right text-xs text-slate-500">{r.quantidade} proposta(s) · {part.toFixed(0)}%</div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <div className="bg-white border border-slate-200 rounded-lg p-5">
@@ -3398,6 +3470,7 @@ function ChamadosDashboard() {
             {comparativoAnual.anos.length === 0 ? (
               <p className="text-sm text-slate-400 text-center py-16">Ainda não há dados de anos anteriores para comparar.</p>
             ) : (
+              <div className={blurValor}>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart data={comparativoAnual.linhas}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -3410,6 +3483,7 @@ function ChamadosDashboard() {
                   ))}
                 </LineChart>
               </ResponsiveContainer>
+              </div>
             )}
           </div>
 
@@ -3531,6 +3605,7 @@ function ChamadosDashboard() {
 
             <div className="bg-white border border-slate-200 rounded-lg p-5">
               <h2 className="text-sm font-semibold text-slate-800 mb-3" style={{fontFamily:"'Poppins', sans-serif"}}>Top 10 Clientes - Projetos Aprovados {anoFocoAtual}</h2>
+              <div className={blurValor}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={top10ClientesAprovados} layout="vertical" margin={{ left: 10 }}>
                   <XAxis type="number" tick={{ fontSize: 11 }} />
@@ -3539,6 +3614,7 @@ function ChamadosDashboard() {
                   <Bar dataKey="valor" fill="#E0A526" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+              </div>
             </div>
 
             <div className="bg-white border border-slate-200 rounded-lg p-5">
@@ -3546,6 +3622,7 @@ function ChamadosDashboard() {
               {bonificadasPorCliente.length === 0 ? (
                 <p className="text-sm text-slate-400 text-center py-16">Nenhuma proposta bonificada encontrada para {anoFocoAtual}.</p>
               ) : (
+                <div className={blurValor}>
                 <ResponsiveContainer width="100%" height={260}>
                   <BarChart data={bonificadasPorCliente} layout="vertical" margin={{ left: 10 }}>
                     <XAxis type="number" tick={{ fontSize: 11 }} />
@@ -3554,6 +3631,7 @@ function ChamadosDashboard() {
                     <Bar dataKey="valor" fill="#EC4899" radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
+                </div>
               )}
             </div>
 
