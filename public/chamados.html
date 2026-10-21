@@ -3405,7 +3405,7 @@ function ChamadosDashboard() {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-500 mr-1">Cliente:</span>
-            {["Todos", ...[...new Set(chamadosVisiveis.map((c) => c.cliente_nome).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"))].map((nome) => {
+            {["Todos", ...topClientes.map((c) => c.nome), ...(clienteFiltro !== "Todos" && !topClientes.some((c) => c.nome === clienteFiltro) ? [clienteFiltro] : [])].map((nome) => {
               const selecionado = clienteFiltro === nome;
               return (
                 <button key={nome} onClick={() => setClienteFiltro(nome)} className="text-sm px-3.5 py-1.5 rounded-full transition-colors"
@@ -3414,6 +3414,17 @@ function ChamadosDashboard() {
                 </button>
               );
             })}
+            <select
+              value=""
+              onChange={(e) => { if (e.target.value) setClienteFiltro(e.target.value); }}
+              className="text-sm px-3 py-1.5 rounded-full bg-white text-slate-600 border border-slate-200"
+            >
+              <option value="">Outros clientes…</option>
+              {[...new Set(chamadosVisiveis.map((c) => c.cliente_nome).filter(Boolean))]
+                .filter((n) => !topClientes.some((c) => c.nome === n))
+                .sort((x, y) => x.localeCompare(y, "pt-BR"))
+                .map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
           </div>
 
           <div className="bg-white border border-slate-200 rounded-lg p-5">
