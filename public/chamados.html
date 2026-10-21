@@ -3405,7 +3405,7 @@ function ChamadosDashboard() {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-500 mr-1">Cliente:</span>
-            {["Todos", ...topClientes.map((c) => c.nome)].map((nome) => {
+            {["Todos", ...[...new Set(chamadosVisiveis.map((c) => c.cliente_nome).filter(Boolean))].sort((a, b) => a.localeCompare(b, "pt-BR"))].map((nome) => {
               const selecionado = clienteFiltro === nome;
               return (
                 <button key={nome} onClick={() => setClienteFiltro(nome)} className="text-sm px-3.5 py-1.5 rounded-full transition-colors"
