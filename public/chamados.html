@@ -3395,7 +3395,7 @@ function ChamadosDashboard() {
           ) : ativo === "financeiro" ? (
             <ValoresMargemPage chamados={chamadosData} onEditar={(c) => { setChamadoEmEdicao(c); setModalAberto(true); }} />
           ) : (
-            <div id="visao-geral-export-area">
+            <div id="visao-geral-export-area" className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Total de Chamados" value={kpis.total} accent="#0F172A" />
             <KpiCard label="Horas Totais" value={`${Math.round(kpis.totalHoras).toLocaleString("pt-BR")}h`} accent="#3A6EA5" />
