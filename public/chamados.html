@@ -2705,7 +2705,7 @@ function ChamadosDashboard() {
     try { localStorage.setItem("chamados_mostrar_valores", n ? "1" : "0"); } catch (e) {}
     return n;
   });
-  const blurValor = mostrarValores ? "" : "blur-md select-none pointer-events-none";
+  const blurValor = mostrarValores ? "" : "blur-sm select-none pointer-events-none";
   const [chamadoEmEdicao, setChamadoEmEdicao] = useState(null);
   const [configAberto, setConfigAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -3399,13 +3399,13 @@ function ChamadosDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <KpiCard label="Total de Chamados" value={kpis.total} accent="#0F172A" />
             <KpiCard label="Horas Totais" value={`${Math.round(kpis.totalHoras).toLocaleString("pt-BR")}h`} accent="#3A6EA5" />
-            <KpiCard label="Valor Total" value={<span className={blurValor}>{formatMoeda(kpis.totalValor)}</span>} accent="#0F8A6B" />
+            <KpiCard label="Valor Total" value={<span className={mostrarValores ? "" : "inline-block overflow-hidden align-bottom"}><span className={`inline-block ${blurValor}`}>{formatMoeda(kpis.totalValor)}</span></span>} accent="#0F8A6B" />
             <KpiCard label="Taxa de Conclusão" value={kpis.total ? `${Math.round(((kpis.concluidos + kpis.encerrados) / kpis.total) * 100)}%` : "—"} sub={`${kpis.concluidos + kpis.encerrados} de ${kpis.total}`} accent="#7C3AED" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-slate-500 mr-1">Cliente:</span>
-            {["Todos", ...topClientes.map((c) => c.nome), ...(clienteFiltro !== "Todos" && !topClientes.some((c) => c.nome === clienteFiltro) ? [clienteFiltro] : [])].map((nome) => {
+            {["Todos", ...topClientes.map((c) => c.nome)].map((nome) => {
               const selecionado = clienteFiltro === nome;
               return (
                 <button key={nome} onClick={() => setClienteFiltro(nome)} className="text-sm px-3.5 py-1.5 rounded-full transition-colors"
@@ -3415,9 +3415,10 @@ function ChamadosDashboard() {
               );
             })}
             <select
-              value=""
+              value={clienteFiltro !== "Todos" && !topClientes.some((c) => c.nome === clienteFiltro) ? clienteFiltro : ""}
               onChange={(e) => { if (e.target.value) setClienteFiltro(e.target.value); }}
-              className="text-sm px-3 py-1.5 rounded-full bg-white text-slate-600 border border-slate-200"
+              className="text-sm px-3 py-1.5 rounded-full border max-w-[180px]"
+              style={clienteFiltro !== "Todos" && !topClientes.some((c) => c.nome === clienteFiltro) ? { backgroundColor: BRAND_BLUE, color: "#fff", fontWeight: 600, borderColor: BRAND_BLUE } : { backgroundColor: "#fff", color: "#475569", borderColor: "#e2e8f0" }}
             >
               <option value="">Outros clientes…</option>
               {[...new Set(chamadosVisiveis.map((c) => c.cliente_nome).filter(Boolean))]
