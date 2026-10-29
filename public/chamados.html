@@ -3106,6 +3106,14 @@ function ChamadosDashboard() {
           body: JSON.stringify({ ...payload, cliente_id: cliente.id }),
         });
       }
+      // Chamado acabou de virar "Concluido": mantém a janela aberta, já com o bloco
+      // "Proposta Comercial" (Abrir proposta) à mostra, em vez de fechar e obrigar a procurar o chamado.
+      const virouConcluido = editando && registro.status === "Concluido" && chamadoEmEdicao && chamadoEmEdicao.status !== "Concluido";
+      if (virouConcluido) {
+        const atualizado = await sbFetch(`/chamados?id=eq.${registro.id}`);
+        await carregarTudo();
+        if (atualizado && atualizado[0]) { setChamadoEmEdicao(atualizado[0]); return; }
+      }
       setModalAberto(false);
       setChamadoEmEdicao(null);
       await carregarTudo();
