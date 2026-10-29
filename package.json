@@ -16,6 +16,7 @@
     "csv-parse": "^7.0.1",
     "dotenv": "^16.4.5",
     "exceljs": "^4.4.0",
+    "jszip": "^3.10.1",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",

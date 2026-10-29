@@ -2,6 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
 const { calcularChamado, calcularChamadoPorRecurso, calcularChamadoValorFixo } = require('../chamadosCalculo');
+const { criarRascunhoProposta } = require('../propostaRascunho');
 const router = express.Router();
 
 // Calcula o valor financeiro de um chamado de acordo com o modo escolhido - 'unico'
@@ -30,7 +31,7 @@ function calcularPorModo(dados) {
   });
 }
 
-async function carregarChamadosCalculados() {
+async function carregarChamadosCalculados(idUnico = null) {
   const { rows } = await pool.query(`
     SELECT ch.*, cl.nome AS cliente_nome, an.nome AS analista_nome,
       mp.nome AS modelo_parcelamento_nome, mp.parcelas AS modelo_parcelamento_parcelas,
@@ -40,9 +41,10 @@ async function carregarChamadosCalculados() {
     LEFT JOIN chamados_analistas an ON an.id = ch.analista_id
     LEFT JOIN chamados_modelos_parcelamento mp ON mp.id = ch.modelo_parcelamento_id
     LEFT JOIN chamados_tabelas_recurso tr ON tr.id = ch.tabela_recurso_id
+    WHERE ($1::int IS NULL OR ch.id = $1::int)
     ORDER BY ch.criado_em DESC
     LIMIT 1000
-  `);
+  `, [idUnico]);
   return rows.map(r => {
     // horas_qa/gerencial/total_horas so fazem sentido no modo "unico" (calculados ao
     // vivo, nao gravados). Ja o "total geral" de horas faz sentido nos dois modos: no
@@ -124,6 +126,7 @@ router.post('/', requireChamadosAuth, async (req, res) => {
         calc.valor_projeto, calc.desconto_negociado, calc.valor_total_projeto,
       ]
     );
+    if (rows[0] && rows[0].status === 'Concluido') await criarRascunhoProposta(rows[0].id).catch((e) => console.error('rascunho proposta:', e.message));
     res.status(201).json(rows);
   } catch (e) {
     res.status(400).json({ error: 'falha ao criar chamado: ' + e.message });
@@ -170,6 +173,10 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
 
   valores.push(req.params.id);
   await pool.query(`UPDATE chamados SET ${campos.join(', ')} WHERE id = $${i}`, valores);
+  // chamado passou a "Concluido": ja deixa a proposta comercial pre-pronta (rascunho)
+  if (b.status === 'Concluido' && antigo.status !== 'Concluido') {
+    await criarRascunhoProposta(Number(req.params.id)).catch((e) => console.error('rascunho proposta:', e.message));
+  }
   res.json({ ok: true });
 });
 
@@ -181,3 +188,4 @@ router.delete('/:id', requireChamadosAuth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.carregarChamadosCalculados = carregarChamadosCalculados;

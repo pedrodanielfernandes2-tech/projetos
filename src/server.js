@@ -30,6 +30,7 @@ app.use('/api/implantacao', require('./routes/implantacao'));
 
 // ---------- modulo Chamados (mantem seu proprio gate por senha unica, por enquanto) ----------
 app.use('/api/chamados', require('./routes/chamados'));
+app.use('/api/chamados-propostas', require('./routes/chamadosPropostas'));
 app.use('/api/chamados-clientes', require('./routes/chamadosClientes'));
 app.use('/api/chamados-analistas', require('./routes/chamadosAnalistas'));
 app.use('/api/chamados-config', require('./routes/chamadosConfig'));

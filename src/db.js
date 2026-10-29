@@ -423,6 +423,29 @@ async function init() {
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS desconto_negociado_real NUMERIC;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS valor_total_projeto_real NUMERIC;');
   await pool.query('ALTER TABLE chamados ADD COLUMN IF NOT EXISTS total_geral_manual NUMERIC;');
+  // Proposta Comercial (rascunho gerado quando o chamado vira "Concluido"; um por chamado)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS chamados_propostas (
+      id SERIAL PRIMARY KEY,
+      chamado_id INTEGER UNIQUE REFERENCES chamados(id) ON DELETE CASCADE,
+      numero INTEGER,
+      titulo TEXT DEFAULT '',
+      cliente_nome TEXT DEFAULT '',
+      contato TEXT DEFAULT '',
+      data_publicacao DATE,
+      horas NUMERIC DEFAULT 0,
+      valor_hora NUMERIC DEFAULT 0,
+      parcelas INTEGER DEFAULT 1,
+      dias_primeira INTEGER DEFAULT 15,
+      dias_intervalo INTEGER DEFAULT 30,
+      aprovado_ate DATE,
+      inicio_previsto DATE,
+      texto_extra TEXT DEFAULT '',
+      status TEXT DEFAULT 'rascunho',
+      criado_em TIMESTAMP DEFAULT NOW(),
+      atualizado_em TIMESTAMP DEFAULT NOW()
+    );
+  `);
   // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas
   // tem numeros de chamado legitimamente repetidos entre si.
   await pool.query('ALTER TABLE chamados DROP CONSTRAINT IF EXISTS chamados_numero_key;');
