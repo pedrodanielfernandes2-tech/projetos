@@ -93,7 +93,7 @@ async function baixar(req, res, tipo) {
   const p = (await pool.query('SELECT * FROM chamados_propostas WHERE id = $1', [req.params.id])).rows[0];
   if (!p) return res.status(404).json({ error: 'proposta nao encontrada' });
   try {
-    const nome = `Proposta comercial - ${p.numero}.${tipo}`;
+    const nome = `Proposta Comercial - ${p.numero}.${tipo}`;
     const buf = tipo === 'docx' ? await gerarDocx(p) : await gerarPdf(p);
     res.setHeader('Content-Type', tipo === 'docx'
       ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'application/pdf');
