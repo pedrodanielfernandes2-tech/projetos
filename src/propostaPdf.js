@@ -122,18 +122,26 @@ function gerarPdf(d) {
     titulo2('6  – Forma de pagamento');
     paragrafo(T.textoPagamento(d.parcelas, d.dias_primeira, d.dias_intervalo), { size: 9.5 });
 
-    titulo2('7  - Prazo de validade');
-    const apTxt = prazo.ap ? `${String(prazo.ap.dia).padStart(2, '0')}/${String(prazo.ap.mes).padStart(2, '0')}` : '__/__';
-    paragrafoMisto([
-      [`O projeto sendo aprovado até o dia ${apTxt} a programação para início das atividades no `, false],
-      [`ambiente de homologação do cliente é no dia ${prazo.inicio}`, true], ['.', false],
-    ]);
-    paragrafo('Após a conclusão do desenvolvimento, serão planejadas e executadas as etapas de instalação, homologação e validação da solução em conjunto com a equipe de implantação e gerente de Projetos da Visual Mix e a equipe do cliente, conforme cronograma a ser definido entre as partes.');
+    const comDatas = !!(d.aprovado_ate || d.inicio_previsto);
+    if (comDatas) {
+      titulo2('7  - Prazo de validade');
+      const apTxt = prazo.ap ? `${String(prazo.ap.dia).padStart(2, '0')}/${String(prazo.ap.mes).padStart(2, '0')}` : '__/__';
+      paragrafoMisto([
+        [`O projeto sendo aprovado até o dia ${apTxt} a programação para início das atividades no `, false],
+        [`ambiente de homologação do cliente é no dia ${prazo.inicio}`, true], ['.', false],
+      ]);
+      paragrafo('Após a conclusão do desenvolvimento, serão planejadas e executadas as etapas de instalação, homologação e validação da solução em conjunto com a equipe de implantação e gerente de Projetos da Visual Mix e a equipe do cliente, conforme cronograma a ser definido entre as partes.');
+    } else {
+      titulo2('7  - Prazo para realização do projeto');
+      paragrafo('O projeto terá início em até 30 dias após a aprovação desta proposta comercial.');
+      titulo2('8  - Prazo de validade');
+      paragrafo('A presente proposta é válida por 15 dias a contar da data de sua emissão. Estamos à disposição para quaisquer esclarecimentos adicionais.');
+    }
     String(d.texto_extra || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean).forEach((t) => paragrafo(t));
 
     // ---- confirmacao de pedido
     novaPagina();
-    titulo2('8 - Confirmação de Pedido');
+    titulo2(`${comDatas ? 8 : 9} - Confirmação de Pedido`);
     y += 6;
     const linha = (rotulo, x, yy, larg) => {
       doc.font('Helvetica').fontSize(10).fillColor(TXT).text(rotulo, x, yy, { lineBreak: false });

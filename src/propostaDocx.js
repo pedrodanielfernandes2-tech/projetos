@@ -38,6 +38,37 @@ async function gerarDocx(d) {
   const titulo = String(d.titulo || '').replace(/\s+/g, ' ').trim();
   const horasTxt = String(Number.isInteger(horas) ? horas : String(horas).replace('.', ','));
 
+  // ---- itens 7/8: por padrao "Prazo para realizacao" + "Prazo de validade" (texto padrao);
+  // so usa a variante com datas ("aprovando ate ... inicio previsto") se alguma data foi informada.
+  const comDatas = !!(d.aprovado_ate || d.inicio_previsto);
+  const folhas = () => /<w:p [^>]*>(?:(?!<w:p[ >])[\s\S])*?<\/w:p>/g;
+  const achar = (xml, trecho) => { const re = folhas(); let m; while ((m = re.exec(xml))) { if (m[0].includes(trecho)) return m[0]; } return null; };
+  const soTexto = (par, texto) => {   // mantem o 1o run e a quebra de pagina (se houver); troca o texto
+    const quebra = /<w:r(?: [^>]*)?>(?:(?!<w:r[ >])[\s\S])*?<w:br w:type="page"\/><\/w:r>/.exec(par);
+    let primeiro = true;
+    let novo = par.replace(quebra ? quebra[0] : '@@nada@@', '@@QUEBRA@@')
+      .replace(/<w:r(?: [^>]*)?>(?:(?!<w:r[ >])[\s\S])*?<\/w:r>/g, (r) => {
+        if (!primeiro) return '';
+        primeiro = false;
+        return r.replace(/<w:t(?: [^>]*)?>[^<]*<\/w:t>/, `<w:t xml:space="preserve">${esc(texto)}</w:t>`);
+      });
+    return novo.replace('@@QUEBRA@@', quebra ? quebra[0] : '');
+  };
+  const semIds = (par) => par.replace(/ w14:paraId="[^"]*"/, '').replace(/ w14:textId="[^"]*"/, '');
+  if (!comDatas) {
+    const titulo7 = achar(doc, ' Prazo de validade');
+    const corpo7 = achar(doc, 'O projeto sendo aprovado até o dia');
+    const corpo8 = achar(doc, 'Após a conclusão do desenvolvimento');
+    if (!titulo7 || !corpo7 || !corpo8) throw new Error('modelo de proposta mudou: itens de prazo nao encontrados');
+    const espaco = (() => { const i = doc.indexOf(titulo7) + titulo7.length; return /^<w:p [^>]*>(?:(?!<w:p[ >])[\s\S])*?<\/w:p>/.exec(doc.slice(i))[0]; })();
+    const novoTitulo7 = titulo7.replace(' Prazo de validade', ' Prazo para realização do projeto');
+    const titulo8 = semIds(titulo7);
+    const novoCorpo7 = soTexto(corpo7, 'O projeto terá início em até 30 dias após a aprovação desta proposta comercial.');
+    const novoCorpo8 = soTexto(corpo8, 'A presente proposta é válida por 15 dias a contar da data de sua emissão. Estamos à disposição para quaisquer esclarecimentos adicionais.');
+    doc = doc.replace(titulo7, novoTitulo7).replace(corpo7, novoCorpo7 + semIds(espaco) + titulo8 + semIds(espaco))
+             .replace(corpo8, novoCorpo8);
+  }
+
   // ---- cabecalho / capa
   doc = trocarRun(doc, '23/10/2026', dataPub);
   doc = trocarRun(doc, '30336', String(d.numero));
@@ -65,18 +96,20 @@ async function gerarDocx(d) {
     T.textoPagamento(d.parcelas, d.dias_primeira, d.dias_intervalo));
 
   // ---- prazo: "aprovado ate o dia 30/10 ... inicio no dia 23 de novembro de 2026"
+  if (comDatas) {
   doc = trocarRun(doc, '30', prazo.ap ? String(prazo.ap.dia).padStart(2, '0') : '__');
   doc = trocarRun(doc, '10', prazo.ap ? String(prazo.ap.mes).padStart(2, '0') : '__');
   doc = trocarRun(doc, '23', prazo.ini ? String(prazo.ini.dia) : '__');
   doc = trocarRun(doc, 'novembro', prazo.ini ? T.MESES[prazo.ini.mes - 1] : '______');
   doc = trocarRun(doc, ' de 2026', prazo.ini ? ` de ${prazo.ini.ano}` : ' de ____');
+  }
 
   // ---- texto adicional (livre): paragrafos extras depois do ultimo paragrafo de prazo
   const extra = String(d.texto_extra || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
   if (extra.length) {
     const re = /<w:p [^>]*>(?:(?!<w:p[ >])[\s\S])*?<\/w:p>/g;
     let alvo = null, m;
-    while ((m = re.exec(doc))) { if (m[0].includes('Após a conclusão do desenvolvimento')) { alvo = m[0]; break; } }
+    while ((m = re.exec(doc))) { if (m[0].includes(comDatas ? 'Após a conclusão do desenvolvimento' : 'A presente proposta é válida por 15 dias')) { alvo = m[0]; break; } }
     if (!alvo) throw new Error('modelo de proposta mudou: paragrafo de conclusao nao encontrado');
     const semQuebraBase = alvo.replace(/<w:r(?: [^>]*)?>(?:(?!<w:r[ >])[\s\S])*?<w:br w:type="page"\/><\/w:r>/, '');
     const clonar = (texto) => {

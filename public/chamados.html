@@ -1664,6 +1664,9 @@ function PropostaComercialPage({ focoChamadoId, onFocoConsumido }) {
             <div><label className={rot}>1ª parcela (dias)</label><input type="number" className={inp} value={e.dias_primeira ?? 15} onChange={(ev) => campo("dias_primeira", ev.target.value)} /></div>
             <div><label className={rot}>Intervalo (dias)</label><input type="number" className={inp} value={e.dias_intervalo ?? 30} onChange={(ev) => campo("dias_intervalo", ev.target.value)} /></div>
           </div>
+          <div className="md:col-span-2 text-xs text-slate-500 bg-amber-50 border border-amber-100 rounded-lg px-4 py-2.5">
+            <b>Itens 7 e 8 da proposta:</b> deixando as duas datas abaixo em branco, sai o texto padrão (início em até 30 dias após a aprovação · validade de 15 dias). Preencha só quando esta proposta tiver datas específicas.
+          </div>
           <div><label className={rot}>Aprovando até o dia</label><input type="date" className={inp} value={dataInput(e.aprovado_ate)} onChange={(ev) => campo("aprovado_ate", ev.target.value)} /></div>
           <div><label className={rot}>Início previsto das atividades</label><input type="date" className={inp} value={dataInput(e.inicio_previsto)} onChange={(ev) => campo("inicio_previsto", ev.target.value)} /></div>
           <div className="md:col-span-2"><label className={rot}>Texto adicional (opcional — entra ao fim do item "Prazo de validade"; uma linha = um parágrafo)</label>
