@@ -2,7 +2,7 @@ const express = require('express');
 const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
 const { calcularChamado, calcularChamadoPorRecurso, calcularChamadoValorFixo } = require('../chamadosCalculo');
-const { criarRascunhoProposta } = require('../propostaRascunho');
+const { criarRascunhoProposta, atualizarHorasDaProposta } = require('../propostaRascunho');
 const router = express.Router();
 
 // Calcula o valor financeiro de um chamado de acordo com o modo escolhido - 'unico'
@@ -176,6 +176,13 @@ router.patch('/:id', requireChamadosAuth, async (req, res) => {
   // chamado passou a "Concluido": ja deixa a proposta comercial pre-pronta (rascunho)
   if (b.status === 'Concluido' && antigo.status !== 'Concluido') {
     await criarRascunhoProposta(Number(req.params.id)).catch((e) => console.error('rascunho proposta:', e.message));
+  }
+  // proposta ainda em rascunho acompanha as horas/valor do chamado quando eles mudam
+  const mexeuEmHoras = ['horas_dev', 'pct_margem', 'pct_negociado', 'pct_qa_aplicado', 'pct_gerencial_aplicado', 'valor_hora_aplicado',
+    'modo_precificacao', 'recursos_horas', 'valor_fixo', 'total_geral_manual'].some((c) => b[c] !== undefined);
+  if (mexeuEmHoras) {
+    const prop = (await pool.query("SELECT id FROM chamados_propostas WHERE chamado_id = $1 AND status = 'rascunho'", [req.params.id])).rows[0];
+    if (prop) await atualizarHorasDaProposta(Number(req.params.id)).catch((e) => console.error('sync proposta:', e.message));
   }
   res.json({ ok: true });
 });

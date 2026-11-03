@@ -1594,6 +1594,17 @@ function PropostaComercialPage({ focoChamadoId, onFocoConsumido }) {
     finally { setSalvando(false); }
   };
 
+  const atualizarDoChamado = async () => {
+    setErro("");
+    try {
+      const novo = await (await pFetch(`/${editando.id}/atualizar-do-chamado`, { method: "POST" })).json();
+      setEditando((e) => ({ ...e, horas: novo.horas, valor_hora: novo.valor_hora }));
+      setAviso("Horas e valor/hora atualizados a partir do chamado (Total Geral).");
+      setTimeout(() => setAviso(""), 3500);
+      carregar();
+    } catch (err) { setErro(err.message); }
+  };
+
   const baixar = async (p, tipo, salvarAntes) => {
     setBaixando(`${p.id}-${tipo}`); setErro("");
     try {
@@ -1654,9 +1665,10 @@ function PropostaComercialPage({ focoChamadoId, onFocoConsumido }) {
           <div><label className={rot}>A/C (contato do cliente)</label><input className={inp} value={e.contato || ""} onChange={(ev) => campo("contato", ev.target.value)} /></div>
           <div><label className={rot}>Data de publicação</label><input type="date" className={inp} value={dataInput(e.data_publicacao)} onChange={(ev) => campo("data_publicacao", ev.target.value)} /></div>
           <div><label className={rot}>Nº do chamado</label><input className={`${inp} bg-slate-50`} value={e.numero || ""} disabled /></div>
-          <div><label className={rot}>Horas (pacote)</label><input type="number" step="0.5" className={inp} value={e.horas ?? ""} onChange={(ev) => campo("horas", ev.target.value)} /></div>
+          <div><label className={rot}>Horas (pacote) — vem do Total Geral (h) do chamado</label><input type="number" step="0.5" className={inp} value={e.horas ?? ""} onChange={(ev) => campo("horas", ev.target.value)} /></div>
           <div><label className={rot}>Valor/hora (R$)</label><input type="number" step="0.01" className={inp} value={e.valor_hora ?? ""} onChange={(ev) => campo("valor_hora", ev.target.value)} /></div>
-          <div className="md:col-span-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-4 py-3">
+          <div className="md:col-span-2 text-sm text-slate-600 bg-slate-50 rounded-lg px-4 py-3 flex flex-wrap items-center gap-2">
+            <button type="button" onClick={atualizarDoChamado} className="text-xs text-slate-700 bg-white border border-slate-200 rounded px-2.5 py-1 mr-2">↻ Atualizar horas e valor do chamado</button>
             Valor total do pacote: <b>{fmtMoeda2(total)}</b> <span className="text-slate-400">({e.horas || 0}h × {fmtMoeda2(e.valor_hora)})</span>
           </div>
           <div><label className={rot}>Nº de parcelas (sem juros)</label><input type="number" min="1" className={inp} value={e.parcelas ?? 1} onChange={(ev) => campo("parcelas", ev.target.value)} /></div>

@@ -1,7 +1,7 @@
 const express = require('express');
 const { pool } = require('../db');
 const { requireChamadosAuth } = require('../chamadosAuth');
-const { criarRascunhoProposta } = require('../propostaRascunho');
+const { criarRascunhoProposta, atualizarHorasDaProposta } = require('../propostaRascunho');
 const { gerarDocx } = require('../propostaDocx');
 const { gerarPdf } = require('../propostaPdf');
 const router = express.Router();
@@ -79,6 +79,17 @@ router.patch('/:id(\\d+)', gate, async (req, res) => {
     const { rowCount } = await pool.query(`UPDATE chamados_propostas SET ${sets.join(', ')}, atualizado_em = NOW() WHERE id = $${vals.length}`, vals);
     if (!rowCount) return res.status(404).json({ error: 'proposta nao encontrada' });
     res.json({ ok: true });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// Puxa de novo as horas (Total Geral) e o valor/hora do chamado
+router.post('/:id(\\d+)/atualizar-do-chamado', gate, async (req, res) => {
+  try {
+    const p = (await pool.query('SELECT chamado_id FROM chamados_propostas WHERE id = $1', [req.params.id])).rows[0];
+    if (!p) return res.status(404).json({ error: 'proposta nao encontrada' });
+    res.json(await atualizarHorasDaProposta(p.chamado_id));
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
