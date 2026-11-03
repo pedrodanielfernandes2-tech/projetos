@@ -441,11 +441,15 @@ async function init() {
       aprovado_ate DATE,
       inicio_previsto DATE,
       texto_extra TEXT DEFAULT '',
+      def_versao TEXT DEFAULT '01',
+      def_link TEXT DEFAULT '',
       status TEXT DEFAULT 'rascunho',
       criado_em TIMESTAMP DEFAULT NOW(),
       atualizado_em TIMESTAMP DEFAULT NOW()
     );
   `);
+  await pool.query("ALTER TABLE chamados_propostas ADD COLUMN IF NOT EXISTS def_versao TEXT DEFAULT '01'");
+  await pool.query("ALTER TABLE chamados_propostas ADD COLUMN IF NOT EXISTS def_link TEXT DEFAULT ''");
   // Remove a restricao de numero unico: os dados reais migrados de 34 planilhas
   // tem numeros de chamado legitimamente repetidos entre si.
   await pool.query('ALTER TABLE chamados DROP CONSTRAINT IF EXISTS chamados_numero_key;');

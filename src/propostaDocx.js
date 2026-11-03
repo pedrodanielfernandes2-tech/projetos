@@ -79,7 +79,10 @@ async function gerarDocx(d) {
 
   // ---- premissas
   // (o nome do documento de escopo "DEF001c<numero>v01.pdf" usa o numero do chamado, ja trocado acima)
-  doc = doc.replace(/<w:hyperlink [^>]*>/g, '').replace(/<\/w:hyperlink>/g, '').replace(/<w:rStyle w:val="Hyperlink"\/>/g, '');
+  // nome do documento de escopo: DEF001c<numero>v<versao>.pdf, com link (ex.: OneDrive) se informado
+  const linkDef = T.linkValido(d.def_link);
+  if (!linkDef) doc = doc.replace(/<w:hyperlink [^>]*>/g, '').replace(/<\/w:hyperlink>/g, '').replace(/<w:rStyle w:val="Hyperlink"\/>/g, '');
+  doc = trocarRun(doc, 'v01.pdf', `v${T.versaoDef(d.def_versao)}.pdf`);
   doc = trocarRun(doc, '162,94', T.moedaBR(valorHora));
   doc = trocarRun(doc, 'cento e sessenta e', extHora.inicio);
   doc = trocarRun(doc, 'dois reais', extHora.final);
@@ -135,6 +138,12 @@ async function gerarDocx(d) {
   const volta = (x) => x.replace(/@@K(\d+)@@/g, (m, i) => _tokens[Number(i)]);
   doc = volta(doc); rodape = volta(rodape);
   zip.file('word/document.xml', doc);
+  if (linkDef) {
+    const relsArq = 'word/_rels/document.xml.rels';
+    let rels = await zip.file(relsArq).async('string');
+    rels = rels.replace(/(<Relationship [^>]*Id="rId11"[^>]*Target=")[^"]*(")/, (m, a, b) => `${a}${esc(linkDef).replace(/"/g, '&quot;')}${b}`);
+    zip.file(relsArq, rels);
+  }
   // Os campos da capa/rodape sao "controles de conteudo" ligados as propriedades do
   // arquivo (titulo, assunto, categoria, empresa, data de publicacao). O Word relê essas
   // propriedades ao abrir, entao elas tambem precisam ser atualizadas.

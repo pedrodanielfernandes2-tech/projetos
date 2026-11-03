@@ -91,4 +91,13 @@ function textoPrazo(d) {
   return { aprovado, inicio, ap, ini };
 }
 
-module.exports = { valorPorExtenso, inteiroPorExtenso, moedaBR, dataBR, partesData, textoPagamento, textoPrazo, MESES };
+// Versao da DEF: aceita "2", "02", "V02", "v2" -> "02"
+function versaoDef(v) {
+  const n = String(v == null ? '' : v).replace(/[^0-9]/g, '');
+  if (!n) return '01';
+  return n.length === 1 ? `0${n}` : n;
+}
+function nomeDef(numero, versao) { return `DEF001c${numero}v${versaoDef(versao)}.pdf`; }
+function linkValido(l) { return /^https?:\/\//i.test(String(l || '').trim()) ? String(l).trim() : ''; }
+
+module.exports = { versaoDef, nomeDef, linkValido, valorPorExtenso, inteiroPorExtenso, moedaBR, dataBR, partesData, textoPagamento, textoPrazo, MESES };

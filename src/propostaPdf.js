@@ -104,7 +104,21 @@ function gerarPdf(d) {
     marcador('O cliente deverá disponibilizar um recurso para acompanhar as tarefas executadas pelo profissional Visual Mix.');
     marcador('O cliente deverá disponibilizar o ambiente de homologação para validação');
     marcador('As tarefas deste projeto serão executadas de forma remota.');
-    marcador(`O escopo deste projeto é baseado no documento DEF001c${d.numero}v01.pdf, previamente aprovado pelo ${cliente}.`);
+    {
+      const nomeDef = T.nomeDef(d.numero, d.def_versao);
+      const linkDef = T.linkValido(d.def_link);
+      const t1 = 'O escopo deste projeto é baseado no documento ', t3 = `, previamente aprovado pelo ${cliente}.`;
+      doc.font('Helvetica').fontSize(10.5);
+      const h = doc.heightOfString(t1 + nomeDef + t3, { width: CW - 34, align: 'justify', lineGap: 2 });
+      garante(h + 4);
+      doc.fillColor(AZUL).font('Helvetica-Bold').text('›', ML + 14, y, { width: 10 });
+      const o = { width: CW - 34, align: 'left', lineGap: 2, continued: true };
+      doc.fillColor(TXT).font('Helvetica').text(t1, ML + 34, y, o);
+      if (linkDef) doc.fillColor('#1155CC').text(nomeDef, { ...o, link: linkDef, underline: true });
+      else doc.fillColor(TXT).text(nomeDef, o);
+      doc.fillColor(TXT).text(t3, { ...o, continued: false, underline: false, link: null });
+      y += h + 4;
+    }
     marcador('Eventuais alterações de escopo serão tratadas como novas solicitações, após a respectiva aprovação de especificação e proposta comercial.');
     marcador(`O valor/hora praticado pela Visual Mix é de R$ ${T.moedaBR(valorHora)} (${extHora.completo}), valor este corrigido anualmente pelo IGP-M (Índice Geral de Preços – Mercado), calculado pelo Instituto Brasileiro de Economia da Fundação Getúlio Vargas (FGV IBRE).`);
 

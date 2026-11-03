@@ -1585,7 +1585,7 @@ function PropostaComercialPage({ focoChamadoId, onFocoConsumido }) {
         horas: Number(e.horas) || 0, valor_hora: Number(e.valor_hora) || 0, parcelas: Number(e.parcelas) || 1,
         dias_primeira: Number(e.dias_primeira) || 15, dias_intervalo: Number(e.dias_intervalo) || 30,
         aprovado_ate: dataInput(e.aprovado_ate), inicio_previsto: dataInput(e.inicio_previsto),
-        texto_extra: e.texto_extra || "", status: e.status || "rascunho",
+        texto_extra: e.texto_extra || "", def_versao: e.def_versao || "01", def_link: e.def_link || "", status: e.status || "rascunho",
       }) });
       if (!silencioso) { setAviso("Proposta salva."); setTimeout(() => setAviso(""), 2500); }
       carregar();
@@ -1681,6 +1681,11 @@ function PropostaComercialPage({ focoChamadoId, onFocoConsumido }) {
           </div>
           <div><label className={rot}>Aprovando até o dia</label><input type="date" className={inp} value={dataInput(e.aprovado_ate)} onChange={(ev) => campo("aprovado_ate", ev.target.value)} /></div>
           <div><label className={rot}>Início previsto das atividades</label><input type="date" className={inp} value={dataInput(e.inicio_previsto)} onChange={(ev) => campo("inicio_previsto", ev.target.value)} /></div>
+          <div className="md:col-span-2 text-xs text-slate-500 bg-sky-50 border border-sky-100 rounded-lg px-4 py-2.5">
+            <b>Documento de escopo (DEF):</b> aparece nas premissas como <b>DEF001c{e.numero}v{(String(e.def_versao || "01").replace(/[^0-9]/g, "") || "01").padStart(2, "0")}.pdf</b>. Informe a versão aprovada pelo cliente e, se quiser, o link do documento (OneDrive) para ele ficar clicável na proposta.
+          </div>
+          <div><label className={rot}>Versão da DEF aprovada (ex.: 01, 02, 04)</label><input className={inp} value={e.def_versao ?? "01"} onChange={(ev) => campo("def_versao", ev.target.value)} /></div>
+          <div><label className={rot}>Link da DEF (OneDrive) — opcional</label><input className={inp} placeholder="https://1drv.ms/..." value={e.def_link || ""} onChange={(ev) => campo("def_link", ev.target.value)} /></div>
           <div className="md:col-span-2"><label className={rot}>Texto adicional (opcional — entra ao fim do item "Prazo de validade"; uma linha = um parágrafo)</label>
             <textarea rows={3} className={inp} value={e.texto_extra || ""} onChange={(ev) => campo("texto_extra", ev.target.value)} /></div>
           <div><label className={rot}>Situação</label>

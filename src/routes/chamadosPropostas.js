@@ -62,7 +62,7 @@ router.get('/:id(\\d+)', gate, async (req, res) => {
 });
 
 const CAMPOS = ['numero', 'titulo', 'cliente_nome', 'contato', 'data_publicacao', 'horas', 'valor_hora', 'parcelas',
-  'dias_primeira', 'dias_intervalo', 'aprovado_ate', 'inicio_previsto', 'texto_extra', 'status'];
+  'dias_primeira', 'dias_intervalo', 'aprovado_ate', 'inicio_previsto', 'texto_extra', 'def_versao', 'def_link', 'status'];
 const NULAVEIS = new Set(['data_publicacao', 'aprovado_ate', 'inicio_previsto']);
 
 router.patch('/:id(\\d+)', gate, async (req, res) => {
